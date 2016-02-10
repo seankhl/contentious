@@ -1,6 +1,6 @@
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
-BIN_NAME := trie_tests
+BIN_NAME := trie-tests
 # Compiler used
 CXX ?= g++
 # Extension of source files used in the project
@@ -10,15 +10,15 @@ SRC_PATH = ./ps-vec
 # Space-separated pkg-config libraries used by this project
 LIBS = 
 # General compiler flags
-COMPILE_FLAGS = -std=c++14 -Wall -Wextra -g
+COMPILE_FLAGS = -std=c++14 -march=native -Wall -Wextra
 # Additional release-specific flags
-RCOMPILE_FLAGS =
+RCOMPILE_FLAGS = -D RELEASE -O2
 # Additional debug-specific flags
-DCOMPILE_FLAGS = -D DEBUG
+DCOMPILE_FLAGS = -D DEBUG -Og -g
 # Add additional include paths
 INCLUDES = -I ./include
 # General linker settings
-LINK_FLAGS = -lzmq -lprotobuf
+LINK_FLAGS = #-lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS = 
 # Additional debug-specific linker settings
@@ -77,10 +77,10 @@ install: export BIN_PATH := bin/release
 # Find all source files in the source directory, sorted by most
 # recently modified
 SOURCES = $(shell find $(SRC_PATH)/ -name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
-					| sort -k 1nr | cut -f2-)
+				| sort -k 1nr | cut -f2-)
 # fallback in case the above fails
 rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard,$d/,$2) \
-						$(filter $(subst *,%,$2), $d))
+				$(filter $(subst *,%,$2), $d))
 ifeq ($(SOURCES),)
 	SOURCES := $(call rwildcard, $(SRC_PATH)/, *.$(SRC_EXT))
 endif
@@ -91,15 +91,18 @@ OBJECTS = $(SOURCES:$(SRC_PATH)/%.$(SRC_EXT)=$(BUILD_PATH)/%.o)
 # Set the dependency files that will be used to add header dependencies
 DEPS = $(OBJECTS:.o=.d)
 
+.PHONY: all
+all: debug
+
 # Standard, non-optimized release build
 .PHONY: release
 release: dirs
-	@$(MAKE) all --no-print-directory
+	@$(MAKE) build --no-print-directory
 
 # Debug build for gdb debugging
 .PHONY: debug
 debug: dirs
-	@$(MAKE) all --no-print-directory
+	@$(MAKE) build --no-print-directory
 
 # Create the directories used in the build
 .PHONY: dirs
@@ -141,7 +144,8 @@ clean:
 	@$(RM) -r bin
 
 # Main rule, checks the executable and symlinks to the output
-all: $(BIN_PATH)/$(BIN_NAME)
+.PHONY: build
+build: $(BIN_PATH)/$(BIN_NAME)
 	@$(RM) $(BIN_NAME)
 	@ln -s $(BIN_PATH)/$(BIN_NAME) $(BIN_NAME)
 
