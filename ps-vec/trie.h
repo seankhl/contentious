@@ -6,6 +6,7 @@
 #include <memory>
 #include <array>
 #include <cmath>
+#include <iostream>
 
 // br means branches
     
@@ -53,16 +54,30 @@ public:
     size_t capacity() const;
 
     // value-related getters
-    T get(const size_t i) const;
+    const T &operator[](size_t i) const;
+    const T &at(size_t i) const;
+    T &operator[](size_t i);
+    T &at(size_t i);
     
     void set(const size_t i, const T val);
     void push_back(const T val);
     void insert(const size_t i, const T val);
     T remove(const size_t i);
 
-    PS_Trie<T> pers_set(const size_t i, const T val);
-    PS_Trie<T> pers_push_back(const T val);
+    PS_Trie pers_set(const size_t i, const T val);
+    PS_Trie pers_push_back(const T val);
     //PS_Trie<T> pers_insert(const size_t i, const T val);
+
+    friend std::ostream &operator<<(std::ostream &out, const PS_Trie &data)
+	{
+        out << "PS_Trie[ ";
+        for (size_t i = 0; i < data.capacity(); ++i) {
+            out << data.at(i) << " ";
+        }
+        out << "]/PS_TRIE";
+        return out;
+    }
+
 };
 
 

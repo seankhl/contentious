@@ -12,11 +12,11 @@ LIBS =
 # General compiler flags
 COMPILE_FLAGS = -std=c++14 -march=native -Wall -Wextra
 # Additional release-specific flags
-RCOMPILE_FLAGS = -D RELEASE -O2
+RCOMPILE_FLAGS = -DRELEASE -O2
 # Additional debug-specific flags
-DCOMPILE_FLAGS = -D DEBUG -Og -g
+DCOMPILE_FLAGS = -DDEBUG -Og -g
 # Add additional include paths
-INCLUDES = -I ./include
+INCLUDES = -I./include
 # General linker settings
 LINK_FLAGS = #-lzmq -lprotobuf
 # Additional release-specific linker settings

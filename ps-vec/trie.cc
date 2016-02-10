@@ -1,6 +1,9 @@
 #include "trie.h"
+#include "util.h"
 
 #include <iostream>
+#include <string>
+#include <stdexcept>
 #include <math.h>
 #include <assert.h>
 
@@ -37,11 +40,14 @@ uint8_t PS_Trie<T>::get_depth() const
 template <typename T>
 size_t PS_Trie<T>::capacity() const
 {
+    if (sz == 0) {
+        return 0;
+    }
     return pow(br_sz, calc_depth());
 }    
 
 template <typename T>
-T PS_Trie<T>::get(const size_t i) const
+const T &PS_Trie<T>::operator[](size_t i) const
 {
     const PS_Node<T> *node = root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
@@ -49,8 +55,30 @@ T PS_Trie<T>::get(const size_t i) const
         node = node->br[i >> s & br_mask].get();
     }
     //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << std::endl;
-    const std::array<double,br_sz> &test = node->val;
     return node->val[i & br_mask];
+}
+
+template <typename T>
+const T &PS_Trie<T>::at(size_t i) const
+{
+    if (i >= sz) {  // presumably, throw an exception... 
+        throw std::out_of_range("trie has size " + std::to_string(sz) +
+                                ", given index " + std::to_string(i));
+    }
+    return this->operator[](i);
+}
+
+template <typename T>
+T &PS_Trie<T>::operator[](size_t i)
+{
+    // boilerplate implementation in terms of const version
+    return const_cast<T &>(implicit_cast<const PS_Trie<T> *>(this)->operator[](i));
+}
+
+template <typename T>
+T &PS_Trie<T>::at(size_t i)
+{
+    return const_cast<T &>(implicit_cast<const PS_Trie<T> *>(this)->at(i));
 }
 
 // undefined behavior if i >= sz
@@ -75,12 +103,10 @@ PS_Trie<T> PS_Trie<T>::pers_set(const size_t i, const T val)
     PS_Trie<T> ret = *this;
     // copy root node and get it in a variable
     ret.root = std::make_shared<PS_Node<T>>(*root);
-    //ret.root.reset(root.get());
     PS_Node<T> *node = ret.root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
         //std::cout << "s: " << s << "; ind: " << (i >> s & br_mask) << "; addr: " << node << std::endl;
         node->br[i >> s & br_mask] = std::make_shared<PS_Node<T>>(*(node->br[i >> s & br_mask]));
-        //node->br[i >> s & br_mask].reset(node->br[i >> s & br_mask].get());
         node = node->br[i >> s & br_mask].get();
     }
     //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << "; addr: " << node << std::endl;
@@ -170,8 +196,8 @@ PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
     if (sz == 0) {
         ret.root = std::make_shared<PS_Node<T>>();
         ret.root->val[ret.sz++] = val;
-        return ret;
     }
+    return ret;
     /*
     // we're gonna have to construct new nodes, or rotate
     uint8_t depth = calc_depth();
