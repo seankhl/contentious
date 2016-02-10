@@ -1,9 +1,9 @@
 // Copyright David Abrahams 2003.
-// Distributed under the Boost Software License, Version 1.0. (See
-// accompanying file LICENSE_1_0.txt or copy at
-// http://www.boost.org/LICENSE_1_0.txt)
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 #ifndef IMPLICIT_CAST_DWA200356_HPP
 # define IMPLICIT_CAST_DWA200356_HPP
+
 
 namespace detail {
 
@@ -13,6 +13,7 @@ template<class T> struct icast_identity
 };
 
 } // namespace detail
+
 
 // implementation originally suggested by C. Green in
 // http://lists.boost.org/MailArchives/boost/msg00886.php
@@ -24,9 +25,6 @@ inline T implicit_cast (typename detail::icast_identity<T>::type x) {
     return x;
 }
 
-// incomplete return type now is here
-//template <typename T>
-//void implicit_cast (...);
-
 
 #endif // IMPLICIT_CAST_DWA200356_HPP
+
