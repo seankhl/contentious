@@ -7,6 +7,7 @@
 #include <math.h>
 #include <assert.h>
 
+
 template <typename T>
 using PS_Trie_ptr = std::shared_ptr<PS_Trie<T>>;
 template <typename T>
@@ -51,7 +52,7 @@ const T &PS_Trie<T>::operator[](size_t i) const
 {
     const PS_Node<T> *node = root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        //std::cout << "s: " << s << "; ind: " << (i >> s & br_mask) << std::endl;
+        DEBUG_CERR("s: " << s << "; ind: " << (i >> s & br_mask));
         node = node->br[i >> s & br_mask].get();
     }
     //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << std::endl;
@@ -110,7 +111,6 @@ PS_Trie<T> PS_Trie<T>::pers_set(const size_t i, const T val)
         node = node->br[i >> s & br_mask].get();
     }
     //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << "; addr: " << node << std::endl;
-    PS_Node<T> seg = *node;
     node->val[i & br_mask] = val;
     return ret;
 }
@@ -124,7 +124,7 @@ void PS_Trie<T>::push_back(const T val)
         return;
     }
     
-    // simple case for empty tree
+    // simple case for empty trie
     if (sz == 0) {
         root = std::make_shared<PS_Node<T>>();
         root->val[sz++] = val;
@@ -134,7 +134,7 @@ void PS_Trie<T>::push_back(const T val)
     // we're gonna have to construct new nodes, or rotate
     size_t depth_cap = capacity();
     //std::cout << "original depth cap: " << depth_cap << std::endl;
-    // depth at which to insert new tree
+    // depth at which to insert new node
     int16_t depth_ins = -1;
     // figure out how deep we must travel to branch
     while (sz % depth_cap != 0) {
@@ -143,18 +143,18 @@ void PS_Trie<T>::push_back(const T val)
         //std::cout << "sz: " << sz << "; depth_cap: " << unsigned(depth_cap) << std::endl;
     }
 
-    // must rotate tree, as it's totally full (new root)
+    // must rotate trie, as it's totally full (new root)
     if (depth_ins == -1) {
-        //std::cout << "rotating tree" << std::endl;
+        //std::cout << "rotating trie" << std::endl;
         // update appropriate values
         shift += BITPART_SZ;
-        // rotate tree
+        // rotate trie
         auto temp = std::make_shared<PS_Node<T>>();
         root.swap(temp);
         root->br[0] = std::move(temp);
     } 
 
-    // travel to branch of tree where new node will be constructed (if any)
+    // travel to branch of trie where new node will be constructed (if any)
     PS_Node<T> *node = root.get();
     int16_t s = shift;
     while (depth_ins > 0) {
@@ -192,19 +192,19 @@ PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
         return ret.pers_set(ret.sz++, val);
     }
     
-    // simple case for empty tree
+    // simple case for empty trie
     if (sz == 0) {
         ret.root = std::make_shared<PS_Node<T>>();
         ret.root->val[ret.sz++] = val;
+        return ret;
     }
-    return ret;
-    /*
+    
     // we're gonna have to construct new nodes, or rotate
     uint8_t depth = calc_depth();
     // subvector capacity at this depth
     size_t depth_cap = pow(br_sz, depth);
     //std::cout << "original depth cap: " << depth_cap << std::endl;
-    // depth at which to insert new tree
+    // depth at which to insert new node
     int16_t depth_ins = -1;
     // figure out how deep we must travel to branch
     while (sz % depth_cap != 0) {
@@ -212,34 +212,45 @@ PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
         depth_cap /= br_sz;
         //std::cout << "sz: " << sz << "; depth_cap: " << unsigned(depth_cap) << std::endl;
     }
+    
+    //std::cout << "root ptr: " << ret.root.get() << std::endl;
+    //auto temp = std::make_shared<PS_Node<T>>();
+    //std::copy(ret.root->br.begin(), ret.root->br.end(), temp->br.begin());
+    //ret.root = temp;
+    ret.root = std::make_shared<PS_Node<T>>(*root);
+    //std::cout << "root ptr: " << ret.root.get() << std::endl;
 
-    // must rotate tree, as it's totally full (new root, depth == -1)
+    // must rotate trie, as it's totally full (new root, depth_ins is -1)
     if (depth_ins == -1) {
-        //std::cout << "rotating tree" << std::endl;
+        //std::cout << "rotating trie" << std::endl;
         // update appropriate values
-        shift += BITPART_SZ;
+        ret.shift += BITPART_SZ;
         ++depth;
-        // rotate tree
+        // rotate trie
         auto temp = std::make_shared<PS_Node<T>>();
-        root.swap(temp);
-        root->br[0] = std::move(temp);
+        ret.root.swap(temp);
+        ret.root->br[0] = std::move(temp);
     } 
 
-    // travel to branch of tree where new node will be constructed (if any)
-    PS_Node<T> *node = root.get();
-    int16_t s = shift;
+    // travel to branch of trie where new node will be constructed (if any)
+    PS_Node<T> *node = ret.root.get();
+    //std::cout << "ret root ptr: " << ret.root->br[0].get() << std::endl;
+    int16_t s = ret.shift;
     while (depth_ins > 0) {
         if (!node->br[sz >> s & br_mask]) {
             std::cout << "Constructing node where one should have already been" << std::endl;
             node->br[sz >> s & br_mask] = std::make_shared<PS_Node<T>>();
         }
+
+        //std::cout << "Copy-chain for pers-vec: depth_ins = " << depth_ins << std::endl;
+        node->br[sz >> s & br_mask] = std::make_shared<PS_Node<T>>(*node->br[sz >> s & br_mask]);
         node = node->br[sz >> s & br_mask].get();
         s -= BITPART_SZ;
         --depth_ins;
     }
     // we're either at the top, the bottom or somewhere in-between...
     //std::cout << "s: " << s << std::endl;
-    assert(s <= shift && s >= 0);
+    assert(s <= ret.shift && s >= 0);
     
     // keep going, but this time, construct new nodes as necessary
     while (s > 0) {
@@ -251,8 +262,8 @@ PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
     // add value
     //std::cout << "s: " << s << "; ind: " << (sz & br_mask) << "; addr: " << node << std::endl;
     node->val[sz & br_mask] = val;
-    ++sz;
-    */
+    ++ret.sz;
+    return ret;
 }
 
     // get node
@@ -261,7 +272,7 @@ PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
     //    returning the new root that points to both new ones
     // else
     //   get copy with new val inserted
-    // construct the rest of the pointer structure for the tree
+    // construct the rest of the pointer structure for the trie
     // construct the new root PS_Trie with updated sz
     // return the ptr
-    
+ 

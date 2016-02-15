@@ -1,9 +1,19 @@
+#ifndef PS_VEC_UTIL
+#define PS_VEC_UTIL
+
+/* debug printing */
+
+#ifdef DEBUG_EXTREME
+#define DEBUG_CERR(x) do { std::cerr << __FILE__ << ":" << __func__ << ":" << __LINE__ << " " << x << std::endl; } while (0)
+#else
+#define DEBUG_CERR(x) do {} while (0)
+#endif
+
+/* from boost */
+
 // Copyright David Abrahams 2003.
 // Distributed under the Boost Software License, Version 1.0. (See accompanying
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-#ifndef IMPLICIT_CAST_DWA200356_HPP
-# define IMPLICIT_CAST_DWA200356_HPP
-
 
 namespace detail {
 
@@ -26,5 +36,5 @@ inline T implicit_cast (typename detail::icast_identity<T>::type x) {
 }
 
 
-#endif // IMPLICIT_CAST_DWA200356_HPP
+#endif // PS_VEC_UTIL
 

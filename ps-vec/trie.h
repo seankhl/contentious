@@ -71,7 +71,7 @@ public:
     friend std::ostream &operator<<(std::ostream &out, const PS_Trie &data)
 	{
         out << "PS_Trie[ ";
-        for (size_t i = 0; i < data.capacity(); ++i) {
+        for (size_t i = 0; i < data.size(); ++i) {
             out << data.at(i) << " ";
         }
         out << "]/PS_TRIE";

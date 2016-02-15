@@ -5,6 +5,7 @@
 #include <random>
 #include <assert.h>
 
+
 using namespace std;
 
 int test_simple()
@@ -73,30 +74,39 @@ int test_insert()
 int test_pers()
 {
     vector<PS_Trie<double>> test;
-    int test_sz = 33;
+    int test_sz = 1048;
     test.push_back(PS_Trie<double>());
     for (int i = 1; i < test_sz; ++i) {
         test.push_back(test[i-1].pers_push_back(1000 + test_sz - i));
+        //cout << i << "- " << test[i-1] << endl;
+        //cout << i << "  " << test[i] << endl;
+    }
+    for (int i = 1; i < test_sz; ++i) {
+        for (int j = 0; j < i; ++j) {
+            test[i] = test[i].pers_set(j, i);
+        }
+       //cout << i << "- " << test[i-2] << endl;
+       //cout << i << "  " << test[i] << endl;
     }
     vector<double> ref;
     if (!test[0].empty()) {
         cerr << "! test_pers failed: first vector not empty" << endl;
         return 1;
     }
-    //cout << test[0] << endl;
+    //cout << "0 " << test[0] << endl;
     for (int i = 1; i < test_sz; ++i) {
         ref.push_back(1000 + test_sz - i);
         for (int j = 0; j < i; ++j) {
-            if (ref[j] != test[i].at(j)) {
+            if (i != test[i].at(j)) {
                 cerr << "! test_pers failed: at copy " << i 
                      << ", index " << j 
                      << "; got " << test[i].at(j) 
-                     << ", expected " << 1000 + test_sz - i
+                     << ", expected " << i
                      << endl;
             return 1;
             }
         }
-       //cout << test[i] << endl;
+       //cout << i << " " << test[i] << endl;
     }
     cerr << "+ test_pers passed" << endl;
     return 0;
@@ -121,3 +131,4 @@ int main()
     }
     return ret;
 }
+
