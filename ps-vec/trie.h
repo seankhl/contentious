@@ -59,13 +59,13 @@ public:
     T &operator[](size_t i);
     T &at(size_t i);
     
-    void set(const size_t i, const T val);
-    void push_back(const T val);
-    void insert(const size_t i, const T val);
+    void set(const size_t i, const T &val);
+    void push_back(const T &val);
+    void insert(const size_t i, const T &val);
     T remove(const size_t i);
 
-    PS_Trie pers_set(const size_t i, const T val);
-    PS_Trie pers_push_back(const T val);
+    PS_Trie<T> pers_set(const size_t i, const T &val);
+    PS_Trie<T> pers_push_back(const T &val);
     //PS_Trie<T> pers_insert(const size_t i, const T val);
 
     friend std::ostream &operator<<(std::ostream &out, const PS_Trie &data)

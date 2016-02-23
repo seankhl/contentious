@@ -1,10 +1,14 @@
-#include "trie.h"
 
 #include <iostream>
+#include <sstream>
 #include <chrono>
 #include <random>
-#include <assert.h>
+#include <cassert>
+#include <thread>
+#include "boost/coroutine/asymmetric_coroutine.hpp" 
 
+#include "trie.h"
+#include "cont_vec.h"
 
 using namespace std;
 
@@ -112,6 +116,77 @@ int test_pers()
     return 0;
 }
 
+int test_coroutine()
+{
+    stringstream ss;
+    const int num=5, width=15;
+    boost::coroutines::asymmetric_coroutine<string>::push_type writer(
+        [&](boost::coroutines::asymmetric_coroutine<string>::pull_type& in){
+            // pull values from upstream, lay them out 'num' to a line
+            for (;;){
+                for(int i=0;i<num;++i){
+                    // when we exhaust the input, stop
+                    if(!in) return;
+                    ss << std::setw(width) << in.get();
+                    // now that we've handled this item, advance to next
+                    in();
+                }
+                // after 'num' items, line break
+                ss << endl;
+            }
+        });
+
+    vector<string> words{   "peas", "porridge", "hot", "peas", "porridge", 
+                            "cold", "peas", "porridge", "in", "the", 
+                            "pot", "nine", "days", "old"    };
+
+    std::copy(boost::begin(words),boost::end(words),boost::begin(writer));
+    string expected = \
+"           peas       porridge            hot           peas       porridge\n"
+"           cold           peas       porridge             in            the\n"
+"            pot           nine           days            old";
+    if (ss.str() != expected) {
+        cerr << "! test_coroutine failed: wrong output" << endl;
+        return 1;
+    }
+    cerr << "+ test_coroutine passed" << endl;
+    return 0;
+}
+
+void my_accumulate(Cont_Vec<double> &test, size_t index)
+{
+    Splinter_Vec<double> mine = test.detach(new Plus<double>());
+    for (int i = 0; i < 10; ++i) {
+        mine = mine.comp(index, i);
+    }
+    test.reattach(mine);
+}
+
+int test_cvec()
+{
+    Cont_Vec<double> test;
+    test.push_back(0);
+    test.push_back(1);
+    test.push_back(2);
+    test.push_back(3);
+    uint16_t num_threads = thread::hardware_concurrency() * 100;
+    cout << num_threads << endl;
+    vector<thread> threads;
+    for (int i = 0; i < num_threads; ++i) {
+        threads.push_back(thread(my_accumulate, std::ref(test), 1));
+    }
+    for (int i = 0; i < num_threads; ++i) {
+        threads[i].join();
+    }
+
+    cout << test << endl;
+    test.print_unresolved_info();
+    test.resolve();
+    cout << test << endl;
+
+    return 0;
+}
+
 int main()
 {
 #ifdef DEBUG
@@ -120,11 +195,17 @@ int main()
 #ifdef RELEASE
     cout << "ooh" << endl;
 #endif
-    int num_tests = 3;
+    vector<function<int()>> runner;
+    runner.push_back(test_simple);
+    runner.push_back(test_insert);
+    runner.push_back(test_pers);
+    runner.push_back(test_coroutine);
+    runner.push_back(test_cvec);
+    int num_tests = runner.size();
     int ret = 0;
-    ret += test_simple();
-    ret += test_insert();
-    ret += test_pers();
+    for (int i = 0; i < num_tests; ++i) {
+        ret += runner[i]();
+    }
     cout << num_tests-ret << "/" << num_tests;
     if (ret == 0) {
         cout << " all tests passed!" << endl;

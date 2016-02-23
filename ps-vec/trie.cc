@@ -1,11 +1,13 @@
+
 #include "trie.h"
 #include "util.h"
 
 #include <iostream>
 #include <string>
 #include <stdexcept>
-#include <math.h>
-#include <assert.h>
+
+#include <cmath>
+#include <cassert>
 
 
 template <typename T>
@@ -84,7 +86,7 @@ T &PS_Trie<T>::at(size_t i)
 
 // undefined behavior if i >= sz
 template <typename T>
-void PS_Trie<T>::set(const size_t i, const T val)
+void PS_Trie<T>::set(const size_t i, const T &val)
 {
     PS_Node<T> *node = root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
@@ -97,8 +99,9 @@ void PS_Trie<T>::set(const size_t i, const T val)
 }
 
 // undefined behavior if i >= sz
+
 template <typename T>
-PS_Trie<T> PS_Trie<T>::pers_set(const size_t i, const T val)
+PS_Trie<T> PS_Trie<T>::pers_set(const size_t i, const T &val)
 {
     // copy trie
     PS_Trie<T> ret = *this;
@@ -116,7 +119,7 @@ PS_Trie<T> PS_Trie<T>::pers_set(const size_t i, const T val)
 }
 
 template <typename T>
-void PS_Trie<T>::push_back(const T val)
+void PS_Trie<T>::push_back(const T &val)
 {
     // just a set; only 1/br_sz times do we even have to construct nodes
     if (sz % br_sz != 0) {
@@ -184,7 +187,7 @@ void PS_Trie<T>::push_back(const T val)
 }
 
 template <typename T>
-PS_Trie<T> PS_Trie<T>::pers_push_back(const T val)
+PS_Trie<T> PS_Trie<T>::pers_push_back(const T &val)
 {
     PS_Trie<T> ret = *this;
     // just a set; only 1/br_sz times do we even have to construct nodes

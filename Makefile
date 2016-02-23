@@ -16,13 +16,13 @@ RCOMPILE_FLAGS = -DRELEASE -O2
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -DDEBUG -Og -g
 # Add additional include paths
-INCLUDES = -I./include
+INCLUDES = -isystem ./ps-vec/boost-deps
 # General linker settings
-LINK_FLAGS = #-lzmq -lprotobuf
+LINK_FLAGS = -Wl,-rpath=./ps-vec/boost-deps/stage/lib -L./ps-vec/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
 # Additional release-specific linker settings
-RLINK_FLAGS = 
+RLINK_FLAGS =
 # Additional debug-specific linker settings
-DLINK_FLAGS = 
+DLINK_FLAGS =
 # Destination directory, like a jail or mounted system
 DESTDIR = /
 # Install path (bin/ is appended automatically)
@@ -76,8 +76,9 @@ install: export BIN_PATH := bin/release
 
 # Find all source files in the source directory, sorted by most
 # recently modified
-SOURCES = $(shell find $(SRC_PATH)/ -name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
+SOURCES = $(shell find $(SRC_PATH)/ -not -path "$(SRC_PATH)/boost-deps/*" -name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
 				| sort -k 1nr | cut -f2-)
+
 # fallback in case the above fails
 rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard,$d/,$2) \
 				$(filter $(subst *,%,$2), $d))
