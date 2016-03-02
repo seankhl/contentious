@@ -1,6 +1,6 @@
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
-BIN_NAME := trie-tests
+BIN_NAME := bp_vector-tests
 # Compiler used
 CXX ?= g++
 # Extension of source files used in the project

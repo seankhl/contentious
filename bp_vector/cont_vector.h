@@ -1,6 +1,6 @@
 
-#ifndef PS_CONT_VEC
-#define PS_CONT_VEC
+#ifndef CONT_VECTOR_H
+#define CONT_VECTOR_H
 
 #include <vector>
 #include <set>
@@ -8,10 +8,10 @@
 #include <atomic>
 #include <mutex>
 
-#include "trie.h"
+#include "bp_vector.h"
 
 template <typename T>
-class Cont_Vec;
+class cont_vector;
 
 template <typename T>
 class Operator
@@ -39,18 +39,18 @@ class Splinter_Vec
 {
 
 public:
-    PS_Trie<T> data;
+    bp_vector<T> data;
     const Operator<T> *op;
-    const Cont_Vec<T> *origin;
+    const cont_vector<T> *origin;
     std::set<size_t> modified;
     
-    Splinter_Vec(const Cont_Vec<T> *_origin, 
+    Splinter_Vec(const cont_vector<T> *_origin, 
                  const Operator<T> *_op)
       : data(*_origin), op(_op), origin(_origin) {}
     
-    Splinter_Vec(const PS_Trie<T> &&_data, 
+    Splinter_Vec(const bp_vector<T> &&_data, 
                  const Operator<T> *_op, 
-                 const Cont_Vec<T> *_origin,
+                 const cont_vector<T> *_origin,
                  const std::set<size_t> &_modified)
       : data(std::move(_data)), op(_op), origin(_origin), modified(_modified) {}
     
@@ -68,9 +68,9 @@ public:
 
 };
 
-
+/*
 template <typename T>
-class Cont_Vec : public PS_Trie<T>
+class cont_vector : public bp_vector<T>
 {
 
 private:
@@ -111,7 +111,7 @@ public:
         // non-modification operations, like insert/remove/push_back/pop_back
         T diff;
         for (size_t i : other.modified) {
-            diff = other.op->inv(other.data.at(i), PS_Trie<T>::at(i));
+            diff = other.op->inv(other.data.at(i), bp_vector<T>::at(i));
             if (diff != 0) {
                 map_lock.lock();
                 std::cout << "index i: " << i << " marked as modified" << std::endl;
@@ -137,6 +137,7 @@ public:
     // TODO: do it concurrently
     void resolve()
     {
+        *
         for (auto i: unresolved) {
             size_t cutoff = i.second.size() / 2;
             T temp = i.second[tid];
@@ -148,9 +149,11 @@ public:
                 (*this)[i.first] += temp;
             }
         }
+        *
     }
     
 };
+*/
 
-#endif // PS_CONT_VEC
+#endif  // CONT_VECTOR_H
 

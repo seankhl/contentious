@@ -1,5 +1,5 @@
-#ifndef PS_VEC_UTIL
-#define PS_VEC_UTIL
+#ifndef BP_VECTOR_UTIL
+#define BP_VECTOR_UTIL
 
 /* debug printing */
 
@@ -36,5 +36,5 @@ inline T implicit_cast (typename detail::icast_identity<T>::type x) {
 }
 
 
-#endif // PS_VEC_UTIL
+#endif  // BP_VECTOR_UTIL
 
