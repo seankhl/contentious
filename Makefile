@@ -1,24 +1,25 @@
 #### PROJECT SETTINGS ####
 # The name of the executable to be created
-BIN_NAME := bp_vector-tests
+BIN_NAME := vector-tests
 # Compiler used
 CXX ?= g++
 # Extension of source files used in the project
 SRC_EXT = cc
 # Path to the source directory, relative to the makefile
-SRC_PATH = ./ps-vec
+SRC_PATH = ./bp_vector
 # Space-separated pkg-config libraries used by this project
 LIBS = 
 # General compiler flags
 COMPILE_FLAGS = -std=c++14 -march=native -Wall -Wextra
 # Additional release-specific flags
-RCOMPILE_FLAGS = -DRELEASE -O2
+RCOMPILE_FLAGS = -DRELEASE -O3
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -DDEBUG -Og -g
 # Add additional include paths
-INCLUDES = -isystem ./ps-vec/boost-deps
+INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
-LINK_FLAGS = -Wl,-rpath=./ps-vec/boost-deps/stage/lib -L./ps-vec/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+#LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib -L./bp_vector/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+LINK_FLAGS = -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings

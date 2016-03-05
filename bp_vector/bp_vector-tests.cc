@@ -3,9 +3,14 @@
 #include <sstream>
 #include <chrono>
 #include <random>
-#include <cassert>
 #include <thread>
+
+#include <cassert>
+#include <cmath>
+#include <memory>
+
 #include "boost/coroutine/asymmetric_coroutine.hpp" 
+#include "boost/variant.hpp"
 
 #include "bp_vector.h"
 #include "cont_vector.h"
@@ -325,8 +330,8 @@ int test_coroutine()
     cerr << "+ test_coroutine passed" << endl;
     return 0;
 }
-/*
-void my_accumulate(Cont_Vec<double> &test, size_t index)
+
+void my_accumulate(cont_vector<double> &test, size_t index)
 {
     Splinter_Vec<double> mine = test.detach(new Plus<double>());
     for (int i = 0; i < 10; ++i) {
@@ -337,11 +342,12 @@ void my_accumulate(Cont_Vec<double> &test, size_t index)
 
 int test_cvec()
 {
-    Cont_Vec<double> test;
-    test.push_back(0);
-    test.push_back(1);
-    test.push_back(2);
-    test.push_back(3);
+    cont_vector<double> test;
+    test.mut_push_back(0);
+    test.mut_push_back(1);
+    test.mut_push_back(2);
+    test.mut_push_back(3);
+    cout << test << endl;
     uint16_t num_threads = thread::hardware_concurrency() * 100;
     cout << num_threads << endl;
     vector<thread> threads;
@@ -359,7 +365,130 @@ int test_cvec()
 
     return 0;
 }
-*/
+
+
+void vec_timing() {
+    int test_sz = 1048577;
+	
+    chrono::time_point<chrono::system_clock> st_start, st_end;
+	st_start = chrono::system_clock::now();
+    std::vector<double> st_test;
+    for (int i = 0; i < test_sz; ++i) {
+        st_test.push_back(i);
+    }
+	st_end = chrono::system_clock::now();
+    
+	chrono::time_point<chrono::system_clock> bp_start, bp_end;
+	bp_start = chrono::system_clock::now();
+    bp_vector<double> bp_test;
+    for (int i = 0; i < test_sz; ++i) {
+        bp_test.mut_push_back(i);
+    }
+	bp_end = chrono::system_clock::now();
+    
+	chrono::time_point<chrono::system_clock> ps_start, ps_end;
+	ps_start = chrono::system_clock::now();
+	ps_vector<double> ps_test;
+    for (int i = 0; i < test_sz; ++i) {
+        ps_test = ps_test.push_back(i);
+    }
+	ps_end = chrono::system_clock::now();
+    
+	chrono::time_point<chrono::system_clock> tr_start, tr_end;
+	tr_start = chrono::system_clock::now();
+	tr_vector<double> tr_test;
+    for (int i = 0; i < test_sz; ++i) {
+        tr_test = tr_test.push_back(i);
+    }
+	tr_end = chrono::system_clock::now();
+	
+	chrono::duration<double> st_dur = st_end - st_start;
+	chrono::duration<double> bp_dur = bp_end - bp_start;
+	chrono::duration<double> ps_dur = ps_end - ps_start;
+	chrono::duration<double> tr_dur = tr_end - tr_start;
+
+    cout << "st took " << st_dur.count()/test_sz * 1000000000 << " ns" << endl;
+    cout << "bp took " << bp_dur.count()/test_sz * 1000000000 << " ns" << endl;
+    cout << "ps took " << ps_dur.count()/test_sz * 1000000000 << " ns" << endl;
+    cout << "tr took " << tr_dur.count()/test_sz * 1000000000 << " ns" << endl;
+}
+
+void atomic_inc(atomic<int> &atomic_test, int n)
+{
+    for (int i = 0; i < n; ++i) {
+        atomic_test += 1;
+    }
+}
+
+void locked_inc(int &locked_test, int n, std::mutex &ltm)
+{
+    for (int i = 0; i < n; ++i) {
+        std::lock_guard<std::mutex> lock(ltm);
+        locked_test += 1;
+    }
+}
+
+void op_timing()
+{
+    int test_sz = 1048576 * 32;
+    int64_t num_threads = thread::hardware_concurrency() * 2;
+
+	chrono::time_point<chrono::system_clock> seq_start, seq_end;
+	seq_start = chrono::system_clock::now();
+    int seq_test(0);
+    for (int i = 0; i < test_sz; ++i) {
+        seq_test += 1;
+    }
+	seq_end= chrono::system_clock::now();
+
+	chrono::time_point<chrono::system_clock> atomic_start, atomic_end;
+	atomic_start = chrono::system_clock::now();
+    atomic<int> atomic_test(0);
+    vector<thread> atomic_threads;
+    for (int i = 0; i < num_threads; ++i) {
+        atomic_threads.push_back(
+          thread(atomic_inc, std::ref(atomic_test), test_sz/num_threads));
+    }
+    for (int i = 0; i < num_threads; ++i) {
+        atomic_threads[i].join();
+    }
+	atomic_end = chrono::system_clock::now();
+    
+    std::mutex ltm;
+	chrono::time_point<chrono::system_clock> locked_start, locked_end;
+	locked_start = chrono::system_clock::now();
+    int locked_test(0);
+    vector<thread> locked_threads;
+    for (int i = 0; i < num_threads; ++i) {
+        locked_threads.push_back(
+          thread(locked_inc, 
+                 std::ref(locked_test), 
+                 test_sz/num_threads, 
+                 std::ref(ltm)));
+    }
+    for (int i = 0; i < num_threads; ++i) {
+        locked_threads[i].join();
+    }
+	locked_end = chrono::system_clock::now();
+
+    if (seq_test != atomic_test || seq_test != locked_test) {
+        cout << "error: seq_test is " << seq_test
+             << "but atomic_test is " << atomic_test
+             << "and locked_test is " << locked_test << endl;
+    }
+	
+    chrono::duration<double> seq_dur = seq_end - seq_start;
+	chrono::duration<double> atomic_dur = atomic_end - atomic_start;
+	chrono::duration<double> locked_dur = locked_end - locked_start;
+    
+    cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
+    cout << "atomic took: " << atomic_dur.count() << " seconds; " << endl;
+    cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
+
+    cout << "is atomic<int> lockfree? " 
+         << atomic_is_lock_free(&atomic_test) << endl;
+}
+
 
 int main()
 {
@@ -367,8 +496,10 @@ int main()
     cout << "debugging" << endl;
 #endif
 #ifdef RELEASE
-    cout << "ooh" << endl;
+    cout << "profiling" << endl;
 #endif
+    int ret = 0;
+
     vector<function<int()>> runner;
     runner.push_back(test_simple);
     runner.push_back(test_insert);
@@ -377,9 +508,8 @@ int main()
     runner.push_back(test_trans);
     runner.push_back(test_make);
     runner.push_back(test_coroutine);
-    //runner.push_back(test_cvec);
+    runner.push_back(test_cvec);
     int num_tests = runner.size();
-    int ret = 0;
     for (int i = 0; i < num_tests; ++i) {
         ret += runner[i]();
     }
@@ -390,6 +520,10 @@ int main()
     else {
         cout << " " << ret << " tests failed!" << endl;
     }
+    
+    vec_timing();
+    //op_timing();
+    
     return ret;
 }
 

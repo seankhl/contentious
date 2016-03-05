@@ -1,7 +1,4 @@
 
-#include "bp_vector.h"
-#include "util.h"
-
 #include <iostream>
 #include <string>
 #include <stdexcept>
@@ -9,12 +6,18 @@
 #include <cmath>
 #include <cassert>
 
-std::atomic<int16_t> bp_vector_glob::unique_id{1};
+#include "util.h"
+
 
 template <typename T, template<typename> typename TDer>
-using bp_vector_base_ptr = std::shared_ptr<bp_vector_base<T, TDer>>;
+using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
 template <typename T>
-using bp_node_ptr = std::shared_ptr<bp_node<T>>;
+using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
+
+template <typename T>
+using branches = std::array<boost::intrusive_ptr<bp_node<T>>,br_sz>;
+template <typename T>
+using values = std::array<T, br_sz>;
 
 
 template <typename T, template<typename> typename TDer>
@@ -61,11 +64,9 @@ const T &bp_vector_base<T, TDer>::operator[](size_t i) const
 {
     const bp_node<T> *node = root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        //std::cout << "s: " << s << "; ind: " << (i >> s & br_mask) << std::endl;
-        node = node->br[i >> s & br_mask].get();
+        node = boost::get<branches<T>>(node->br)[i >> s & br_mask].get();
     }
-    //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << std::endl;
-    return node->val[i & br_mask];
+    return boost::get<values<T>>(node->br)[i & br_mask];
 }
 
 template <typename T, template<typename> typename TDer>
@@ -99,54 +100,54 @@ template <typename T, template<typename> typename TDer>
 TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val)
 {
     // copy trie
+    //TDer<T> ret = *this;
     TDer<T> ret;
     ret.sz = this->sz;
     ret.shift = this->shift;
-    if (this->root == nullptr) {
-        std::cout << "AAH" << this->sz << std::endl;
-    }
     ret.root = this->root;
     ret.id = this->id;
-    //ret = *this;
     // copy root node and get it in a variable
     if (node_copy(ret.root->id)) {
-        ret.root = std::make_shared<bp_node<T>>(*root);
+        ret.root = new bp_node<T>(*root);
         ret.root->id = id;
     }
     bp_node<T> *node = ret.root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        //std::cout << "s: " << s << "; ind: " << (i >> s & br_mask) << "; addr: " << node << std::endl;
-        bp_node_ptr<T> &next = node->br[i >> s & br_mask];
+        bp_node_ptr<T> &next = 
+            boost::get<branches<T>>(node->br)[i >> s & br_mask];
         if (node_copy(next->id)) {
-            next = std::make_shared<bp_node<T>>(*next);
+            next = new bp_node<T>(*next);
             next->id = id;
         }
         node = next.get();
     }
-    //std::cout << "s: " << 0 << "; ind: " << (i & br_mask) << "; addr: " << node << std::endl;
-    node->val[i & br_mask] = val;
+    boost::get<values<T>>(node->br)[i & br_mask] = val;
     return ret;
 }
 
 template <typename T, template<typename> typename TDer>
 TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
 {
+    // just a set; only 1/br_sz times do we even have to construct nodes
+    if (this->sz % br_sz != 0) {
+        TDer<T> ret = this->set(this->sz, val);
+        ++(ret.sz);
+        return ret;
+    }
+    
+    //TDer<T> ret = *this;
     TDer<T> ret;
     ret.sz = this->sz;
     ret.shift = this->shift;
     ret.root = this->root;
     ret.id = this->id;
-    //bp_vector_base<T> ret = *this;
-    // just a set; only 1/br_sz times do we even have to construct nodes
-    if (ret.sz % br_sz != 0) {
-        return ret.set(ret.sz++, val);
-    }
     
     // simple case for empty trie
     if (sz == 0) {
-        ret.root = std::make_shared<bp_node<T>>();
+        ret.root = new bp_node<T>(values<T>());
         ret.root->id = id;
-        ret.root->val[ret.sz++] = val;
+        boost::get<values<T>>(ret.root->br)[ret.sz++] = val;
+        //std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
         return ret;
     }
     
@@ -154,91 +155,75 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
     uint8_t depth = calc_depth();
     // subvector capacity at this depth
     size_t depth_cap = pow(br_sz, depth);
-    //std::cout << "original depth cap: " << depth_cap << std::endl;
     // depth at which to insert new node
     int16_t depth_ins = -1;
     // figure out how deep we must travel to branch
     while (sz % depth_cap != 0) {
         ++depth_ins;
         depth_cap /= br_sz;
-        //std::cout << "sz: " << sz << "; depth_cap: " << unsigned(depth_cap)
-        //          << std::endl;
     }
     
-    //std::cout << "root ptr: " << ret.root.get() << std::endl;
-    //auto temp = std::make_shared<bp_node<T>>();
-    //std::copy(ret.root->br.begin(), ret.root->br.end(), temp->br.begin());
-    //ret.root = temp;
     if (node_copy(ret.root->id)) {
-        ret.root = std::make_shared<bp_node<T>>(*root);
+        ret.root = new bp_node<T>(*root);
         ret.root->id = id;
     }
-    //std::cout << "root ptr: " << ret.root.get() << std::endl;
 
     // must rotate trie, as it's totally full (new root, depth_ins is -1)
     if (depth_ins == -1) {
-        //std::cout << "rotating trie" << std::endl;
         // update appropriate values
         ret.shift += BITPART_SZ;
         ++depth;
         // rotate trie
-        auto temp = std::make_shared<bp_node<T>>();
+        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>(branches<T>());
         temp->id = id;
         ret.root.swap(temp);
-        ret.root->br[0] = std::move(temp);
+        boost::get<branches<T>>(ret.root->br)[0] = std::move(temp);
     } 
 
     // travel to branch of trie where new node will be constructed (if any)
     bp_node<T> *node = ret.root.get();
-    //std::cout << "ret root ptr: " << ret.root->br[0].get() << std::endl;
     int16_t s = ret.shift;
     while (depth_ins > 0) {
-        bp_node_ptr<T> &next = node->br[sz >> s & br_mask];
+        bp_node_ptr<T> &next = 
+            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
         if (!next) {
             std::cout << "Constructing node where one should have already been" 
                       << std::endl;
-            next = std::make_shared<bp_node<T>>();
+            next = new bp_node<T>(branches<T>());
             next->id = id;
         }
-        //std::cout << "Copy-chain for pers-vec: depth_ins = " << depth_ins 
-        //          << std::endl;
         if (node_copy(next->id)) {
-            next = std::make_shared<bp_node<T>>(*next);
+            next = new bp_node<T>(*next);
             next->id = id;
         }
-        node = node->br[sz >> s & br_mask].get();
+        node = next.get();
         s -= BITPART_SZ;
         --depth_ins;
     }
     // we're either at the top, the bottom or somewhere in-between...
-    //std::cout << "s: " << s << std::endl;
     assert(s <= ret.shift && s >= 0);
     
     // keep going, but this time, construct new nodes as necessary
-    while (s > 0) {
-        //std::cout << "s: " << s << "; ind: " << (sz >> s & br_mask)
-        //          << "; addr: " << node << std::endl;
-        bp_node_ptr<T> &next = node->br[sz >> s & br_mask];
-        next = std::make_shared<bp_node<T>>();
+    while (s > BITPART_SZ) {
+        bp_node_ptr<T> &next = 
+            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
+        next = new bp_node<T>(branches<T>());
         next->id = id;
         node = next.get();
         s -= BITPART_SZ;
     }
+    if (s > 0) {
+        bp_node_ptr<T> &next = 
+            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
+        next = new bp_node<T>(values<T>());
+        next->id = id;
+        node = next.get();
+        s -= BITPART_SZ;
+    }
+
     // add value
-    //std::cout << "s: " << s << "; ind: " << (sz & br_mask)
-    //          << "; addr: " << node << std::endl;
-    node->val[sz & br_mask] = val;
+    boost::get<values<T>>(node->br)[sz & br_mask] = val;
     ++ret.sz;
     return ret;
 }
 
-    // get node
-    // if node is full
-    //   get split version of node and insert new val into them,
-    //    returning the new root that points to both new ones
-    // else
-    //   get copy with new val inserted
-    // construct the rest of the pointer structure for the trie
-    // construct the new root bp_vector with updated sz
-    // return the ptr
- 

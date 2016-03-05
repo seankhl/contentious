@@ -9,11 +9,14 @@
 #include <cmath>
 #include <iostream>
 
+#include <boost/variant.hpp>
+#include <boost/intrusive_ptr.hpp>
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
+
 // TODO: namespace
 
-enum Safety { reg, persistent, transient};
 
-constexpr uint8_t BITPART_SZ = 2;
+constexpr uint8_t BITPART_SZ = 6;
 // TODO: make these all caps
 constexpr size_t br_sz = 1 << BITPART_SZ;
 constexpr uint8_t br_mask = br_sz - 1;
@@ -28,7 +31,7 @@ template <typename T>
 class tr_vector;
 
 template <typename T>
-class bp_node
+class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
 	template <typename U, template <typename> typename TDer>
     friend class bp_vector_base;
@@ -36,15 +39,18 @@ class bp_node
 	friend class ps_vector<T>;
 	friend class tr_vector<T>;
 
+    using bp_node_data_t = boost::variant
+        <
+            std::array<boost::intrusive_ptr<bp_node<T>>,br_sz>,
+            std::array<T, br_sz>            
+        >;
+
 private:
-    //uint8_t br_i;
-    std::array<std::shared_ptr<bp_node<T>>,br_sz> br;
-    
-    // (sz >> BITPART_SZ) + 1
-    std::array<T,br_sz> val;
+    bp_node_data_t br;
+    int32_t id;
 
-    int16_t id;
-
+public:
+	bp_node(bp_node_data_t _data) : br(_data) {}
 };
 
 
@@ -65,12 +71,14 @@ class bp_vector_base : bp_vector_glob
 protected:
     size_t sz;
     uint8_t shift;
-    std::shared_ptr<bp_node<T>> root;
+    boost::intrusive_ptr<bp_node<T>> root;
     int16_t id;
    
-    // explicit default constructor
+    // protected because we cannot create instances of base type
     bp_vector_base()
-      : sz(0), shift(0), root(nullptr), id(0) {}
+      : sz(0), shift(0), root(nullptr), id(0) {
+        // nothing to do here  
+    }
     
     // copy constructor is protected because it would allow us to create
     // transient vecs from persistent vecs without assigning a unique id
@@ -107,8 +115,8 @@ public:
     T &operator[](size_t i);
     T &at(size_t i);
     
-    virtual TDer<T> set(const size_t i, const T &val);
-    virtual TDer<T> push_back(const T &val);
+    TDer<T> set(const size_t i, const T &val);
+    TDer<T> push_back(const T &val);
 
 };
 
@@ -127,11 +135,14 @@ public:
     void mut_push_back(const T &val);
     void insert(const size_t i, const T &val);
     T remove(const size_t i);
+    
+    tr_vector<T> make_transient();
 
     //bp_vector<T> set(const size_t i, const T &val);
     //bp_vector<T> push_back(const T &val);
     //bp_vector<T> pers_insert(const size_t i, const T val);
 
+    // TODO: put this in base class and use get_name or something
     friend std::ostream &operator<<(std::ostream &out, const bp_vector &data)
 	{
         out << "bp_vector[ ";
@@ -184,6 +195,7 @@ private:
 
 public:
     tr_vector() : bp_vector_base<T, tr_vector>() {}
+    tr_vector(const bp_vector<T> &other);
     tr_vector(const ps_vector<T> &other);
 
     inline bool node_copy_impl(const int16_t other_id) const {
@@ -216,12 +228,9 @@ public:
 
 };
 
-template class bp_vector_base<double, bp_vector>;
-template class bp_vector<double>;
-template class bp_vector_base<double, ps_vector>;
-template class ps_vector<double>;
-template class bp_vector_base<double, tr_vector>;
-template class tr_vector<double>;
+#include "bp_vector_base-impl.h"
+#include "bp_vector-impl.h"
+#include "pt_vector-impl.h"
 
 #endif  // BP_VECTOR_H
 
