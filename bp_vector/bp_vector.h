@@ -39,18 +39,11 @@ class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 	friend class ps_vector<T>;
 	friend class tr_vector<T>;
 
-    using bp_node_data_t = boost::variant
-        <
-            std::array<boost::intrusive_ptr<bp_node<T>>,br_sz>,
-            std::array<T, br_sz>            
-        >;
-
 private:
-    bp_node_data_t br;
+    std::array<boost::intrusive_ptr<bp_node<T>>, br_sz> branches;
+    std::array<T, br_sz> values;
     int32_t id;
 
-public:
-	bp_node(bp_node_data_t _data) : br(_data) {}
 };
 
 

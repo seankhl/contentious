@@ -14,11 +14,6 @@ using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
 template <typename T>
 using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
-template <typename T>
-using branches = std::array<boost::intrusive_ptr<bp_node<T>>,br_sz>;
-template <typename T>
-using values = std::array<T, br_sz>;
-
 
 template <typename T, template<typename> typename TDer>
 uint8_t bp_vector_base<T, TDer>::calc_depth() const
@@ -64,9 +59,9 @@ const T &bp_vector_base<T, TDer>::operator[](size_t i) const
 {
     const bp_node<T> *node = root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        node = boost::get<branches<T>>(node->br)[i >> s & br_mask].get();
+        node = node->branches[i >> s & br_mask].get();
     }
-    return boost::get<values<T>>(node->br)[i & br_mask];
+    return node->values[i & br_mask];
 }
 
 template <typename T, template<typename> typename TDer>
@@ -113,15 +108,14 @@ TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val)
     }
     bp_node<T> *node = ret.root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        bp_node_ptr<T> &next = 
-            boost::get<branches<T>>(node->br)[i >> s & br_mask];
+        bp_node_ptr<T> &next = node->branches[i >> s & br_mask];
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next);
             next->id = id;
         }
         node = next.get();
     }
-    boost::get<values<T>>(node->br)[i & br_mask] = val;
+    node->values[i & br_mask] = val;
     return ret;
 }
 
@@ -144,10 +138,10 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
     
     // simple case for empty trie
     if (sz == 0) {
-        ret.root = new bp_node<T>(values<T>());
+        ret.root = new bp_node<T>();
         ret.root->id = id;
-        boost::get<values<T>>(ret.root->br)[ret.sz++] = val;
-        //std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
+        ret.root->values[ret.sz++] = val;
+        std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
         return ret;
     }
     
@@ -174,22 +168,21 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
         ret.shift += BITPART_SZ;
         ++depth;
         // rotate trie
-        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>(branches<T>());
+        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>();
         temp->id = id;
         ret.root.swap(temp);
-        boost::get<branches<T>>(ret.root->br)[0] = std::move(temp);
+        ret.root->branches[0] = std::move(temp);
     } 
 
     // travel to branch of trie where new node will be constructed (if any)
     bp_node<T> *node = ret.root.get();
     int16_t s = ret.shift;
     while (depth_ins > 0) {
-        bp_node_ptr<T> &next = 
-            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
+        bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
         if (!next) {
             std::cout << "Constructing node where one should have already been" 
                       << std::endl;
-            next = new bp_node<T>(branches<T>());
+            next = new bp_node<T>();
             next->id = id;
         }
         if (node_copy(next->id)) {
@@ -205,24 +198,23 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
     
     // keep going, but this time, construct new nodes as necessary
     while (s > BITPART_SZ) {
-        bp_node_ptr<T> &next = 
-            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
-        next = new bp_node<T>(branches<T>());
+        bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
+        next = new bp_node<T>();
         next->id = id;
         node = next.get();
         s -= BITPART_SZ;
     }
     if (s > 0) {
         bp_node_ptr<T> &next = 
-            boost::get<branches<T>>(node->br)[sz >> s & br_mask];
-        next = new bp_node<T>(values<T>());
+            node->branches[sz >> s & br_mask];
+        next = new bp_node<T>();
         next->id = id;
         node = next.get();
         s -= BITPART_SZ;
     }
 
     // add value
-    boost::get<values<T>>(node->br)[sz & br_mask] = val;
+    node->values[sz & br_mask] = val;
     ++ret.sz;
     return ret;
 }
