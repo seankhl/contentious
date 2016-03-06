@@ -216,7 +216,8 @@ int test_trans()
     tr_vector<double> next = perss[test_sz-1].make_transient();
     //cout << "next is: " << next << endl;
     for (int i = 0; i < test_sz-1; ++i) {
-        next = next.set(i, 777);
+        //next = next.set(i, 777);
+        next.mut_set(i, 777);
     }
     //cout << "changed next: " << next << endl;
     
@@ -331,6 +332,7 @@ int test_coroutine()
     return 0;
 }
 
+/*
 void my_accumulate(cont_vector<double> &test, size_t index)
 {
     Splinter_Vec<double> mine = test.detach(new Plus<double>());
@@ -365,7 +367,7 @@ int test_cvec()
 
     return 0;
 }
-
+*/
 
 void vec_timing() {
     int test_sz = 1048577;
@@ -383,6 +385,7 @@ void vec_timing() {
     bp_vector<double> bp_test;
     for (int i = 0; i < test_sz; ++i) {
         bp_test.mut_push_back(i);
+        //bp_test = bp_test.push_back(i);
     }
 	bp_end = chrono::system_clock::now();
     
@@ -398,6 +401,7 @@ void vec_timing() {
 	tr_start = chrono::system_clock::now();
 	tr_vector<double> tr_test;
     for (int i = 0; i < test_sz; ++i) {
+        //tr_test.mut_push_back(i);
         tr_test = tr_test.push_back(i);
     }
 	tr_end = chrono::system_clock::now();
@@ -413,14 +417,15 @@ void vec_timing() {
     cout << "tr took " << tr_dur.count()/test_sz * 1000000000 << " ns" << endl;
 }
 
-void atomic_inc(atomic<int> &atomic_test, int n)
+
+void atomic_inc(atomic<int64_t> &atomic_test, int n)
 {
     for (int i = 0; i < n; ++i) {
         atomic_test += 1;
     }
 }
 
-void locked_inc(int &locked_test, int n, std::mutex &ltm)
+void locked_inc(int64_t &locked_test, int n, std::mutex &ltm)
 {
     for (int i = 0; i < n; ++i) {
         std::lock_guard<std::mutex> lock(ltm);
@@ -428,22 +433,35 @@ void locked_inc(int &locked_test, int n, std::mutex &ltm)
     }
 }
 
+void parallel_inc(int64_t &parallel_test, int n)
+{
+	chrono::time_point<chrono::system_clock> par_piece_start, par_piece_end;
+	par_piece_start = chrono::system_clock::now();
+    for (int i = 0; i < n; ++i) {
+        parallel_test += 1;
+    }
+	par_piece_end = chrono::system_clock::now();
+    chrono::duration<double> par_piece_dur = par_piece_end - par_piece_start;
+    cout << "parallel took: " << par_piece_dur.count() << " seconds; " << endl;
+}
+
 void op_timing()
 {
-    int test_sz = 1048576 * 32;
-    int64_t num_threads = thread::hardware_concurrency() * 2;
+    int64_t test_sz = 1048576 * 512;
+    constexpr int64_t num_threads = 4;//thread::hardware_concurrency() * 2;
 
 	chrono::time_point<chrono::system_clock> seq_start, seq_end;
 	seq_start = chrono::system_clock::now();
-    int seq_test(0);
+    int64_t seq_test(0);
     for (int i = 0; i < test_sz; ++i) {
         seq_test += 1;
     }
 	seq_end= chrono::system_clock::now();
 
+    /*
 	chrono::time_point<chrono::system_clock> atomic_start, atomic_end;
 	atomic_start = chrono::system_clock::now();
-    atomic<int> atomic_test(0);
+    atomic<int64_t> atomic_test(0);
     vector<thread> atomic_threads;
     for (int i = 0; i < num_threads; ++i) {
         atomic_threads.push_back(
@@ -457,7 +475,7 @@ void op_timing()
     std::mutex ltm;
 	chrono::time_point<chrono::system_clock> locked_start, locked_end;
 	locked_start = chrono::system_clock::now();
-    int locked_test(0);
+    int64_t locked_test(0);
     vector<thread> locked_threads;
     for (int i = 0; i < num_threads; ++i) {
         locked_threads.push_back(
@@ -470,23 +488,44 @@ void op_timing()
         locked_threads[i].join();
     }
 	locked_end = chrono::system_clock::now();
+    */
 
-    if (seq_test != atomic_test || seq_test != locked_test) {
-        cout << "error: seq_test is " << seq_test
-             << "but atomic_test is " << atomic_test
-             << "and locked_test is " << locked_test << endl;
+	chrono::time_point<chrono::system_clock> parallel_start, parallel_end;
+	parallel_start = chrono::system_clock::now();
+    array<int64_t, num_threads> parallel_pieces{};
+    int64_t parallel_test(0);
+    vector<thread> parallel_threads;
+    for (int i = 0; i < num_threads; ++i) {
+        parallel_threads.push_back(
+          thread(parallel_inc, std::ref(parallel_pieces[i]), test_sz/num_threads));
     }
+    for (int i = 0; i < num_threads; ++i) {
+        parallel_threads[i].join();
+        parallel_test += parallel_pieces[i];
+    }
+	parallel_end = chrono::system_clock::now();
+    if (/*seq_test != atomic_test || 
+        seq_test != locked_test || */
+        seq_test != parallel_test) {
+        cout << "error: seq_test is " << seq_test
+        //     << "but atomic_test is " << atomic_test
+        //     << "and locked_test is " << locked_test
+             << "and parallel_test is " << parallel_test << endl;
+    }
+
+    std::cout << "seq_test: " << seq_test << endl;
+    std::cout << "parallel_test: " << parallel_test << endl;
 	
     chrono::duration<double> seq_dur = seq_end - seq_start;
-	chrono::duration<double> atomic_dur = atomic_end - atomic_start;
-	chrono::duration<double> locked_dur = locked_end - locked_start;
+	//chrono::duration<double> atomic_dur = atomic_end - atomic_start;
+	//chrono::duration<double> locked_dur = locked_end - locked_start;
+	chrono::duration<double> parallel_dur = parallel_end - parallel_start;
     
     cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
-    cout << "atomic took: " << atomic_dur.count() << " seconds; " << endl;
-    cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
+    //cout << "atomic took: " << atomic_dur.count() << " seconds; " << endl;
+    //cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
+    cout << "parallel took: " << parallel_dur.count() << " seconds; " << endl;
 
-    cout << "is atomic<int> lockfree? " 
-         << atomic_is_lock_free(&atomic_test) << endl;
 }
 
 
@@ -508,7 +547,7 @@ int main()
     runner.push_back(test_trans);
     runner.push_back(test_make);
     runner.push_back(test_coroutine);
-    runner.push_back(test_cvec);
+    //runner.push_back(test_cvec);
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {
         ret += runner[i]();
@@ -521,8 +560,8 @@ int main()
         cout << " " << ret << " tests failed!" << endl;
     }
     
-    vec_timing();
-    //op_timing();
+    //vec_timing();
+    op_timing();
     
     return ret;
 }

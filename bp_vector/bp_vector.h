@@ -202,6 +202,9 @@ public:
         */
         return this->id != other_id; 
     }
+    
+    void mut_set(const size_t i, const T &val);
+    void mut_push_back(const T &val);
 
     ps_vector<T> make_persistent();
     
@@ -223,6 +226,7 @@ public:
 
 #include "bp_vector_base-impl.h"
 #include "bp_vector-impl.h"
+#include "tr_vector-impl.h"
 #include "pt_vector-impl.h"
 
 #endif  // BP_VECTOR_H

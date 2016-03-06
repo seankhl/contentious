@@ -146,9 +146,9 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
     }
     
     // we're gonna have to construct new nodes, or rotate
-    uint8_t depth = calc_depth();
+    
     // subvector capacity at this depth
-    size_t depth_cap = pow(br_sz, depth);
+    size_t depth_cap = capacity();
     // depth at which to insert new node
     int16_t depth_ins = -1;
     // figure out how deep we must travel to branch
@@ -166,7 +166,6 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
     if (depth_ins == -1) {
         // update appropriate values
         ret.shift += BITPART_SZ;
-        ++depth;
         // rotate trie
         boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>();
         temp->id = id;

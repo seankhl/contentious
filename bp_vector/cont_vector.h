@@ -3,6 +3,7 @@
 #define CONT_VECTOR_H
 
 #include <vector>
+#include <map>
 #include <set>
 #include <unordered_map>
 #include <atomic>
@@ -10,8 +11,24 @@
 
 #include "bp_vector.h"
 
+/*
 template <typename T>
 class cont_vector;
+
+template <typename T>
+class cont_record
+{
+    const uint16_t MAX_SPLINTERS = 512;
+    map<uint16_t, tr_vector<T>> splinters;
+    array<bool, MAX_SPLINTERS> changed;
+    array<bool, MAX_SPLINTERS> finalized;
+
+    inline void set(const size_t i, const T &val)
+    {
+        splinters[tid].set(i, val);
+    }
+}
+    
 
 template <typename T>
 class Operator
@@ -19,6 +36,7 @@ class Operator
 public:
     virtual T f(const T &lhs, const T &rhs) const = 0;
     virtual T inv(const T &lhs, const T &rhs) const = 0;
+    virtual ~Operator() {}
 };
 
 template <typename T>
@@ -32,6 +50,7 @@ class Plus : public Operator<T>
     {
         return lhs - rhs;
     }
+    virtual ~Plus() {}
 };
 
 template <typename T>
@@ -40,7 +59,6 @@ class Splinter_Vec
 
 public:
     tr_vector<T> data;
-    const Operator<T> *op;
     const cont_vector<T> *origin;
     std::set<size_t> modified;
     
@@ -60,18 +78,12 @@ public:
         return Splinter_Vec<T>(data.set(i, val), op, origin, modified);
     }
 
-    Splinter_Vec<T> comp(size_t i, const T &val)
-    {
-        return set(i, op->f(data.at(i), val));
-    }
-
 };
 
 
 template <typename T>
-class cont_vector : public bp_vector<T>
+class cont_vector
 {
-
 private:
     // timestamps for reading and writing
     // if read <= write:
@@ -82,34 +94,43 @@ private:
     //std::atomic<uint16_t> ts_w;
 
     //std::atomic<uint16_t> num_detached;
-
-    // each index can have a vector of dependents
+    bp_vector<T> origin;
+    cont_record record;
+    std::map<int16_t, std::vector<T>> unresolved;
+    std::mutex origin_lock;
+    std::mutex record_lock;
     std::mutex unresolved_lock;
-    std::unordered_map<int, std::vector<T>> unresolved;
+    
+    const Operator<T> *op;
+
     //void tick_w() { ++tick_w; }
+    
+    // internal set passthroughs
+    inline void unprotected_set(const size_t i, const T &val)
+    {
+        origin.mut_set(i, val);
+    }
+    inline void unprotected_push_back(const T &val)
+    {
+        origin.mut_push_back(val);
+    }
 
 public:
     // user can tick the read counter
     //void tick_r() { ++tick_r; }
 
-    //void set(const size_t i, const T &val);
-    
-    Splinter_Vec<T> detach(const Operator<T> *op)
-    { 
-        //++num_detached;
-        return Splinter_Vec<T>(this, op); 
-    }
-
-    /*
-    void mut_set(const size_t i, const T &val)
+    void comp(size_t i, const T &val)
     {
-        *this = bp_vector<T>::set(i, val);
+        if ((origin.get_ind_id(i)).compare_exchange_strong(-1, tid) ||
+            origin.get_ind_id(i) == tid) {
+            // nobody owns the node or we own the node
+            unprotected_set(i, op->f(origin.at(i), val));
+        } else {
+            // someone else onws the node
+            record.set(i, op->f(origin.at(i), val));
+        }
+        return 
     }
-    void mut_push_back(const T &val)
-    {
-        *this = bp_vector<T>::push_back(val);
-    }
-    */
 
     void reattach(Splinter_Vec<T> &other)
     {
@@ -129,6 +150,7 @@ public:
             }
         }
         //other.reset();
+        delete other.op;
     }
 
     void print_unresolved_info()
@@ -146,7 +168,7 @@ public:
     // TODO: do it concurrently
     void resolve()
     {
-        /*
+        // *
         for (auto i: unresolved) {
             size_t cutoff = i.second.size() / 2;
             T temp = i.second[tid];
@@ -158,7 +180,7 @@ public:
                 (*this)[i.first] += temp;
             }
         }
-        */
+        * //
         for (auto i: unresolved) {
             for (auto j : i.second) {
                 (*this)[i.first] += j;
@@ -167,7 +189,7 @@ public:
     }
     
 };
-
+*/
 
 #endif  // CONT_VECTOR_H
 
