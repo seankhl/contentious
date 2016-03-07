@@ -10,7 +10,7 @@ SRC_PATH = ./bp_vector
 # Space-separated pkg-config libraries used by this project
 LIBS = 
 # General compiler flags
-COMPILE_FLAGS = -std=c++14 -march=native -Wall -Wextra
+COMPILE_FLAGS = -fopenmp -mavx -std=c++14 -march=native -Wall -Wextra
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3
 # Additional debug-specific flags
@@ -19,7 +19,7 @@ DCOMPILE_FLAGS = -DDEBUG -Og -g
 INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
 #LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib -L./bp_vector/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
-LINK_FLAGS = -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+LINK_FLAGS = -fopenmp -mavx -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings

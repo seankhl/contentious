@@ -2,18 +2,18 @@
 #include <iostream>
 #include <sstream>
 #include <chrono>
-#include <random>
-#include <thread>
+#include <randomreduce#include <memory>
+#include <limits>
 
 #include <cassert>
 #include <cmath>
-#include <memory>
 
 #include "boost/coroutine/asymmetric_coroutine.hpp" 
 #include "boost/variant.hpp"
 
 #include "bp_vector.h"
 #include "cont_vector.h"
+#include "reduce-tests.h"
 
 using namespace std;
 
@@ -418,117 +418,6 @@ void vec_timing() {
 }
 
 
-void atomic_inc(atomic<int64_t> &atomic_test, int n)
-{
-    for (int i = 0; i < n; ++i) {
-        atomic_test += 1;
-    }
-}
-
-void locked_inc(int64_t &locked_test, int n, std::mutex &ltm)
-{
-    for (int i = 0; i < n; ++i) {
-        std::lock_guard<std::mutex> lock(ltm);
-        locked_test += 1;
-    }
-}
-
-void parallel_inc(int64_t &parallel_test, int n)
-{
-	chrono::time_point<chrono::system_clock> par_piece_start, par_piece_end;
-	par_piece_start = chrono::system_clock::now();
-    for (int i = 0; i < n; ++i) {
-        parallel_test += 1;
-    }
-	par_piece_end = chrono::system_clock::now();
-    chrono::duration<double> par_piece_dur = par_piece_end - par_piece_start;
-    cout << "parallel took: " << par_piece_dur.count() << " seconds; " << endl;
-}
-
-void op_timing()
-{
-    int64_t test_sz = 1048576 * 512;
-    constexpr int64_t num_threads = 4;//thread::hardware_concurrency() * 2;
-
-	chrono::time_point<chrono::system_clock> seq_start, seq_end;
-	seq_start = chrono::system_clock::now();
-    int64_t seq_test(0);
-    for (int i = 0; i < test_sz; ++i) {
-        seq_test += 1;
-    }
-	seq_end= chrono::system_clock::now();
-
-    /*
-	chrono::time_point<chrono::system_clock> atomic_start, atomic_end;
-	atomic_start = chrono::system_clock::now();
-    atomic<int64_t> atomic_test(0);
-    vector<thread> atomic_threads;
-    for (int i = 0; i < num_threads; ++i) {
-        atomic_threads.push_back(
-          thread(atomic_inc, std::ref(atomic_test), test_sz/num_threads));
-    }
-    for (int i = 0; i < num_threads; ++i) {
-        atomic_threads[i].join();
-    }
-	atomic_end = chrono::system_clock::now();
-    
-    std::mutex ltm;
-	chrono::time_point<chrono::system_clock> locked_start, locked_end;
-	locked_start = chrono::system_clock::now();
-    int64_t locked_test(0);
-    vector<thread> locked_threads;
-    for (int i = 0; i < num_threads; ++i) {
-        locked_threads.push_back(
-          thread(locked_inc, 
-                 std::ref(locked_test), 
-                 test_sz/num_threads, 
-                 std::ref(ltm)));
-    }
-    for (int i = 0; i < num_threads; ++i) {
-        locked_threads[i].join();
-    }
-	locked_end = chrono::system_clock::now();
-    */
-
-	chrono::time_point<chrono::system_clock> parallel_start, parallel_end;
-	parallel_start = chrono::system_clock::now();
-    array<int64_t, num_threads> parallel_pieces{};
-    int64_t parallel_test(0);
-    vector<thread> parallel_threads;
-    for (int i = 0; i < num_threads; ++i) {
-        parallel_threads.push_back(
-          thread(parallel_inc, std::ref(parallel_pieces[i]), test_sz/num_threads));
-    }
-    for (int i = 0; i < num_threads; ++i) {
-        parallel_threads[i].join();
-        parallel_test += parallel_pieces[i];
-    }
-	parallel_end = chrono::system_clock::now();
-    if (/*seq_test != atomic_test || 
-        seq_test != locked_test || */
-        seq_test != parallel_test) {
-        cout << "error: seq_test is " << seq_test
-        //     << "but atomic_test is " << atomic_test
-        //     << "and locked_test is " << locked_test
-             << "and parallel_test is " << parallel_test << endl;
-    }
-
-    std::cout << "seq_test: " << seq_test << endl;
-    std::cout << "parallel_test: " << parallel_test << endl;
-	
-    chrono::duration<double> seq_dur = seq_end - seq_start;
-	//chrono::duration<double> atomic_dur = atomic_end - atomic_start;
-	//chrono::duration<double> locked_dur = locked_end - locked_start;
-	chrono::duration<double> parallel_dur = parallel_end - parallel_start;
-    
-    cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
-    //cout << "atomic took: " << atomic_dur.count() << " seconds; " << endl;
-    //cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
-    cout << "parallel took: " << parallel_dur.count() << " seconds; " << endl;
-
-}
-
-
 int main()
 {
 #ifdef DEBUG
@@ -559,9 +448,8 @@ int main()
     else {
         cout << " " << ret << " tests failed!" << endl;
     }
-    
     //vec_timing();
-    op_timing();
+    reduce_timing();
     
     return ret;
 }
