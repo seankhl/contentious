@@ -2,7 +2,8 @@
 #include <iostream>
 #include <sstream>
 #include <chrono>
-#include <randomreduce#include <memory>
+#include <random>
+#include <memory>
 #include <limits>
 
 #include <cassert>
@@ -11,8 +12,8 @@
 #include "boost/coroutine/asymmetric_coroutine.hpp" 
 #include "boost/variant.hpp"
 
-#include "bp_vector.h"
-#include "cont_vector.h"
+//#include "bp_vector.h"
+//#include "cont_vector.h"
 #include "reduce-tests.h"
 
 using namespace std;
@@ -332,26 +333,24 @@ int test_coroutine()
     return 0;
 }
 
-/*
 void my_accumulate(cont_vector<double> &test, size_t index)
 {
-    Splinter_Vec<double> mine = test.detach(new Plus<double>());
+    test.validate();
     for (int i = 0; i < 10; ++i) {
-        mine = mine.comp(index, i);
+        //cout << i << endl;
+        test.comp(index, i);
     }
-    test.reattach(mine);
+    test.push();
 }
 
 int test_cvec()
 {
-    cont_vector<double> test;
-    test.mut_push_back(0);
-    test.mut_push_back(1);
-    test.mut_push_back(2);
-    test.mut_push_back(3);
-    cout << test << endl;
-    uint16_t num_threads = thread::hardware_concurrency() * 100;
-    cout << num_threads << endl;
+    cont_vector<double> test(new Plus<double>());
+    test.unprotected_push_back(0);
+    test.unprotected_push_back(1);
+    test.unprotected_push_back(2);
+    test.unprotected_push_back(3);
+    uint16_t num_threads = 4; //thread::hardware_concurrency();
     vector<thread> threads;
     for (int i = 0; i < num_threads; ++i) {
         threads.push_back(thread(my_accumulate, std::ref(test), 1));
@@ -359,18 +358,12 @@ int test_cvec()
     for (int i = 0; i < num_threads; ++i) {
         threads[i].join();
     }
-
-    cout << test << endl;
-    test.print_unresolved_info();
-    test.resolve();
-    cout << test << endl;
-
     return 0;
 }
-*/
+
 
 void vec_timing() {
-    int test_sz = 1048577;
+    int test_sz = 1048;
 	
     chrono::time_point<chrono::system_clock> st_start, st_end;
 	st_start = chrono::system_clock::now();
@@ -401,8 +394,8 @@ void vec_timing() {
 	tr_start = chrono::system_clock::now();
 	tr_vector<double> tr_test;
     for (int i = 0; i < test_sz; ++i) {
-        //tr_test.mut_push_back(i);
-        tr_test = tr_test.push_back(i);
+        tr_test.mut_push_back(i);
+        //tr_test = tr_test.push_back(i);
     }
 	tr_end = chrono::system_clock::now();
 	
@@ -436,7 +429,7 @@ int main()
     runner.push_back(test_trans);
     runner.push_back(test_make);
     runner.push_back(test_coroutine);
-    //runner.push_back(test_cvec);
+    runner.push_back(test_cvec);
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {
         ret += runner[i]();
@@ -448,7 +441,7 @@ int main()
     else {
         cout << " " << ret << " tests failed!" << endl;
     }
-    //vec_timing();
+    vec_timing();
     reduce_timing();
     
     return ret;

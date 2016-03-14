@@ -12,6 +12,8 @@
 
 #include <immintrin.h>
 
+#include "cont_vector.h"
+
 double seq_reduce(int64_t test_sz);
 
 void locked_inc(double &locked_ret, int64_t n, std::mutex &ltm);
@@ -26,6 +28,9 @@ double async_reduce(int64_t test_sz);
 double avx_reduce(int64_t test_sz);
 
 double omp_reduce(int64_t test_sz);
+
+void cont_inc(cont_vector<double> &cont_ret, int64_t n);
+double cont_reduce(int64_t test_sz);
 
 void reduce_timing();
 

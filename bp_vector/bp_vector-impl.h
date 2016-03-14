@@ -10,7 +10,7 @@ using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
 
 template <typename T>
-tr_vector<T> bp_vector<T>::make_transient()
+tr_vector<T> bp_vector<T>::make_transient() const
 {
     tr_vector<T> ret(*this);
     return ret;

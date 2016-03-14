@@ -92,15 +92,11 @@ T &bp_vector_base<T, TDer>::at(size_t i)
 
 // undefined behavior if i >= sz
 template <typename T, template<typename> typename TDer>
-TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val)
+TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
 {
     // copy trie
-    //TDer<T> ret = *this;
-    TDer<T> ret;
-    ret.sz = this->sz;
-    ret.shift = this->shift;
-    ret.root = this->root;
-    ret.id = this->id;
+    TDer<T> ret(*this);
+    
     // copy root node and get it in a variable
     if (node_copy(ret.root->id)) {
         ret.root = new bp_node<T>(*root);
@@ -120,28 +116,23 @@ TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val)
 }
 
 template <typename T, template<typename> typename TDer>
-TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
+TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
 {
     // just a set; only 1/br_sz times do we even have to construct nodes
     if (this->sz % br_sz != 0) {
-        TDer<T> ret = this->set(this->sz, val);
+        TDer<T> ret(this->set(this->sz, val));
         ++(ret.sz);
         return ret;
     }
     
-    //TDer<T> ret = *this;
-    TDer<T> ret;
-    ret.sz = this->sz;
-    ret.shift = this->shift;
-    ret.root = this->root;
-    ret.id = this->id;
+    TDer<T> ret(*this);
     
     // simple case for empty trie
     if (sz == 0) {
         ret.root = new bp_node<T>();
         ret.root->id = id;
         ret.root->values[ret.sz++] = val;
-        std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
+        //std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
         return ret;
     }
     
@@ -204,8 +195,7 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val)
         s -= BITPART_SZ;
     }
     if (s > 0) {
-        bp_node_ptr<T> &next = 
-            node->branches[sz >> s & br_mask];
+        bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
         next = new bp_node<T>();
         next->id = id;
         node = next.get();

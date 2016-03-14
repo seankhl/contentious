@@ -93,7 +93,6 @@ double async_reduce(int64_t test_sz)
 double avx_reduce(int64_t test_sz)
 {
     double avx_ret(0);
-    double res[4];
     __m256d vals = _mm256_set_pd(0, 0, 0, 0);
     __m256d temps;
     for (int64_t i = 0; i < test_sz; i += 4) {
@@ -123,9 +122,37 @@ double omp_reduce(int64_t test_sz)
     return omp_ret;
 }
 
+void cont_inc(cont_vector<double> &cont_ret, int64_t n)
+{
+    cont_ret.validate();
+    for (int64_t i = 0; i < n; ++i) {
+        cont_ret.comp(0, 1);
+    }
+    //std::cout << "one cont_inc done: " << cont_ret.at_splinter(0) << std::endl;
+    cont_ret.push();
+}
+double cont_reduce(int64_t test_sz)
+{
+    cont_vector<double> cont_ret(new Plus<double>());
+    cont_ret.unprotected_push_back(0);
+    vector<thread> cont_threads;
+    int num_threads = thread::hardware_concurrency();
+    for (int i = 0; i < num_threads; ++i) {
+        cont_threads.push_back(
+          thread(cont_inc, 
+                 std::ref(cont_ret), 
+                 test_sz/num_threads));
+    }
+    for (int i = 0; i < num_threads; ++i) {
+        cont_threads[i].join();
+    }
+    return cont_ret.at_prescient(0);
+}
+
+
 void reduce_timing()
 {
-    int64_t test_sz = std::numeric_limits<int64_t>::max() / pow(2,34);
+    int64_t test_sz = std::numeric_limits<int64_t>::max() / pow(2,39);
 
 
 	chrono::time_point<chrono::system_clock> seq_start, seq_end;
@@ -160,6 +187,11 @@ void reduce_timing()
     double omp_test = omp_reduce(test_sz);
 	omp_end = chrono::system_clock::now();
     
+	chrono::time_point<chrono::system_clock> cont_start, cont_end;
+	cont_start = chrono::system_clock::now();
+    double cont_test = cont_reduce(test_sz);
+	cont_end = chrono::system_clock::now();
+    
     /*
     if (seq_test != locked_test) {
         cout << "error: seq_test is " << seq_test
@@ -176,6 +208,9 @@ void reduce_timing()
     } else if (seq_test != omp_test) {
         cout << "error: seq_test is " << seq_test
              << " and omp_test is " << omp_test << endl;
+    } else if (seq_test != cont_test) {
+        cout << "error: seq_test is " << seq_test
+             << " and cont_test is " << cont_test << endl;
     }
     
     std::cout << "seq_test: " << seq_test << endl;
@@ -184,6 +219,7 @@ void reduce_timing()
     std::cout << "async_test: " << async_test << endl;
     std::cout << "avx_test: " << avx_test << endl;
     std::cout << "omp_test: " << omp_test << endl;
+    std::cout << "cont_test: " << cont_test << endl;
 	
     chrono::duration<double> seq_dur = seq_end - seq_start;
 	/*chrono::duration<double> locked_dur = locked_end - locked_start;
@@ -191,6 +227,7 @@ void reduce_timing()
 	chrono::duration<double> async_dur = async_end - async_start;
     chrono::duration<double> avx_dur = avx_end - avx_start;
 	chrono::duration<double> omp_dur = omp_end - omp_start;
+	chrono::duration<double> cont_dur = cont_end - cont_start;
     
     cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
     /*cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
@@ -198,5 +235,6 @@ void reduce_timing()
     cout << "async took: " << async_dur.count() << " seconds; " << endl;
     cout << "avx took: " << avx_dur.count() << " seconds; " << endl;
     cout << "omp took: " << omp_dur.count() << " seconds; " << endl;
+    cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
 }
 

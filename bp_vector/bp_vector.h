@@ -108,8 +108,8 @@ public:
     T &operator[](size_t i);
     T &at(size_t i);
     
-    TDer<T> set(const size_t i, const T &val);
-    TDer<T> push_back(const T &val);
+    TDer<T> set(const size_t i, const T &val) const;
+    TDer<T> push_back(const T &val) const;
 
 };
 
@@ -120,6 +120,9 @@ class bp_vector : public bp_vector_base<T, bp_vector>
 private:
 
 public:
+    bp_vector() = default; //: bp_vector_base<T, bp_vector>() {}
+    bp_vector(const bp_vector<T> &other) = default;
+    
     inline bool node_copy_impl(const int16_t) const { 
         return false; 
     }
@@ -129,7 +132,7 @@ public:
     void insert(const size_t i, const T &val);
     T remove(const size_t i);
     
-    tr_vector<T> make_transient();
+    tr_vector<T> make_transient() const;
 
     //bp_vector<T> set(const size_t i, const T &val);
     //bp_vector<T> push_back(const T &val);
@@ -155,14 +158,19 @@ class ps_vector : public bp_vector_base<T, ps_vector>
 private:
 
 public:
-    ps_vector() : bp_vector_base<T, ps_vector>() {}
+    ps_vector() = default; //: bp_vector_base<T, ps_vector>() {}
+    ps_vector(const ps_vector<T> &other) = default;
+    
+    ps_vector(const bp_vector_base<T, ps_vector> &other) 
+      : bp_vector_base<T, ps_vector>(other) {}
+
     ps_vector(const tr_vector<T> &other);
 
     inline bool node_copy_impl(const int16_t) const { 
         return true; 
     }
     
-    tr_vector<T> make_transient();
+    tr_vector<T> make_transient() const;
 
     //ps_vector<T> set(const size_t i, const T &val);
     //ps_vector<T> push_back(const T &val);
@@ -187,7 +195,12 @@ class tr_vector : public bp_vector_base<T, tr_vector>
 private:
 
 public:
-    tr_vector() : bp_vector_base<T, tr_vector>() {}
+    tr_vector() = default; //: bp_vector_base<T, tr_vector>() {}
+    tr_vector(const tr_vector<T> &other) = default;
+
+    tr_vector(const bp_vector_base<T, tr_vector> &other) 
+      : bp_vector_base<T, tr_vector>(other) {}
+
     tr_vector(const bp_vector<T> &other);
     tr_vector(const ps_vector<T> &other);
 
@@ -206,7 +219,8 @@ public:
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
 
-    ps_vector<T> make_persistent();
+    ps_vector<T> make_persistent() const;
+    tr_vector<T> new_id() const;
     
     //tr_vector<T> set(const size_t i, const T &val);
     //tr_vector<T> push_back(const T &val);

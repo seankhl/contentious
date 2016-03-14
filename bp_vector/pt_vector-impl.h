@@ -1,7 +1,4 @@
 
-std::atomic<int16_t> bp_vector_glob::unique_id{1};
-
-
 template <typename T>
 ps_vector<T>::ps_vector(const tr_vector<T> &other)
   : bp_vector_base<T, ps_vector>(
@@ -12,7 +9,7 @@ ps_vector<T>::ps_vector(const tr_vector<T> &other)
 }
 
 template <typename T>
-tr_vector<T> ps_vector<T>::make_transient()
+tr_vector<T> ps_vector<T>::make_transient() const
 {
     tr_vector<T> ret(*this);
     return ret;
@@ -37,8 +34,17 @@ tr_vector<T>::tr_vector(const ps_vector<T> &other)
 }
 
 template <typename T>
-ps_vector<T> tr_vector<T>::make_persistent()
+ps_vector<T> tr_vector<T>::make_persistent() const
 {
     return *this;
 }
+
+template <typename T>
+tr_vector<T> tr_vector<T>::new_id() const
+{
+    tr_vector<T> ret(*this);
+    ret.id = this->get_unique_id();
+    return ret;
+}
+    
 
