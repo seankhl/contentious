@@ -59,49 +59,51 @@ public:
 template <typename T>
 class Plus : public Operator<T>
 {
-    virtual T f(const T &lhs, const T &rhs) const
+public:
+    inline T f(const T &lhs, const T &rhs) const
     {
         return lhs + rhs;
     }
-    virtual T inv(const T &lhs, const T &rhs) const
+    inline  T inv(const T &lhs, const T &rhs) const
     {
         return lhs - rhs;
     }
     virtual ~Plus() {}
 };
 
-/*
-template <typename T>
-class Splinter_Vec
-{
 
+template <typename T>
+class splt_vector 
+{
+private:
 public:
     tr_vector<T> data;
-    const cont_vector<T> *origin;
-    std::set<size_t> modified;
-    
-    Splinter_Vec(const cont_vector<T> *_origin, 
-                 const Operator<T> *_op)
-      : data(*_origin), op(_op), origin(_origin) {}
-    
-    Splinter_Vec(const tr_vector<T> &&_data, 
-                 const Operator<T> *_op, 
-                 const cont_vector<T> *_origin,
-                 const std::set<size_t> &_modified)
-      : data(std::move(_data)), op(_op), origin(_origin), modified(_modified) {}
-    
-    Splinter_Vec<T> set(const size_t i, const T &val)
+    const Plus<T> *op;
+
+    splt_vector(const cont_vector<T> &trunk)
+      : data(trunk.origin.new_id()), op(trunk.op)
     {
-        modified.insert(i);
-        return Splinter_Vec<T>(data.set(i, val), op, origin, modified);
+        // nothing to do here
+    }
+
+    inline splt_vector<T> comp(const size_t i, const T &val)
+    {
+        data.mut_set(i, op->f(data.at(i), val));
+        return *this;
+    }
+
+    inline void mut_comp(const size_t i, const T &val)
+    {
+        data.mut_set(i, data[i] + val);//op->f(data.at(i), val));
     }
 
 };
-*/
+
 
 template <typename T>
 class cont_vector
 {
+    friend class splt_vector<T>;
 private:
     // timestamps for reading and writing
     // if read <= write:
@@ -113,7 +115,8 @@ private:
 
     //std::atomic<uint16_t> num_detached;
     tr_vector<T> origin;
-    cont_record<T> record;
+    //cont_record<T> record;
+    std::set<uint16_t> splinters;
     std::map<std::thread::id, bool> resolved;
     std::mutex origin_lock;
     std::mutex record_lock;
@@ -122,17 +125,16 @@ private:
     std::map<std::thread::id, bool> prescient;
     cont_vector<T> *next;
     
-    const Operator<T> *op;
+    const Plus<T> *op;
 
     //void tick_w() { ++tick_w; }
     
 public:
     cont_vector() = delete;
-    cont_vector(Operator<T> *_op) : next(nullptr), op(_op) {}
+    cont_vector(Plus<T> *_op) : next(nullptr), op(_op) {}
 
     cont_vector(const cont_vector<T> &other)
-      : origin(other.origin.new_id()), record(other.record), 
-        resolved(other.resolved), op(other.op) 
+      : origin(other.origin.new_id()), resolved(other.resolved), op(other.op) 
     {
         // nothing to do here
     }
@@ -142,11 +144,6 @@ public:
         return origin.at(i);
     }
     
-    T &at_splinter(size_t i)
-    {
-        return record.splinters[std::this_thread::get_id()].at(i);
-    }
-
     T &at_prescient(size_t i)
     {
         return next->at(i);
@@ -166,33 +163,19 @@ public:
 
     // user can tick the read counter
     //void tick_r() { ++tick_r; }
-    void validate()
+    
+    
+    splt_vector<T> detach()
     {
-        std::thread::id tid = std::this_thread::get_id();
-        if (record.splinters.find(tid) == record.splinters.end()) {
-            //std::cout << "make_trans in comp" << std::endl;
-            record.splinters[tid] = origin.new_id();
-            //std::cout << "splinter has id: " << record.splinters[tid].get_id() << std::endl;
+        splt_vector<T> ret(*this);
+        {
+            std::lock_guard<std::mutex> lock(this->origin_lock);
+            splinters.insert(ret.data.get_id());
         }
+        return ret;
     }
 
-    void comp(size_t i, const T &val)
-    {
-        /*
-        if ((origin.get_ind_id(i)).compare_exchange_strong(-1, tid) ||
-            origin.get_ind_id(i) == tid) {
-            // nobody owns the node or we own the node
-            unprotected_set(i, op->f(origin.at(i), val));
-        } else {
-        */
-            // someone else onws the node
-            // TODO: proper encapuslation here
-            std::thread::id tid = std::this_thread::get_id();
-            record.set(i, op->f(record.splinters[tid].at(i), val));
-        /*}*/
-    }
-
-    void push()
+    void push(splt_vector<T> &splinter)
     {
         //--num_detached;
         // TODO: no check that other was actually detached from this
@@ -213,35 +196,35 @@ public:
             }
         }
         
-        std::thread::id tid = std::this_thread::get_id();
-        for (size_t i = 0; i < origin.size(); ++i) {
-            // TODO: better (lock-free) mechanism here
-            //const size_t &i = kv.first;
-            //for (auto &j : kv.second) {
-            //    if (j == std::this_thread::get_id()) {
-            if (record.splinters[tid].at(i) != origin.at(i)) {
+        const uint16_t sid = splinter.data.get_id();
+        /*
+        std::cout << "sid: " << sid << std::endl;
+        for (auto it = splinters.begin(); it != splinters.end(); ++it) {
+            std::cout << "splinters[i]: " << *it << std::endl;
+        }
+        */
+        // TODO: better (lock-free) mechanism here
+        if (splinters.find(sid) != splinters.end()) {
+            for (size_t i = 0; i < splinter.data.size(); ++i) {
                 std::lock_guard<std::mutex> lock(this->origin_lock);
-                diff = 
-                    op->inv(record.splinters[tid].at(i), origin.at(i));
+                diff = op->inv(splinter.data.at(i), origin.at(i));
                 //std::cout << "resolving with diff " << diff << " at " << i
                 //    << ", next->origin has size " << next->origin.size() << std::endl;
                 next->origin = next->origin.set(i, op->f(next->origin.at(i), diff));
-            //    }
             }
         }
 
-        resolved[tid] = true;
+        /*
         if (resolved.size() == NUM_THREADS) {
-            //this = next;
+            this = next;
         }
+        */
 
         //delete other.op;
     }
 
     inline void pull()
     {
-        std::thread::id tid = std::this_thread::get_id();
-        prescient[tid] = true;
     }
 
     inline void sync()

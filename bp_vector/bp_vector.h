@@ -13,6 +13,8 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
+#include "util.h"
+
 // TODO: namespace
 
 
@@ -69,43 +71,59 @@ protected:
    
     // protected because we cannot create instances of base type
     bp_vector_base()
-      : sz(0), shift(0), root(nullptr), id(0) {
-        // nothing to do here  
-    }
+      : sz(0), shift(0), root(nullptr), id(0)
+    {   /* nothing to do here */ }
     
     // copy constructor is protected because it would allow us to create
     // transient vecs from persistent vecs without assigning a unique id
     template <template <typename> typename TDerOther>
     bp_vector_base(const bp_vector_base<T, TDerOther> &other)
-      : sz(other.sz), shift(other.shift), root(other.root), id(other.id) { 
-        // nothing to do here
-    }
+      : sz(other.sz), shift(other.shift), root(other.root), id(other.id)
+    {   /* nothing to do here */ }
     
     // constructor that takes arbitrary id, for making transients
     bp_vector_base(int16_t id_in) 
-      : sz(0), shift(0), root(nullptr), id(id_in) {
-        // nothing to do here
-    }
+      : sz(0), shift(0), root(nullptr), id(id_in) 
+    {   /* nothing to do here */ }
     
-    inline bool node_copy(const int16_t other_id) const { 
+    inline bool node_copy(const int16_t other_id) const 
+    { 
         return static_cast<const TDer<T> *>(this)->node_copy_impl(other_id);
-    };
-    uint8_t calc_depth() const;
+    }
+
+    inline uint8_t calc_depth() const { return shift / BITPART_SZ + 1; }
 
 public:
     static inline int16_t get_unique_id() { return unique_id++; }
-
+    
     // size-related getters
-    bool empty() const;
-    size_t size() const;
-    uint8_t get_depth() const;
-    size_t capacity() const;
-    int16_t get_id() const;
+    inline bool empty() const           { return sz == 0; }
+    inline size_t size() const          { return sz; }
+    inline uint8_t get_depth() const    { return calc_depth(); }
+    inline size_t capacity() const
+    { 
+        if (sz == 0) { return 0; }
+        return pow(br_sz, calc_depth());
+    }
+    inline int16_t get_id() const       { return id; }
 
     // value-related getters
-    const T &operator[](size_t i) const;
+    const T &operator[](size_t i) const
+    {
+        const bp_node<T> *node = root.get();
+        for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+            node = node->branches[i >> s & br_mask].get();
+        }
+        return node->values[i & br_mask];
+    }
+    inline T &operator[](size_t i)
+    {
+        // boilerplate implementation in terms of const version
+        return const_cast<T &>(
+          implicit_cast<const bp_vector_base<T, TDer> *>(this)->operator[](i));
+    }
+    
     const T &at(size_t i) const;
-    T &operator[](size_t i);
     T &at(size_t i);
     
     TDer<T> set(const size_t i, const T &val) const;
@@ -120,12 +138,10 @@ class bp_vector : public bp_vector_base<T, bp_vector>
 private:
 
 public:
-    bp_vector() = default; //: bp_vector_base<T, bp_vector>() {}
+    bp_vector() = default;
     bp_vector(const bp_vector<T> &other) = default;
     
-    inline bool node_copy_impl(const int16_t) const { 
-        return false; 
-    }
+    inline bool node_copy_impl(const int16_t) const { return false; }
     
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
@@ -158,17 +174,16 @@ class ps_vector : public bp_vector_base<T, ps_vector>
 private:
 
 public:
-    ps_vector() = default; //: bp_vector_base<T, ps_vector>() {}
+    ps_vector() = default; 
     ps_vector(const ps_vector<T> &other) = default;
     
     ps_vector(const bp_vector_base<T, ps_vector> &other) 
-      : bp_vector_base<T, ps_vector>(other) {}
+      : bp_vector_base<T, ps_vector>(other) 
+    {   /* nothing to do here */ }
 
     ps_vector(const tr_vector<T> &other);
 
-    inline bool node_copy_impl(const int16_t) const { 
-        return true; 
-    }
+    inline bool node_copy_impl(const int16_t) const { return true; }
     
     tr_vector<T> make_transient() const;
 
@@ -195,24 +210,18 @@ class tr_vector : public bp_vector_base<T, tr_vector>
 private:
 
 public:
-    tr_vector() = default; //: bp_vector_base<T, tr_vector>() {}
+    tr_vector() = default;
     tr_vector(const tr_vector<T> &other) = default;
 
     tr_vector(const bp_vector_base<T, tr_vector> &other) 
-      : bp_vector_base<T, tr_vector>(other) {}
+      : bp_vector_base<T, tr_vector>(other)
+    {   /* nothing to do here */ }
 
     tr_vector(const bp_vector<T> &other);
     tr_vector(const ps_vector<T> &other);
 
-    inline bool node_copy_impl(const int16_t other_id) const {
-        /*
-        if (this->id != other_id) { 
-            std::cout << "mutating transient vec...my id: " << this->id 
-                      << "; other_id: " << other_id << std::endl;
-        } else {
-            std::cout << "owned by us so no mutate" << std::endl;
-        }
-        */
+    inline bool node_copy_impl(const int16_t other_id) const
+    {
         return this->id != other_id; 
     }
     

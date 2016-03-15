@@ -29,8 +29,7 @@ int test_simple()
         if ((1000 + test_sz - i) != test[i]) {
             cerr << "! test_simple failed: at index " << i 
                  << " got " << test[i] 
-                 << ", expected " << 1000 + test_sz - i
-                 << endl;
+                 << ", expected " << 1000 + test_sz - i << endl;
             return 1;
         }
     }
@@ -41,8 +40,7 @@ int test_simple()
         if ((1000 + i) != test[i]) {
             cerr << "! test_simple failed: at index " << i 
                  << " got " << test[i] 
-                 << ", expected " << 1000 + i
-                 << endl;
+                 << ", expected " << 1000 + i << endl;
             return 1;
         }
     }
@@ -73,7 +71,7 @@ int test_insert()
         if ((test_vec.at(i) != test_trie.at(i))) {
             cerr << "test_insert failed: at index " << i 
                  << "; got " << test_trie.at(i) 
-                 << ", expected " << test_vec.at(i);
+                 << ", expected " << test_vec.at(i) << endl;
             return 1;
         }
     }
@@ -111,8 +109,7 @@ int test_pers()
                 cerr << "! test_pers failed: at copy " << i 
                      << ", index " << j 
                      << "; got " << test[i].at(j) 
-                     << ", expected " << i
-                     << endl;
+                     << ", expected " << i << endl;
                 return 1;
             }
             
@@ -147,15 +144,13 @@ int test_pers_alternate()
         if (test1[i] != ref1[i]) {
             cerr << "! test_pers_alt failed at test1: at index " << i 
                  << "; got " << test1[i] 
-                 << ", expected " << ref1[i]
-                 << endl;
+                 << ", expected " << ref1[i] << endl;
             return 1;
         }
         if (test2[i] != ref2[i]) {
             cerr << "! test_pers_alt failed at test2: at index " << i 
                  << "; got " << test2[i] 
-                 << ", expected " << ref2[i]
-                 << endl;
+                 << ", expected " << ref2[i] << endl;
             return 1;
         }
     }
@@ -182,15 +177,13 @@ int test_pers_alternate()
         if (test3[i] != ref3[i]) {
             cerr << "! test_pers_alt failed at test3: at index " << i 
                  << "; got " << test3[i] 
-                 << ", expected " << ref3[i]
-                 << endl;
+                 << ", expected " << ref3[i] << endl;
             return 1;
         }
         if (test4[i] != ref4[i]) {
             cerr << "! test_pers_alt failed at test4: at index " << i 
                  << "; got " << test4[i] 
-                 << ", expected " << ref4[i]
-                 << endl;
+                 << ", expected " << ref4[i] << endl;
             return 1;
         }
     }
@@ -241,8 +234,7 @@ int test_trans()
                 cerr << "! test_trans failed: at tr_vector copy " << i 
                      << ", index " << j 
                      << "; got " << transs[i].at(j) 
-                     << ", expected " << ref.at(j)
-                     << endl;
+                     << ", expected " << ref.at(j) << endl;
                 return 1;
             }
             double pers_val_test = ref.at(j);
@@ -255,8 +247,7 @@ int test_trans()
                 cerr << "! test_trans failed: at ps_vector copy " << i 
                      << ", index " << j 
                      << "; got " << perss[i].at(j) 
-                     << ", expected " << pers_val_test
-                     << endl;
+                     << ", expected " << pers_val_test << endl;
                 return 1;
             }
         }
@@ -266,8 +257,8 @@ int test_trans()
         if (next.at(i) != 777) {
             cerr << "! test_trans failed: problems with make_transient"
                  << "; at index i, got " << next.at(i) 
-                 << ", expected " << 777
-                 << endl;
+                 << ", expected " << 777 << endl;
+            return 1;
         }
     }
     
@@ -335,35 +326,36 @@ int test_coroutine()
 
 void my_accumulate(cont_vector<double> &test, size_t index)
 {
-    test.validate();
+    splt_vector<double> test_splinter = test.detach();
     for (int i = 0; i < 10; ++i) {
-        //cout << i << endl;
-        test.comp(index, i);
+        test_splinter.comp(index, i);
     }
-    test.push();
+    test.push(test_splinter);
 }
-
 int test_cvec()
 {
     cont_vector<double> test(new Plus<double>());
-    test.unprotected_push_back(0);
-    test.unprotected_push_back(1);
-    test.unprotected_push_back(2);
-    test.unprotected_push_back(3);
-    uint16_t num_threads = 4; //thread::hardware_concurrency();
+    auto nthreads = thread::hardware_concurrency();
+    for (int i = 0; i < nthreads; ++i) {
+        test.unprotected_push_back(i);
+    }
     vector<thread> threads;
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < nthreads; ++i) {
         threads.push_back(thread(my_accumulate, std::ref(test), 1));
     }
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < nthreads; ++i) {
         threads[i].join();
+    }
+    if (test.at_prescient(1) != 181) {
+        cerr << "! test_cvec failed: at index 1, got " << test.at_prescient(1)
+             << ", expected " << 181 << endl;
     }
     return 0;
 }
 
 
 void vec_timing() {
-    int test_sz = 1048;
+    int test_sz = 4096;
 	
     chrono::time_point<chrono::system_clock> st_start, st_end;
 	st_start = chrono::system_clock::now();
@@ -394,8 +386,8 @@ void vec_timing() {
 	tr_start = chrono::system_clock::now();
 	tr_vector<double> tr_test;
     for (int i = 0; i < test_sz; ++i) {
-        tr_test.mut_push_back(i);
-        //tr_test = tr_test.push_back(i);
+        //tr_test.mut_push_back(i);
+        tr_test = tr_test.push_back(i);
     }
 	tr_end = chrono::system_clock::now();
 	
@@ -408,6 +400,13 @@ void vec_timing() {
     cout << "bp took " << bp_dur.count()/test_sz * 1000000000 << " ns" << endl;
     cout << "ps took " << ps_dur.count()/test_sz * 1000000000 << " ns" << endl;
     cout << "tr took " << tr_dur.count()/test_sz * 1000000000 << " ns" << endl;
+
+    /*
+    int ri{42};
+    atomic_int ai{42};
+    cout << "sizeof(ri) -> " << sizeof(ri) << endl;
+    cout << "sizeof(ai) -> " << sizeof(ai) << endl;
+    */
 }
 
 

@@ -6,63 +6,12 @@
 #include <cmath>
 #include <cassert>
 
-#include "util.h"
-
 
 template <typename T, template<typename> typename TDer>
 using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
 template <typename T>
 using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
-
-template <typename T, template<typename> typename TDer>
-uint8_t bp_vector_base<T, TDer>::calc_depth() const
-{
-    return shift / BITPART_SZ + 1;
-}
-
-template <typename T, template<typename> typename TDer>
-bool bp_vector_base<T, TDer>::empty() const
-{
-    return sz == 0;
-}    
-
-template <typename T, template<typename> typename TDer>
-size_t bp_vector_base<T, TDer>::size() const
-{
-    return sz;
-}    
-
-template <typename T, template<typename> typename TDer>
-uint8_t bp_vector_base<T, TDer>::get_depth() const
-{
-    return calc_depth();
-}
-
-template <typename T, template<typename> typename TDer>
-size_t bp_vector_base<T, TDer>::capacity() const
-{
-    if (sz == 0) {
-        return 0;
-    }
-    return pow(br_sz, calc_depth());
-}
-
-template <typename T, template<typename> typename TDer>
-int16_t bp_vector_base<T, TDer>::get_id() const
-{
-    return id;
-}
-
-template <typename T, template<typename> typename TDer>
-const T &bp_vector_base<T, TDer>::operator[](size_t i) const
-{
-    const bp_node<T> *node = root.get();
-    for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
-        node = node->branches[i >> s & br_mask].get();
-    }
-    return node->values[i & br_mask];
-}
 
 template <typename T, template<typename> typename TDer>
 const T &bp_vector_base<T, TDer>::at(size_t i) const
@@ -72,14 +21,6 @@ const T &bp_vector_base<T, TDer>::at(size_t i) const
                                 ", given index " + std::to_string(i));
     }
     return this->operator[](i);
-}
-
-template <typename T, template<typename> typename TDer>
-T &bp_vector_base<T, TDer>::operator[](size_t i)
-{
-    // boilerplate implementation in terms of const version
-    return const_cast<T &>(
-      implicit_cast<const bp_vector_base<T, TDer> *>(this)->operator[](i));
 }
 
 template <typename T, template<typename> typename TDer>
