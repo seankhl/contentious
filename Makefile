@@ -19,7 +19,7 @@ DCOMPILE_FLAGS = -DDEBUG -Og -g
 INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
 #LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib -L./bp_vector/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
-LINK_FLAGS = -fopenmp -mavx -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+LINK_FLAGS = -fopenmp -mavx -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_thread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings

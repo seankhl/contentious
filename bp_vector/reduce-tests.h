@@ -12,6 +12,8 @@
 
 #include <immintrin.h>
 
+#include <CL/cl.h>
+
 #include "cont_vector.h"
 
 double seq_reduce(const std::vector<double> &test_vec);

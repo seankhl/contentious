@@ -6,6 +6,8 @@
 #include <memory>
 #include <atomic>
 #include <array>
+#include <stack>
+#include <utility>
 #include <cmath>
 #include <iostream>
 
@@ -128,6 +130,131 @@ public:
     
     TDer<T> set(const size_t i, const T &val) const;
     TDer<T> push_back(const T &val) const;
+
+	class const_iterator {
+    private:
+        std::stack<std::pair<bp_node<T> *, size_t>> path;
+        uint8_t depth;
+        std::array<T, br_sz> *leaf;
+        size_t pos_cached;
+
+    public:
+        /*
+        typedef typename A::difference_type difference_type;
+        typedef typename A::value_type value_type;
+        typedef typename A::reference const_reference;
+        typedef typename A::pointer const_pointer;
+        typedef std::random_access_iterator_tag iterator_category; //or another tag
+        */
+
+        const_iterator() = delete;
+
+        const_iterator(const bp_vector_base<T, TDer> &toit) 
+        {
+            depth = toit.calc_depth();
+            if (toit.size() == 0) {
+                --depth;
+            } else {
+                path.push(std::pair<bp_node<T> *, size_t>(
+                        toit.root.get(), 0));
+            }
+            while (path.size() != depth) {
+                path.push(std::pair<bp_node<T> *, size_t>(
+                            path.top().first->branches[0].get(), 0));
+            }
+            if (toit.size() == 0) {
+                leaf = nullptr;
+                pos_cached = 0;
+            } else {
+                leaf = &(path.top().first->values);
+                pos_cached = path.top().second;
+            }
+        }
+
+        const_iterator(const const_iterator &other)
+          : path(other.path), depth(other.depth), 
+            leaf(other.leaf), pos_cached(0)
+        {   /* nothing to do here */ }
+
+        //const_iterator(const const_iterator&);
+        //const_iterator(const iterator&);
+        //~const_iterator();
+
+        //const_iterator &operator=(const const_iterator &other)
+        bool operator==(const const_iterator &other) const
+        {
+            return leaf == other.leaf && pos_cached == other.pos_cached;
+        }
+        bool operator!=(const const_iterator &other) const
+        {
+            return !(*this == other);
+        }
+        //bool operator<(const const_iterator&) const; //optional
+        //bool operator>(const const_iterator&) const; //optional
+        //bool operator<=(const const_iterator&) const; //optional
+        //bool operator>=(const const_iterator&) const; //optional
+
+        const_iterator &operator++()
+        {
+            std::reference_wrapper<size_t> pos = std::ref(path.top().second);
+            // interior node iteration; != means fast overflow past end
+            if (pos != br_sz - 1) {
+                ++pos;
+                pos_cached = pos;
+                return *this;
+            }
+            // go up until we're not at the end of our node
+            while (pos == br_sz - 1) {
+                path.pop();
+                if (path.size() == 0) {
+                    pos_cached = br_sz;
+                    return *this;
+                }
+                pos = std::ref(path.top().second);
+            }
+            ++pos;
+            assert(pos < br_sz);
+            while (path.size() != depth && 
+                   path.top().first->branches[pos] != nullptr) {
+                path.push(std::pair<bp_node<T> *, size_t>(
+                            path.top().first->branches[pos].get(), 0));
+                pos = std::ref(path.top().second);
+            }
+            leaf = &(path.top().first->values);
+            pos_cached = pos;
+            return *this;
+        }
+        /*
+        const_iterator operator++(int); //optional
+        const_iterator& operator--(); //optional
+        const_iterator operator--(int); //optional
+        const_iterator& operator+=(size_type); //optional
+        */
+        const_iterator operator+(size_t n) const
+        {
+            auto ret = *this;
+            for (size_t i = 0; i < n; ++i) {
+                ++ret;
+            }
+            return ret;
+        }
+        /*
+        friend const_iterator operator+(size_t n, const const_iterator &it); //optional
+        const_iterator& operator-=(size_type); //optional            
+        const_iterator operator-(size_type) const; //optional
+        difference_type operator-(const_iterator) const; //optional
+        */
+        const T &operator*() const  { return (*leaf)[pos_cached]; }
+        const T *operator->() const { return (*leaf) + pos_cached; }
+        /*
+        const_reference operator[](size_type) const; //optional
+        */
+	};
+
+    const_iterator begin() const    { return const_iterator(*this); }
+    const_iterator cbegin() const   { return const_iterator(*this); }
+    const_iterator end() const      { return const_iterator(*this) + sz; }
+    const_iterator cend() const     { return const_iterator(*this) + sz; }
 
 };
 

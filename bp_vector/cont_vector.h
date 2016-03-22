@@ -10,6 +10,8 @@
 #include <atomic>
 #include <mutex>
 
+#include <boost/thread/latch.hpp>
+
 #include "bp_vector.h"
 
 constexpr uint16_t NUM_THREADS = 4;
@@ -17,34 +19,6 @@ constexpr uint16_t NUM_THREADS = 4;
 
 template <typename T>
 class cont_vector;
-
-template <typename T>
-class cont_record
-{
-    friend class cont_vector<T>;
-private:
-    std::map<std::thread::id, tr_vector<T>> splinters;
-    //std::map<size_t, std::set<std::thread::id>> changed;
-    // a different approach/idea
-    //const uint16_t MAX_SPLINTERS = 512;
-    //array<bool, MAX_SPLINTERS> finalized;
-
-public:
-    cont_record() = default;
-
-    inline void set(const size_t i, const T &val)
-    {
-        std::thread::id tid = std::this_thread::get_id();
-        /*
-        if (changed.find(i) == changed.end()) {
-            changed[i] = std::set<std::thread::id>();
-        }
-        changed[i].insert(tid);
-        */
-        //std::cout << "in record set: " << val << std::endl;
-        splinters[tid] = splinters[tid].set(i, val);
-    }
-};
 
 
 template <typename T>
@@ -76,15 +50,14 @@ template <typename T>
 class splt_vector 
 {
 private:
+
 public:
     tr_vector<T> data;
     const Plus<T> *op;
 
     splt_vector(const cont_vector<T> &trunk)
       : data(trunk.origin.new_id()), op(trunk.op)
-    {
-        // nothing to do here
-    }
+    {   /* nothing to do here */ }
 
     inline splt_vector<T> comp(const size_t i, const T &val)
     {
@@ -105,7 +78,7 @@ class cont_vector
 {
     friend class splt_vector<T>;
 private:
-    // timestamps for reading and writing
+    // TODO: timestamps for reading and writing?
     // if read <= write:
     //     no dependents
     // if read > write:
@@ -113,41 +86,40 @@ private:
     //std::atomic<uint16_t> ts_r;
     //std::atomic<uint16_t> ts_w;
 
-    //std::atomic<uint16_t> num_detached;
     tr_vector<T> origin;
-    //cont_record<T> record;
+    
     std::set<uint16_t> splinters;
-    std::map<std::thread::id, bool> resolved;
+    std::map<uint16_t, bool> resolved;
+    
     std::mutex origin_lock;
-    std::mutex record_lock;
-    std::mutex unresolved_lock;
+    boost::latch resolve_latch;
 
-    std::map<std::thread::id, bool> prescient;
     cont_vector<T> *next;
+    std::map<std::thread::id, bool> prescient;
+
     
     const Plus<T> *op;
-
-    //void tick_w() { ++tick_w; }
     
 public:
     cont_vector() = delete;
-    cont_vector(Plus<T> *_op) : next(nullptr), op(_op) {}
+    cont_vector(Plus<T> *_op) 
+      : resolve_latch(4), next(nullptr), op(_op) {}
 
     cont_vector(const cont_vector<T> &other)
-      : origin(other.origin.new_id()), resolved(other.resolved), op(other.op) 
+      : origin(other.origin.new_id()), resolved(other.resolved), 
+        resolve_latch(4), next(nullptr), op(other.op) 
     {
         // nothing to do here
     }
     
-    T &at(size_t i)
-    {
-        return origin.at(i);
-    }
+    inline const T &operator[](size_t i) const {    return origin[i]; }
+    inline T &operator[](size_t i) {                return origin[i]; }
     
-    T &at_prescient(size_t i)
-    {
-        return next->at(i);
-    }
+    inline const T &at(size_t i) const {    return origin.at(i); }
+    inline T &at(size_t i) {                return origin.at(i); }
+    
+    inline const T &at_prescient(size_t i) const {  return next->at(i); }
+    inline T &at_prescient(size_t i) {              return next->at(i); }
 
 
     // internal set passthroughs
@@ -164,7 +136,6 @@ public:
     // user can tick the read counter
     //void tick_r() { ++tick_r; }
     
-    
     splt_vector<T> detach()
     {
         splt_vector<T> ret(*this);
@@ -175,6 +146,39 @@ public:
         return ret;
     }
 
+    /*
+    void cont_inc(cont_vector<double> &cont_ret,
+            vector<double>::const_iterator a, vector<double>::const_iterator b)
+    {
+        //chrono::time_point<chrono::system_clock> splt_start, splt_end;
+        splt_vector<double> splt_ret = cont_ret.detach();
+        double temp(0);
+        //splt_start = chrono::system_clock::now();
+        for (auto it = a; it != b; ++it) {
+            temp += *it;
+        }
+        splt_ret.mut_comp(0, temp);
+        cont_ret.push(splt_ret);
+    }
+    split_vector<T> map(function f)
+    {
+        cont_vector<double> cont_ret(new Plus<double>());
+        std::vector<thread> cont_threads;
+        int num_threads = thread::hardware_concurrency();
+        size_t chunk_sz = test_vec.size()/num_threads;
+        for (int i = 0; i < num_threads; ++i) {
+            cont_threads.push_back(
+                    thread(cont_inc, 
+                        std::ref(cont_ret), 
+                        test_vec.begin() + chunk_sz * i,
+                        test_vec.begin() + chunk_sz * (i+1)));
+        }
+        for (int i = 0; i < num_threads; ++i) {
+            cont_threads[i].join();
+        }
+        return cont_ret.at_prescient(0);
+    }
+    */
     void push(splt_vector<T> &splinter)
     {
         //--num_detached;
@@ -213,18 +217,15 @@ public:
                 next->origin = next->origin.set(i, op->f(next->origin.at(i), diff));
             }
         }
+        resolve_latch.count_down();
 
-        /*
-        if (resolved.size() == NUM_THREADS) {
-            this = next;
-        }
-        */
-
-        //delete other.op;
     }
 
-    inline void pull()
+    inline cont_vector<T> pull()
     {
+        resolve_latch.wait();
+        return *next;
+        //delete other.op;
     }
 
     inline void sync()
@@ -243,30 +244,6 @@ public:
                 std::cout << j << " ";
             }
             std::cout << std::endl;
-        }
-        */
-    }
-    
-    // TODO: do it concurrently
-    void resolve()
-    {
-        /*
-        std::thread::id tid = std::this_thread::get_id();
-        for (auto i: unresolved) {
-            size_t cutoff = i.second.size() / 2;
-            T temp = i.second[tid];
-            while (tid < cutoff) {
-                temp += i.second[tid + cutoff];
-                cutoff /= 2;
-            }
-            if (tid == 0) {
-                (*this)[i.first] += temp;
-            }
-        }
-        for (auto i: unresolved) {
-            for (auto j : i.second) {
-                (*this)[i.first] += j;
-            }
         }
         */
     }

@@ -142,7 +142,6 @@ double vec_reduce(const vector<double> &test_vec)
     return vec_ret[0];
 }
 
-
 void cont_inc(cont_vector<double> &cont_ret,
               vector<double>::const_iterator a, vector<double>::const_iterator b)
 {
@@ -180,7 +179,7 @@ double cont_reduce(const vector<double> &test_vec)
     cont_vector<double> cont_ret(new Plus<double>());
     cont_ret.unprotected_push_back(0);
     vector<thread> cont_threads;
-    int num_threads = thread::hardware_concurrency() * 16;
+    int num_threads = thread::hardware_concurrency(); // * 16;
     size_t chunk_sz = test_vec.size()/num_threads;
     for (int i = 0; i < num_threads; ++i) {
         cont_threads.push_back(
@@ -194,7 +193,6 @@ double cont_reduce(const vector<double> &test_vec)
     }
     return cont_ret.at_prescient(0);
 }
-
 
 void reduce_timing()
 {

@@ -192,6 +192,37 @@ int test_pers_alternate()
     return 0;
 }
 
+int test_pers_iter()
+{
+    tr_vector<double> pers;
+    for (int i = 0; i < 514; ++i) {
+        pers = tr_vector<double>();
+        for (int j = 0; j < i; ++j) {
+            pers = pers.push_back(i);
+        }
+        //cout << "let's iterate! ";
+        int index = 0;
+        for (auto it = pers.begin(); it != pers.end(); ++it) {
+            if (*it != pers[index]) {
+                cerr << "! test_pers_iter failed: at index " << index 
+                     << "; got " << *it 
+                     << ", expected " << pers[index] << endl;
+                return 1;
+            }
+            //cout << *it << " ";
+            ++index;
+        }
+        if (index != i) {
+            cerr << "! test_pers_iter failed: iterated " << index
+                 << " times, but its size was " << i << endl;
+            return 1;
+        }
+        //cout << "done!" << endl;
+    }
+    cerr << "+ test_pers_iter passed" << endl;
+    return 0;
+}
+
 int test_trans()
 {
     vector<tr_vector<double>> transs;
@@ -331,25 +362,28 @@ void my_accumulate(cont_vector<double> &test, size_t index)
         test_splinter.comp(index, i);
     }
     test.push(test_splinter);
+    cont_vector<double> next = test.pull();
+    //cout << "next[1] is: " << next.at(1) << endl;
 }
 int test_cvec()
 {
     cont_vector<double> test(new Plus<double>());
     auto nthreads = thread::hardware_concurrency();
-    for (int i = 0; i < nthreads; ++i) {
+    for (unsigned i = 0; i < nthreads; ++i) {
         test.unprotected_push_back(i);
     }
     vector<thread> threads;
-    for (int i = 0; i < nthreads; ++i) {
+    for (unsigned i = 0; i < nthreads; ++i) {
         threads.push_back(thread(my_accumulate, std::ref(test), 1));
     }
-    for (int i = 0; i < nthreads; ++i) {
+    for (unsigned i = 0; i < nthreads; ++i) {
         threads[i].join();
     }
     if (test.at_prescient(1) != 181) {
         cerr << "! test_cvec failed: at index 1, got " << test.at_prescient(1)
              << ", expected " << 181 << endl;
     }
+    cerr << "+ test_cvec passed" << endl;
     return 0;
 }
 
@@ -425,8 +459,9 @@ int main()
     runner.push_back(test_insert);
     runner.push_back(test_pers);
     runner.push_back(test_pers_alternate);
+    runner.push_back(test_pers_iter);
     runner.push_back(test_trans);
-    runner.push_back(test_make);
+    //runner.push_back(test_make);
     runner.push_back(test_coroutine);
     runner.push_back(test_cvec);
     int num_tests = runner.size();
@@ -440,8 +475,8 @@ int main()
     else {
         cout << " " << ret << " tests failed!" << endl;
     }
-    vec_timing();
-    reduce_timing();
+    //vec_timing();
+    //reduce_timing();
     
     return ret;
 }
