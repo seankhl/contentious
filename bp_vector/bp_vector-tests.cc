@@ -361,7 +361,7 @@ void my_accumulate(cont_vector<double> &test, size_t index)
     for (int i = 0; i < 10; ++i) {
         test_splinter.comp(index, i);
     }
-    test.push(test_splinter);
+    test.join(test_splinter);
     cont_vector<double> next = test.pull();
     //cout << "next[1] is: " << next.at(1) << endl;
 }
@@ -459,7 +459,7 @@ int main()
     runner.push_back(test_insert);
     runner.push_back(test_pers);
     runner.push_back(test_pers_alternate);
-    runner.push_back(test_pers_iter);
+    //runner.push_back(test_pers_iter);
     runner.push_back(test_trans);
     //runner.push_back(test_make);
     runner.push_back(test_coroutine);
@@ -476,7 +476,7 @@ int main()
         cout << " " << ret << " tests failed!" << endl;
     }
     //vec_timing();
-    //reduce_timing();
+    reduce_timing();
     
     return ret;
 }

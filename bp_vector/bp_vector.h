@@ -82,6 +82,14 @@ protected:
     bp_vector_base(const bp_vector_base<T, TDerOther> &other)
       : sz(other.sz), shift(other.shift), root(other.root), id(other.id)
     {   /* nothing to do here */ }
+
+    /*
+    template <typename T>
+    bp_vector_base(const std::vector<T> &other)
+    {
+        for (int i = 0; i < other.size(); ++i) {
+    */
+            
     
     // constructor that takes arbitrary id, for making transients
     bp_vector_base(int16_t id_in) 
@@ -101,13 +109,24 @@ public:
     // size-related getters
     inline bool empty() const           { return sz == 0; }
     inline size_t size() const          { return sz; }
-    inline uint8_t get_depth() const    { return calc_depth(); }
     inline size_t capacity() const
     { 
         if (sz == 0) { return 0; }
         return pow(br_sz, calc_depth());
     }
+    inline void reserve(size_t new_cap)
+    {
+        size_t cap = capacity();
+        /* TODO: implement
+        if (new_cap > cap) {
+            for (; i < new_cap; ++i) {
+                
+            }
+        }
+        */
+    }
     inline int16_t get_id() const       { return id; }
+    inline uint8_t get_depth() const    { return calc_depth(); }
 
     // value-related getters
     const T &operator[](size_t i) const
@@ -196,7 +215,7 @@ public:
 
         const_iterator &operator++()
         {
-            std::reference_wrapper<size_t> pos = std::ref(path.top().second);
+            auto pos = std::ref(path.top().second);
             // interior node iteration; != means fast overflow past end
             if (pos != br_sz - 1) {
                 ++pos;
@@ -232,10 +251,53 @@ public:
         */
         const_iterator operator+(size_t n) const
         {
+            //TODO: make more efficient, can be O(log n) at worst
+            /*
             auto ret = *this;
             for (size_t i = 0; i < n; ++i) {
                 ++ret;
             }
+            return ret;
+            */
+            
+            auto ret = *this;
+
+            // p is the greatest jump between spots we'll make
+            // 1 means jumps within node; 
+            // br_sz means jumps between leaves with the same parent;
+            // br_sz ** 2 would mean shared grandparents
+            uint32_t p = 1;
+            // d is how far up to go to get to the largest jump
+            uint8_t d = 0;
+            while (n / p > 0) {
+                p *= br_sz;
+                ++d;
+            }
+
+            std::vector<size_t> pos_chain;
+            for (; d > 0; --d) {
+                // store the current offets for each depth to modify
+                pos_chain.push_back(ret.path.top().second);
+                ret.path.pop();
+            }
+
+            size_t left = n;
+            size_t i = 0;
+            size_t pos = pos_chain[i] + left / p;
+            size_t pos_next;
+            while (ret.path.size() != ret.depth && 
+                   ret.path.top().first->branches[pos] != nullptr) {
+                left = left % n;
+                p /= br_sz;
+                pos_next = pos_chain[++i] + left / p;
+                ret.path.push(std::pair<bp_node<T> *, size_t>(
+                         ret.path.top().first->branches[pos].get(), pos_next));
+                pos = pos_next;
+            }
+
+            assert(left == 0);
+            ret.leaf = &(ret.path.top().first->values);
+            ret.pos_cached = pos;
             return ret;
         }
         /*

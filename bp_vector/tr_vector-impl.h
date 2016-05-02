@@ -57,7 +57,7 @@ void tr_vector<T>::mut_push_back(const T &val)
 
     if (depth_ins == -1) {
         this->shift += BITPART_SZ;
-        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>();
+        bp_node_ptr<T> temp = new bp_node<T>();
         temp->id = this->id;
         this->root.swap(temp);
         this->root->branches[0] = std::move(temp);
