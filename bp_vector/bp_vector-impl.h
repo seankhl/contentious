@@ -16,7 +16,6 @@ tr_vector<T> bp_vector<T>::make_transient() const
     return ret;
 }
 
-
 template <typename T>
 void bp_vector<T>::mut_set(const size_t i, const T &val)
 {

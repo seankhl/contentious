@@ -12,8 +12,8 @@ double seq_reduce(const vector<double> &seq_vec)
     return seq_ret;
 }
 
-void locked_inc(double &locked_ret, 
-                vector<double>::const_iterator a, vector<double>::const_iterator b, 
+void locked_inc(double &locked_ret,
+                vector<double>::const_iterator a, vector<double>::const_iterator b,
                 std::mutex &ltm)
 {
     for (auto it = a; it != b; ++it) {
@@ -30,10 +30,10 @@ double locked_reduce(const vector<double> &test_vec)
     size_t chunk_sz = test_vec.size()/num_threads;
     for (int i = 0; i < num_threads; ++i) {
         locked_threads.push_back(
-          thread(locked_inc, 
-                 std::ref(locked_ret), 
-                 test_vec.begin() + chunk_sz * i, 
-                 test_vec.begin() + chunk_sz * (i+1), 
+          thread(locked_inc,
+                 std::ref(locked_ret),
+                 test_vec.begin() + chunk_sz * i,
+                 test_vec.begin() + chunk_sz * (i+1),
                  std::ref(ltm)));
     }
     for (int i = 0; i < num_threads; ++i) {
@@ -60,7 +60,7 @@ double atomic_reduce(const vector<double> &test_vec)
     size_t chunk_sz = test_vec.size()/num_threads;
     for (int i = 0; i < num_threads; ++i) {
         atomic_threads.push_back(
-          thread(atomic_inc, std::ref(atomic_ret), 
+          thread(atomic_inc, std::ref(atomic_ret),
                  test_vec.begin() + chunk_sz * i,
                  test_vec.begin() + chunk_sz * (i+1)));
     }
@@ -72,13 +72,13 @@ double atomic_reduce(const vector<double> &test_vec)
 
 double async_inc(vector<double>::const_iterator a, vector<double>::const_iterator b)
 {
-	//chrono::time_point<chrono::system_clock> async_piece_start, async_piece_end;
-	//async_piece_start = chrono::system_clock::now();
+    //chrono::time_point<chrono::system_clock> async_piece_start, async_piece_end;
+    //async_piece_start = chrono::system_clock::now();
     double async_ret = 0;
     for (auto it = a; it != b; ++it) {
         async_ret += *it;
     }
-	//async_piece_end = chrono::system_clock::now();
+    //async_piece_end = chrono::system_clock::now();
     //chrono::duration<double> async_piece_dur = async_piece_end - async_piece_start;
     //cout << "async took: " << async_piece_dur.count() << " seconds; " << endl;
     return async_ret;
@@ -121,8 +121,7 @@ double avx_reduce(const vector<double> &test_vec)
 double omp_reduce(const vector<double> &test_vec)
 {
     double omp_ret(0);
-#pragma omp parallel for        \
-  reduction(+:omp_ret)  
+#pragma omp parallel for reduction(+:omp_ret)
 /*
   default(shared) private(i)    \
   schedule(static, chunk)       \
@@ -146,15 +145,15 @@ double vec_reduce(const vector<double> &test_vec)
 void cont_inc(cont_vector<double> &cont_ret,
               vector<double>::const_iterator a, vector<double>::const_iterator b)
 {
-	//chrono::time_point<chrono::system_clock> splt_start, splt_end;
+    //chrono::time_point<chrono::system_clock> splt_start, splt_end;
     splt_vector<double> splt_ret = cont_ret.detach();
     double temp(0);
-	//splt_start = chrono::system_clock::now();
+    //splt_start = chrono::system_clock::now();
     for (auto it = a; it != b; ++it) {
         temp += *it;
     }
     splt_ret.mut_comp(0, temp);
-    
+
     /*
     double avx_ret(0);
     __m256d vals = _mm256_set_pd(0, 0, 0, 0);
@@ -171,8 +170,8 @@ void cont_inc(cont_vector<double> &cont_ret,
     splt_ret.comp(0, avx_ret);
     */
 
-	//splt_end = chrono::system_clock::now();
-	//chrono::duration<double> splt_dur = splt_end - splt_start;
+    //splt_end = chrono::system_clock::now();
+    //chrono::duration<double> splt_dur = splt_end - splt_start;
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
     //std::cout << "one cont_inc done: " << splt_ret.data.at(0) << std::endl;
     cont_ret.join(splt_ret);
@@ -186,8 +185,8 @@ double cont_reduce(const vector<double> &test_vec)
     size_t chunk_sz = test_vec.size()/num_threads;
     for (int i = 0; i < num_threads; ++i) {
         cont_threads.push_back(
-          thread(cont_inc, 
-                 std::ref(cont_ret), 
+          thread(cont_inc,
+                 std::ref(cont_ret),
                  test_vec.begin() + chunk_sz * i,
                  test_vec.begin() + chunk_sz * (i+1)));
     }
@@ -202,9 +201,9 @@ double cont_reduce(const vector<double> &test_vec)
 void cont_inc(cont_vector<double> &cont_ret,
               vector<double>::const_iterator a, vector<double>::const_iterator b)
 {
-	//chrono::time_point<chrono::system_clock> splt_start, splt_end;
+    //chrono::time_point<chrono::system_clock> splt_start, splt_end;
     splt_vector<double> splt_ret = cont_ret.detach();
-	//splt_start = chrono::system_clock::now();
+    //splt_start = chrono::system_clock::now();
     size_t chunk_sz = test_vec.size()/num_threads;
 
     // TODO: iterators, or at least all leaves at a time
@@ -226,8 +225,8 @@ double cont_foreach(const vector<double> &test_vec)
     size_t chunk_sz = test_vec.size()/num_threads;
     for (int i = 0; i < num_threads; ++i) {
         cont_threads.push_back(
-          thread(cont_inc, 
-                 std::ref(cont_ret), 
+          thread(cont_inc,
+                 std::ref(cont_ret),
                  test_vec.begin() + chunk_sz * i,
                  test_vec.begin() + chunk_sz * (i+1)));
     }
@@ -235,7 +234,7 @@ double cont_foreach(const vector<double> &test_vec)
         cont_threads[i].join();
     }
     return cont_ret.at_prescient(0);
-} 
+}
 */
 
 void cont_reduce_new(const vector<double> &test_vec)
@@ -273,7 +272,15 @@ void cont_foreach(const vector<double> &test_vec)
         cont_inp.unprotected_push_back(test_vec[i]);
     }
     auto cont_ret = cont_inp.foreach(new Multiply<double>(), 2);
-    auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
+
+    cont_vector<double> cont_other(new Multiply<double>());
+    std::cout << "cont_other: ";
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        cont_other.unprotected_push_back(i);
+        cout << cont_other[i] << " ";
+    }
+    cout << endl;
+    auto cont_ret2 = cont_ret.foreach(new Plus<double>(), cont_other);
     for (size_t i = 0; i < cont_ret.size(); ++i) {
         cout << cont_ret[i] << " ";
     }
@@ -284,67 +291,85 @@ void cont_foreach(const vector<double> &test_vec)
     cout << endl;
 }
 
+void cont_stencil(const vector<double> &test_vec)
+{
+    cont_vector<double> cont_other(new Multiply<double>());
+    std::cout << "cont_other: ";
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        cont_other.unprotected_push_back(1);
+        cout << cont_other[i] << " ";
+    }
+    cout << endl;
+    auto cont_ret = cont_other.stencil(new Multiply<double>(), {-1, 1}, {2, 3});
+    std::cout << "cont_ret: ";
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        cout << cont_ret[i] << " ";
+    }
+    cout << endl;
+}
+
 void reduce_timing()
 {
     int64_t test_sz = 33; // std::numeric_limits<int64_t>::max() / pow(2,36);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
-	uniform_real_distribution<double> dist(-32.768, 32.768);
+    uniform_real_distribution<double> dist(-32.768, 32.768);
 
     auto gen = std::bind(dist, mersenne_engine);
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
-    
+
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
     cout << cont_reduce(test_vec) << " " << cont_reduce(test_vec) - answer_new << endl;
-    cont_reduce_new(test_vec);
-    cont_foreach(test_vec);
+    //cont_reduce_new(test_vec);
+    //cont_foreach(test_vec);
+    cont_stencil(test_vec);
 
     /*
     chrono::time_point<chrono::system_clock> locked_start, locked_end;
-	locked_start = chrono::system_clock::now();
+    locked_start = chrono::system_clock::now();
     double locked_test = locked_reduce(test_vec);
-	locked_end = chrono::system_clock::now();
-	
+    locked_end = chrono::system_clock::now();
+
     chrono::time_point<chrono::system_clock> atomic_start, atomic_end;
-	atomic_start = chrono::system_clock::now();
+    atomic_start = chrono::system_clock::now();
     double atomic_test = atomic_reduce(test_vec);
-	atomic_end = chrono::system_clock::now();
+    atomic_end = chrono::system_clock::now();
 
     chrono::time_point<chrono::system_clock> async_start, async_end;
-	async_start = chrono::system_clock::now();
+    async_start = chrono::system_clock::now();
     double async_test = async_reduce(test_vec);
-	async_end = chrono::system_clock::now();
-    
-	chrono::time_point<chrono::system_clock> avx_start, avx_end;
-	avx_start = chrono::system_clock::now();
-    double avx_test = avx_reduce(test_vec);
-	avx_end = chrono::system_clock::now();
-	
-	chrono::time_point<chrono::system_clock> cont_start, cont_end;
-	cont_start = chrono::system_clock::now();
-    double cont_test = cont_reduce(test_vec);
-	cont_end = chrono::system_clock::now();
+    async_end = chrono::system_clock::now();
 
-	chrono::time_point<chrono::system_clock> omp_start, omp_end;
-	omp_start = chrono::system_clock::now();
+    chrono::time_point<chrono::system_clock> avx_start, avx_end;
+    avx_start = chrono::system_clock::now();
+    double avx_test = avx_reduce(test_vec);
+    avx_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> cont_start, cont_end;
+    cont_start = chrono::system_clock::now();
+    double cont_test = cont_reduce(test_vec);
+    cont_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> omp_start, omp_end;
+    omp_start = chrono::system_clock::now();
     double omp_test = omp_reduce(test_vec);
-	omp_end = chrono::system_clock::now();
-    
-	chrono::time_point<chrono::system_clock> seq_start, seq_end;
-	seq_start = chrono::system_clock::now();
+    omp_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> seq_start, seq_end;
+    seq_start = chrono::system_clock::now();
     double seq_test = seq_reduce(test_vec);
-	seq_end = chrono::system_clock::now();
-	
-	chrono::time_point<chrono::system_clock> vec_start, vec_end;
-	vec_start = chrono::system_clock::now();
+    seq_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> vec_start, vec_end;
+    vec_start = chrono::system_clock::now();
     double vec_test = vec_reduce(test_vec);
-	vec_end = chrono::system_clock::now();
+    vec_end = chrono::system_clock::now();
     */
 
     /*
@@ -378,19 +403,19 @@ void reduce_timing()
     std::cout << "omp_test: " << omp_test << endl;
     std::cout << "vec_test: " << vec_test << endl;
     std::cout << "cont_test: " << cont_test << endl;
-	*/
+    */
 
     /*
     chrono::duration<double> seq_dur = seq_end - seq_start;
-	chrono::duration<double> locked_dur = locked_end - locked_start;
-	chrono::duration<double> atomic_dur = atomic_end - atomic_start;
-	chrono::duration<double> async_dur = async_end - async_start;
+    chrono::duration<double> locked_dur = locked_end - locked_start;
+    chrono::duration<double> atomic_dur = atomic_end - atomic_start;
+    chrono::duration<double> async_dur = async_end - async_start;
     chrono::duration<double> avx_dur = avx_end - avx_start;
-	chrono::duration<double> omp_dur = omp_end - omp_start;
-	chrono::duration<double> vec_dur = vec_end - vec_start;
-	chrono::duration<double> cont_dur = cont_end - cont_start;
+    chrono::duration<double> omp_dur = omp_end - omp_start;
+    chrono::duration<double> vec_dur = vec_end - vec_start;
+    chrono::duration<double> cont_dur = cont_end - cont_start;
     */
-    
+
     /*
     cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
     cout << "locked took: " << locked_dur.count() << " seconds; " << endl;

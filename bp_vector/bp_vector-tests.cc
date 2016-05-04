@@ -9,8 +9,10 @@
 #include <cassert>
 #include <cmath>
 
-#include "boost/coroutine/asymmetric_coroutine.hpp" 
+#include "boost/coroutine/symmetric_coroutine.hpp"
+#include "boost/coroutine/asymmetric_coroutine.hpp"
 #include "boost/variant.hpp"
+#include "boost/bind.hpp"
 
 //#include "bp_vector.h"
 //#include "cont_vector.h"
@@ -27,8 +29,8 @@ int test_simple()
     }
     for (int i = 0; i < test_sz; ++i) {
         if ((1000 + test_sz - i) != test[i]) {
-            cerr << "! test_simple failed: at index " << i 
-                 << " got " << test[i] 
+            cerr << "! test_simple failed: at index " << i
+                 << " got " << test[i]
                  << ", expected " << 1000 + test_sz - i << endl;
             return 1;
         }
@@ -38,8 +40,8 @@ int test_simple()
     }
     for (int i = 0; i < test_sz; ++i) {
         if ((1000 + i) != test[i]) {
-            cerr << "! test_simple failed: at index " << i 
-                 << " got " << test[i] 
+            cerr << "! test_simple failed: at index " << i
+                 << " got " << test[i]
                  << ", expected " << 1000 + i << endl;
             return 1;
         }
@@ -69,8 +71,8 @@ int test_insert()
     //auto rand_ind = std::bind(dist_int, e_ind);
     for (size_t i = 0; i < test_sz; ++i) {
         if ((test_vec.at(i) != test_trie.at(i))) {
-            cerr << "test_insert failed: at index " << i 
-                 << "; got " << test_trie.at(i) 
+            cerr << "test_insert failed: at index " << i
+                 << "; got " << test_trie.at(i)
                  << ", expected " << test_vec.at(i) << endl;
             return 1;
         }
@@ -106,13 +108,13 @@ int test_pers()
         ref.push_back(1000 + test_sz - i);
         for (int j = 0; j < i; ++j) {
             if (i != test[i].at(j)) {
-                cerr << "! test_pers failed: at copy " << i 
-                     << ", index " << j 
-                     << "; got " << test[i].at(j) 
+                cerr << "! test_pers failed: at copy " << i
+                     << ", index " << j
+                     << "; got " << test[i].at(j)
                      << ", expected " << i << endl;
                 return 1;
             }
-            
+
         }
        //cout << i << " " << test[i] << endl;
     }
@@ -131,7 +133,7 @@ int test_pers_alternate()
     test1 = test1.push_back(8);
     //cout << test1 << endl;
     //cout << test2 << endl;
-    
+
     vector<double> ref1;
     vector<double> ref2;
     for (int i = 0; i < 8; ++i) {
@@ -142,14 +144,14 @@ int test_pers_alternate()
     ref2.push_back(9);
     for (int i = 0; i < 9; ++i) {
         if (test1[i] != ref1[i]) {
-            cerr << "! test_pers_alt failed at test1: at index " << i 
-                 << "; got " << test1[i] 
+            cerr << "! test_pers_alt failed at test1: at index " << i
+                 << "; got " << test1[i]
                  << ", expected " << ref1[i] << endl;
             return 1;
         }
         if (test2[i] != ref2[i]) {
-            cerr << "! test_pers_alt failed at test2: at index " << i 
-                 << "; got " << test2[i] 
+            cerr << "! test_pers_alt failed at test2: at index " << i
+                 << "; got " << test2[i]
                  << ", expected " << ref2[i] << endl;
             return 1;
         }
@@ -164,7 +166,7 @@ int test_pers_alternate()
     test3 = test3.push_back(21);
     //cout << test3 << endl;
     //cout << test4 << endl;
-    
+
     vector<double> ref3;
     vector<double> ref4;
     for (int i = 0; i < 20; ++i) {
@@ -175,19 +177,19 @@ int test_pers_alternate()
     ref4.push_back(22);
     for (int i = 0; i < 21; ++i) {
         if (test3[i] != ref3[i]) {
-            cerr << "! test_pers_alt failed at test3: at index " << i 
-                 << "; got " << test3[i] 
+            cerr << "! test_pers_alt failed at test3: at index " << i
+                 << "; got " << test3[i]
                  << ", expected " << ref3[i] << endl;
             return 1;
         }
         if (test4[i] != ref4[i]) {
-            cerr << "! test_pers_alt failed at test4: at index " << i 
-                 << "; got " << test4[i] 
+            cerr << "! test_pers_alt failed at test4: at index " << i
+                 << "; got " << test4[i]
                  << ", expected " << ref4[i] << endl;
             return 1;
         }
     }
-    
+
     cerr << "+ test_pers_alt passed" << endl;
     return 0;
 }
@@ -204,8 +206,8 @@ int test_pers_iter()
         int index = 0;
         for (auto it = pers.begin(); it != pers.end(); ++it) {
             if (*it != pers[index]) {
-                cerr << "! test_pers_iter failed: at index " << index 
-                     << "; got " << *it 
+                cerr << "! test_pers_iter failed: at index " << index
+                     << "; got " << *it
                      << ", expected " << pers[index] << endl;
                 return 1;
             }
@@ -245,7 +247,7 @@ int test_trans()
         next.mut_set(i, 777);
     }
     //cout << "changed next: " << next << endl;
-    
+
     vector<double> ref;
     if (!perss[0].empty() || !transs[0].empty()) {
         cerr << "! test_trans failed: first vector not empty" << endl;
@@ -258,13 +260,13 @@ int test_trans()
         //cout << i << " " << transs[i] << endl;
         //cout << i << " " << perss[i] << endl;
         for (int j = 0; j < i; ++j) {
-            //cout << transs[i].at(j) << " " 
-            //     << perss[i].at(j)  << " " 
+            //cout << transs[i].at(j) << " "
+            //     << perss[i].at(j)  << " "
             //     << ref.at(j)       << " : ";
             if (transs[i].at(j) != ref.at(j)) {
-                cerr << "! test_trans failed: at tr_vector copy " << i 
-                     << ", index " << j 
-                     << "; got " << transs[i].at(j) 
+                cerr << "! test_trans failed: at tr_vector copy " << i
+                     << ", index " << j
+                     << "; got " << transs[i].at(j)
                      << ", expected " << ref.at(j) << endl;
                 return 1;
             }
@@ -275,9 +277,9 @@ int test_trans()
                 pers_val_test = 666;
             }
             if (perss[i].at(j) != pers_val_test) {
-                cerr << "! test_trans failed: at ps_vector copy " << i 
-                     << ", index " << j 
-                     << "; got " << perss[i].at(j) 
+                cerr << "! test_trans failed: at ps_vector copy " << i
+                     << ", index " << j
+                     << "; got " << perss[i].at(j)
                      << ", expected " << pers_val_test << endl;
                 return 1;
             }
@@ -287,12 +289,12 @@ int test_trans()
     for (int i = 0; i < test_sz-1; ++i) {
         if (next.at(i) != 777) {
             cerr << "! test_trans failed: problems with make_transient"
-                 << "; at index i, got " << next.at(i) 
+                 << "; at index i, got " << next.at(i)
                  << ", expected " << 777 << endl;
             return 1;
         }
     }
-    
+
     cerr << "+ test_trans passed" << endl;
     return 0;
 }
@@ -338,9 +340,10 @@ int test_coroutine()
             }
         });
 
-    vector<string> words{   "peas", "porridge", "hot", "peas", "porridge", 
-                            "cold", "peas", "porridge", "in", "the", 
-                            "pot", "nine", "days", "old"    };
+    vector<string> words{ "peas", "porridge", "hot", "peas", "porridge",
+                          "cold", "peas", "porridge", "in", "the",
+                          "pot", "nine", "days", "old"
+    };
 
     std::copy(boost::begin(words),boost::end(words),boost::begin(writer));
     string expected = \
@@ -354,6 +357,39 @@ int test_coroutine()
     cerr << "+ test_coroutine passed" << endl;
     return 0;
 }
+
+
+typedef boost::coroutines::symmetric_coroutine<std::vector<int>> coro_t;
+/*
+int test_coroutine_practical() {
+    std::vector<int> v(10);
+    coro_t::call_type coro(
+        [&](coro_t::yield_type &yield) {
+            for (;;) {
+                v[i] += 1;
+                yield();
+            }
+        }
+    );
+
+    int counter = 0;
+    while (coro) {
+        coro(v);
+        std::cout << "current status of v: ";
+        for (int i = 0; i < v.size(); ++i) {
+            std::cout << v[i] << " ";
+        }
+        std::cout << std::endl;
+        ++counter;
+    }
+    std::cout << "current status of v: ";
+    for (int i = 0; i < v.size(); ++i) {
+        std::cout << v[i] << " ";
+    }
+    std::cout << std::endl;
+    return 0;
+}
+*/
 
 void my_accumulate(cont_vector<double> &test, size_t index)
 {
@@ -390,45 +426,45 @@ int test_cvec()
 
 void vec_timing() {
     int test_sz = 4096;
-	
+
     chrono::time_point<chrono::system_clock> st_start, st_end;
-	st_start = chrono::system_clock::now();
+    st_start = chrono::system_clock::now();
     std::vector<double> st_test;
     for (int i = 0; i < test_sz; ++i) {
         st_test.push_back(i);
     }
-	st_end = chrono::system_clock::now();
-    
-	chrono::time_point<chrono::system_clock> bp_start, bp_end;
-	bp_start = chrono::system_clock::now();
+    st_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> bp_start, bp_end;
+    bp_start = chrono::system_clock::now();
     bp_vector<double> bp_test;
     for (int i = 0; i < test_sz; ++i) {
         bp_test.mut_push_back(i);
         //bp_test = bp_test.push_back(i);
     }
-	bp_end = chrono::system_clock::now();
-    
-	chrono::time_point<chrono::system_clock> ps_start, ps_end;
-	ps_start = chrono::system_clock::now();
-	ps_vector<double> ps_test;
+    bp_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> ps_start, ps_end;
+    ps_start = chrono::system_clock::now();
+    ps_vector<double> ps_test;
     for (int i = 0; i < test_sz; ++i) {
         ps_test = ps_test.push_back(i);
     }
-	ps_end = chrono::system_clock::now();
-    
-	chrono::time_point<chrono::system_clock> tr_start, tr_end;
-	tr_start = chrono::system_clock::now();
-	tr_vector<double> tr_test;
+    ps_end = chrono::system_clock::now();
+
+    chrono::time_point<chrono::system_clock> tr_start, tr_end;
+    tr_start = chrono::system_clock::now();
+    tr_vector<double> tr_test;
     for (int i = 0; i < test_sz; ++i) {
         //tr_test.mut_push_back(i);
         tr_test = tr_test.push_back(i);
     }
-	tr_end = chrono::system_clock::now();
-	
-	chrono::duration<double> st_dur = st_end - st_start;
-	chrono::duration<double> bp_dur = bp_end - bp_start;
-	chrono::duration<double> ps_dur = ps_end - ps_start;
-	chrono::duration<double> tr_dur = tr_end - tr_start;
+    tr_end = chrono::system_clock::now();
+
+    chrono::duration<double> st_dur = st_end - st_start;
+    chrono::duration<double> bp_dur = bp_end - bp_start;
+    chrono::duration<double> ps_dur = ps_end - ps_start;
+    chrono::duration<double> tr_dur = tr_end - tr_start;
 
     cout << "st took " << st_dur.count()/test_sz * 1000000000 << " ns" << endl;
     cout << "bp took " << bp_dur.count()/test_sz * 1000000000 << " ns" << endl;
@@ -463,6 +499,7 @@ int main()
     runner.push_back(test_trans);
     //runner.push_back(test_make);
     runner.push_back(test_coroutine);
+    //runner.push_back(test_coroutine_practical);
     runner.push_back(test_cvec);
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {
@@ -477,7 +514,7 @@ int main()
     }
     //vec_timing();
     reduce_timing();
-    
+
     return ret;
 }
 
