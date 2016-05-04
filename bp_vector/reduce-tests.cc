@@ -14,17 +14,17 @@ double seq_reduce(const vector<double> &seq_vec)
 
 void locked_inc(double &locked_ret,
                 vector<double>::const_iterator a, vector<double>::const_iterator b,
-                std::mutex &ltm)
+                mutex &ltm)
 {
     for (auto it = a; it != b; ++it) {
-        std::lock_guard<std::mutex> lock(ltm);
+        lock_guard<mutex> lock(ltm);
         locked_ret += *it;
     }
 }
 double locked_reduce(const vector<double> &test_vec)
 {
     double locked_ret(0);
-    std::mutex ltm;
+    mutex ltm;
     vector<thread> locked_threads;
     int num_threads = thread::hardware_concurrency();
     size_t chunk_sz = test_vec.size()/num_threads;
@@ -173,7 +173,7 @@ void cont_inc(cont_vector<double> &cont_ret,
     //splt_end = chrono::system_clock::now();
     //chrono::duration<double> splt_dur = splt_end - splt_start;
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
-    //std::cout << "one cont_inc done: " << splt_ret.data.at(0) << std::endl;
+    //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
     cont_ret.join(splt_ret);
 }
 double cont_reduce(const vector<double> &test_vec)
@@ -274,7 +274,7 @@ void cont_foreach(const vector<double> &test_vec)
     auto cont_ret = cont_inp.foreach(new Multiply<double>(), 2);
 
     cont_vector<double> cont_other(new Multiply<double>());
-    std::cout << "cont_other: ";
+    cout << "cont_other: ";
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_other.unprotected_push_back(i);
         cout << cont_other[i] << " ";
@@ -294,23 +294,17 @@ void cont_foreach(const vector<double> &test_vec)
 void cont_stencil(const vector<double> &test_vec)
 {
     cont_vector<double> cont_other(new Multiply<double>());
-    std::cout << "cont_other: ";
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_other.unprotected_push_back(1);
-        cout << cont_other[i] << " ";
     }
-    cout << endl;
-    auto cont_ret = cont_other.stencil(new Multiply<double>(), {-1, 1}, {2, 3});
-    std::cout << "cont_ret: ";
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cout << cont_ret[i] << " ";
-    }
-    cout << endl;
+    cout << "cont_other: " << cont_other << endl;
+    auto cont_ret = cont_other.stencil({-1, 1}, {2, 3});
+    cout << "cont_ret: " << cont_ret << endl;
 }
 
 void reduce_timing()
 {
-    int64_t test_sz = 33; // std::numeric_limits<int64_t>::max() / pow(2,36);
+    int64_t test_sz = 33; // numeric_limits<int64_t>::max() / pow(2,36);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
@@ -395,14 +389,14 @@ void reduce_timing()
     */
 
     /*
-    std::cout << "seq_test: " << seq_test << endl;
-    std::cout << "locked_test: " << locked_test << endl;
-    std::cout << "atomic_test: " << atomic_test << endl;
-    std::cout << "async_test: " << async_test << endl;
-    std::cout << "avx_test: " << avx_test << endl;
-    std::cout << "omp_test: " << omp_test << endl;
-    std::cout << "vec_test: " << vec_test << endl;
-    std::cout << "cont_test: " << cont_test << endl;
+    cout << "seq_test: " << seq_test << endl;
+    cout << "locked_test: " << locked_test << endl;
+    cout << "atomic_test: " << atomic_test << endl;
+    cout << "async_test: " << async_test << endl;
+    cout << "avx_test: " << avx_test << endl;
+    cout << "omp_test: " << omp_test << endl;
+    cout << "vec_test: " << vec_test << endl;
+    cout << "cont_test: " << cont_test << endl;
     */
 
     /*

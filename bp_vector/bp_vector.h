@@ -25,6 +25,7 @@ constexpr uint8_t BITPART_SZ = 6;
 constexpr size_t br_sz = 1 << BITPART_SZ;
 constexpr uint8_t br_mask = br_sz - 1;
 
+
 template <typename T, template<typename> typename TDer>
 class bp_vector_base;
 template <typename T>
@@ -34,14 +35,15 @@ class ps_vector;
 template <typename T>
 class tr_vector;
 
+
 template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
-	template <typename U, template <typename> typename TDer>
+    template <typename U, template <typename> typename TDer>
     friend class bp_vector_base;
     friend class bp_vector<T>;
-	friend class ps_vector<T>;
-	friend class tr_vector<T>;
+    friend class ps_vector<T>;
+    friend class tr_vector<T>;
 
 private:
     std::array<boost::intrusive_ptr<bp_node<T>>, br_sz> branches;
@@ -70,12 +72,12 @@ protected:
     uint8_t shift;
     boost::intrusive_ptr<bp_node<T>> root;
     int16_t id;
-   
+
     // protected because we cannot create instances of base type
     bp_vector_base()
       : sz(0), shift(0), root(nullptr), id(0)
     {   /* nothing to do here */ }
-    
+
     // copy constructor is protected because it would allow us to create
     // transient vecs from persistent vecs without assigning a unique id
     template <template <typename> typename TDerOther>
@@ -89,15 +91,15 @@ protected:
     {
         for (int i = 0; i < other.size(); ++i) {
     */
-            
-    
+
+
     // constructor that takes arbitrary id, for making transients
-    bp_vector_base(int16_t id_in) 
-      : sz(0), shift(0), root(nullptr), id(id_in) 
+    bp_vector_base(int16_t id_in)
+      : sz(0), shift(0), root(nullptr), id(id_in)
     {   /* nothing to do here */ }
-    
-    inline bool node_copy(const int16_t other_id) const 
-    { 
+
+    inline bool node_copy(const int16_t other_id) const
+    {
         return static_cast<const TDer<T> *>(this)->node_copy_impl(other_id);
     }
 
@@ -105,12 +107,12 @@ protected:
 
 public:
     static inline int16_t get_unique_id() { return unique_id++; }
-    
+
     // size-related getters
     inline bool empty() const           { return sz == 0; }
     inline size_t size() const          { return sz; }
     inline size_t capacity() const
-    { 
+    {
         if (sz == 0) { return 0; }
         return pow(br_sz, calc_depth());
     }
@@ -120,7 +122,7 @@ public:
         /* TODO: implement
         if (new_cap > cap) {
             for (; i < new_cap; ++i) {
-                
+
             }
         }
         */
@@ -143,14 +145,28 @@ public:
         return const_cast<T &>(
           implicit_cast<const bp_vector_base<T, TDer> *>(this)->operator[](i));
     }
-    
+
     const T &at(size_t i) const;
     T &at(size_t i);
-    
+
     TDer<T> set(const size_t i, const T &val) const;
     TDer<T> push_back(const T &val) const;
 
-	class const_iterator {
+    const std::string get_name() const { return "bp_vector_base"; }
+    friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
+    {
+        std::string name = data.get_name();
+        out << name << "{ ";
+        for (size_t i = 0; i < data.size(); ++i) {
+            out << data.at(i) << " ";
+        }
+        out << "}/" << name;
+        return out;
+    }
+
+    /**  iterator *************************************************************/
+
+    class const_iterator {
     private:
         std::stack<std::pair<bp_node<T> *, size_t>> path;
         uint8_t depth;
@@ -168,7 +184,7 @@ public:
 
         const_iterator() = delete;
 
-        const_iterator(const bp_vector_base<T, TDer> &toit) 
+        const_iterator(const bp_vector_base<T, TDer> &toit)
         {
             depth = toit.calc_depth();
             if (toit.size() == 0) {
@@ -191,7 +207,7 @@ public:
         }
 
         const_iterator(const const_iterator &other)
-          : path(other.path), depth(other.depth), 
+          : path(other.path), depth(other.depth),
             leaf(other.leaf), pos_cached(0)
         {   /* nothing to do here */ }
 
@@ -233,7 +249,7 @@ public:
             }
             ++pos;
             assert(pos < br_sz);
-            while (path.size() != depth && 
+            while (path.size() != depth &&
                    path.top().first->branches[pos] != nullptr) {
                 path.push(std::pair<bp_node<T> *, size_t>(
                             path.top().first->branches[pos].get(), 0));
@@ -259,11 +275,11 @@ public:
             }
             return ret;
             */
-            
+
             auto ret = *this;
 
             // p is the greatest jump between spots we'll make
-            // 1 means jumps within node; 
+            // 1 means jumps within node;
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
             uint32_t p = 1;
@@ -285,7 +301,7 @@ public:
             size_t i = 0;
             size_t pos = pos_chain[i] + left / p;
             size_t pos_next;
-            while (ret.path.size() != ret.depth && 
+            while (ret.path.size() != ret.depth &&
                    ret.path.top().first->branches[pos] != nullptr) {
                 left = left % n;
                 p /= br_sz;
@@ -302,7 +318,7 @@ public:
         }
         /*
         friend const_iterator operator+(size_t n, const const_iterator &it); //optional
-        const_iterator& operator-=(size_type); //optional            
+        const_iterator& operator-=(size_type); //optional
         const_iterator operator-(size_type) const; //optional
         difference_type operator-(const_iterator) const; //optional
         */
@@ -311,7 +327,9 @@ public:
         /*
         const_reference operator[](size_type) const; //optional
         */
-	};
+    };
+
+    /**  end iterator *********************************************************/
 
     const_iterator begin() const    { return const_iterator(*this); }
     const_iterator cbegin() const   { return const_iterator(*this); }
@@ -329,30 +347,21 @@ private:
 public:
     bp_vector() = default;
     bp_vector(const bp_vector<T> &other) = default;
-    
+
     inline bool node_copy_impl(const int16_t) const { return false; }
-    
+
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
     void insert(const size_t i, const T &val);
     T remove(const size_t i);
-    
+
     tr_vector<T> make_transient() const;
 
     //bp_vector<T> set(const size_t i, const T &val);
     //bp_vector<T> push_back(const T &val);
     //bp_vector<T> pers_insert(const size_t i, const T val);
 
-    // TODO: put this in base class and use get_name or something
-    friend std::ostream &operator<<(std::ostream &out, const bp_vector &data)
-	{
-        out << "bp_vector[ ";
-        for (size_t i = 0; i < data.size(); ++i) {
-            out << data.at(i) << " ";
-        }
-        out << "]/bp_vector";
-        return out;
-    }
+    const std::string get_name() const { return "bp_vector"; }
 
 };
 
@@ -363,32 +372,24 @@ class ps_vector : public bp_vector_base<T, ps_vector>
 private:
 
 public:
-    ps_vector() = default; 
+    ps_vector() = default;
     ps_vector(const ps_vector<T> &other) = default;
-    
-    ps_vector(const bp_vector_base<T, ps_vector> &other) 
-      : bp_vector_base<T, ps_vector>(other) 
+
+    ps_vector(const bp_vector_base<T, ps_vector> &other)
+      : bp_vector_base<T, ps_vector>(other)
     {   /* nothing to do here */ }
 
     ps_vector(const tr_vector<T> &other);
 
     inline bool node_copy_impl(const int16_t) const { return true; }
-    
+
     tr_vector<T> make_transient() const;
 
     //ps_vector<T> set(const size_t i, const T &val);
     //ps_vector<T> push_back(const T &val);
     //ps_vector<T> pers_insert(const size_t i, const T val);
 
-    friend std::ostream &operator<<(std::ostream &out, const ps_vector &data)
-	{
-        out << "ps_vector[ ";
-        for (size_t i = 0; i < data.size(); ++i) {
-            out << data.at(i) << " ";
-        }
-        out << "]/ps_vector";
-        return out;
-    }
+    const std::string get_name() const { return "ps_vector"; }
 
 };
 
@@ -402,7 +403,7 @@ public:
     tr_vector() = default;
     tr_vector(const tr_vector<T> &other) = default;
 
-    tr_vector(const bp_vector_base<T, tr_vector> &other) 
+    tr_vector(const bp_vector_base<T, tr_vector> &other)
       : bp_vector_base<T, tr_vector>(other)
     {   /* nothing to do here */ }
 
@@ -411,28 +412,20 @@ public:
 
     inline bool node_copy_impl(const int16_t other_id) const
     {
-        return this->id != other_id; 
+        return this->id != other_id;
     }
-    
+
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
 
     ps_vector<T> make_persistent() const;
     tr_vector<T> new_id() const;
-    
+
     //tr_vector<T> set(const size_t i, const T &val);
     //tr_vector<T> push_back(const T &val);
     //tr_vector<T> pers_insert(const size_t i, const T val);
 
-    friend std::ostream &operator<<(std::ostream &out, const tr_vector &data)
-	{
-        out << "tr_vector[ ";
-        for (size_t i = 0; i < data.size(); ++i) {
-            out << data.at(i) << " ";
-        }
-        out << "]/tr_vector";
-        return out;
-    }
+    const std::string get_name() const { return "tr_vector"; }
 
 };
 

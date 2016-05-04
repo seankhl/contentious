@@ -296,6 +296,8 @@ int test_trans()
     }
 
     cerr << "+ test_trans passed" << endl;
+    cout << perss[test_sz-1] << endl;
+    cout << transs[test_sz-1] << endl;
     return 0;
 }
 
