@@ -320,7 +320,7 @@ void reduce_timing()
     }
     cout << answer_new << endl;
     cout << cont_reduce(test_vec) << " " << cont_reduce(test_vec) - answer_new << endl;
-    //cont_reduce_new(test_vec);
+    cont_reduce_new(test_vec);
     //cont_foreach(test_vec);
     cont_stencil(test_vec);
 

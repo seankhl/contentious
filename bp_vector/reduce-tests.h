@@ -18,9 +18,9 @@
 
 double seq_reduce(const std::vector<double> &test_vec);
 
-void locked_inc(double &locked_ret, 
+void locked_inc(double &locked_ret,
                 std::vector<double>::const_iterator a,
-                std::vector<double>::const_iterator b, 
+                std::vector<double>::const_iterator b,
                 std::mutex &ltm);
 double locked_reduce(const std::vector<double> &test_vec);
 
@@ -45,3 +45,4 @@ double cont_reduce(const std::vector<double> &test_vec);
 void reduce_timing();
 
 #endif // BP_REDUCE_TESTS_H
+
