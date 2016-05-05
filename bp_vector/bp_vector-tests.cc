@@ -296,29 +296,27 @@ int test_trans()
     }
 
     cerr << "+ test_trans passed" << endl;
-    cout << perss[test_sz-1] << endl;
-    cout << transs[test_sz-1] << endl;
     return 0;
 }
 
 int test_make()
 {
-    ps_vector<double> pers1;
-    auto trans1 = pers1.make_transient();
-    auto trans2 = pers1.make_transient();
-    auto trans3 = pers1.make_transient();
-    auto pers2 = trans1.make_persistent();
-    auto trans4 = pers2.make_transient();
-    auto trans5 = pers2.make_transient();
-    auto trans6 = pers2.make_transient();
-    //cout << pers1.get_id() << endl;
-    //cout << trans1.get_id() << endl;
-    //cout << trans2.get_id() << endl;
-    //cout << trans3.get_id() << endl;
-    //cout << trans4.get_id() << endl;
-    //cout << trans5.get_id() << endl;
-    //cout << trans6.get_id() << endl;
-    //cout << pers2.get_id() << endl;
+    ps_vector<double> ps1;
+    auto tr1 = ps1.make_transient();
+    auto tr2 = ps1.make_transient();
+    auto tr3 = ps1.make_transient();
+    auto ps2 = tr1.make_persistent();
+    auto tr4 = ps2.make_transient();
+    auto tr5 = ps2.make_transient();
+    auto tr6 = ps2.make_transient();
+    if (!(ps1.get_id() == 0 && ps2.get_id() == 0 &&
+          tr1.get_id() < tr2.get_id() && tr2.get_id() < tr3.get_id() &&
+          tr3.get_id() < tr4.get_id() && tr4.get_id() < tr5.get_id() &&
+          tr5.get_id() < tr6.get_id())) {
+        cerr << "! test_make failed: bad get_id()" << endl;
+        return 1;
+    }
+    cerr << "+ test_make passed" << endl;
     return 0;
 }
 
@@ -393,34 +391,85 @@ int test_coroutine_practical() {
 }
 */
 
-void my_accumulate(cont_vector<double> &test, size_t index)
+void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
+                   size_t index)
 {
     splt_vector<double> test_splinter = test.detach();
     for (int i = 0; i < 10; ++i) {
         test_splinter.comp(index, i);
     }
-    test.join(test_splinter);
-    cont_vector<double> next = test.pull();
+    test.reattach(test_splinter, next);
+    //cont_vector<double> next = test.pull();
     //cout << "next[1] is: " << next.at(1) << endl;
 }
 int test_cvec()
 {
     cont_vector<double> test(new Plus<double>());
-    auto nthreads = thread::hardware_concurrency();
+    unsigned nthreads = thread::hardware_concurrency();
+    //cout << "hardware concurrency: " << nthreads << endl;
     for (unsigned i = 0; i < nthreads; ++i) {
         test.unprotected_push_back(i);
     }
+    cont_vector<double> *next = new cont_vector<double>(test);
+    next->reset_latch(0);
+    test.register_dependent(next);
+
     vector<thread> threads;
     for (unsigned i = 0; i < nthreads; ++i) {
-        threads.push_back(thread(my_accumulate, std::ref(test), 1));
+        threads.push_back(
+                thread(my_accumulate, std::ref(test), std::ref(*next), 1));
     }
     for (unsigned i = 0; i < nthreads; ++i) {
-        threads[i].join();
+        threads[i].detach();
     }
-    if (test.at_prescient(1) != 181) {
-        cerr << "! test_cvec failed: at index 1, got " << test.at_prescient(1)
+    /*
+    {
+        using namespace literals::chrono_literals;
+        std::this_thread::sleep_for(2ms);
+    }
+    */
+    //test.resolve(*next);
+    //cout << *next << endl;
+
+    cont_vector<double> *next2 = new cont_vector<double>(*next);
+    next->reset_latch(nthreads);
+    next2->reset_latch(0);
+    next->register_dependent(next2);
+
+    vector<thread> threads2;
+    for (unsigned i = 0; i < nthreads; ++i) {
+        threads2.push_back(
+                thread(my_accumulate, std::ref(*next), std::ref(*next2), 1));
+    }
+    for (unsigned i = 0; i < nthreads; ++i) {
+        threads2[i].detach();
+    }
+
+    //cout << *next << endl;
+    test.resolve(*next);
+    if (next->at(1) != 181) {
+        cerr << "! test_cvec failed:  " << next->at(1)
              << ", expected " << 181 << endl;
+        return 1;
     }
+    next->resolve(*next2);
+    if (next2->at(1) != 361) {
+        cerr << "! test_cvec failed: at index 1, got " << next2->at(1)
+             << ", expected " << 361 << endl;
+        return 1;
+    }
+    //cout << *next2 << endl;
+
+
+    /*
+    {
+        using namespace literals::chrono_literals;
+        std::this_thread::sleep_for(1s);
+    }
+    */
+    //cout << *next << endl;
+    //cout << *next2 << endl;
+
     cerr << "+ test_cvec passed" << endl;
     return 0;
 }
@@ -499,7 +548,7 @@ int main()
     runner.push_back(test_pers_alternate);
     //runner.push_back(test_pers_iter);
     runner.push_back(test_trans);
-    //runner.push_back(test_make);
+    runner.push_back(test_make);
     runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);
     runner.push_back(test_cvec);

@@ -174,7 +174,9 @@ void cont_inc(cont_vector<double> &cont_ret,
     //chrono::duration<double> splt_dur = splt_end - splt_start;
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
     //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
-    cont_ret.join(splt_ret);
+    cont_vector<double> *next = new cont_vector<double>(cont_ret);
+    cont_ret.register_dependent(next);
+    cont_ret.reattach(splt_ret, *next);
 }
 double cont_reduce(const vector<double> &test_vec)
 {
@@ -319,10 +321,10 @@ void reduce_timing()
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
-    cout << cont_reduce(test_vec) << " " << cont_reduce(test_vec) - answer_new << endl;
-    cont_reduce_new(test_vec);
+    //cout << cont_reduce(test_vec) << " " << cont_reduce(test_vec) - answer_new << endl;
+    //cont_reduce_new(test_vec);
     //cont_foreach(test_vec);
-    cont_stencil(test_vec);
+    //cont_stencil(test_vec);
 
     /*
     chrono::time_point<chrono::system_clock> locked_start, locked_end;

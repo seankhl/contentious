@@ -24,7 +24,8 @@ class cont_vector;
 namespace contentious
 {
     template <typename T>
-    void reduce_splt(cont_vector<T> &cont, size_t a, size_t b)
+    void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
+                     size_t a, size_t b)
     {
         //chrono::time_point<chrono::system_clock> splt_start, splt_end;
         //splt_start = chrono::system_clock::now();
@@ -41,11 +42,11 @@ namespace contentious
         //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
         //std::cout << "one cont_inc done: " << splt_ret._data[0] << std::endl;
 
-        cont.join(splt);
+        cont.reattach(splt, dep);
     }
 
     template <typename T>
-    void foreach_splt(cont_vector<T> &cont,
+    void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
                       const size_t a, const size_t b,
                       const T val)
     {
@@ -60,11 +61,11 @@ namespace contentious
         for (size_t i = a; i < b; ++i) {
             splt.mut_comp(i, val);
         }
-        cont.join(splt);
+        cont.reattach(splt, dep);
     }
 
     template <typename T>
-    void foreach_splt_cvec(cont_vector<T> &cont,
+    void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
                            const size_t a, const size_t b,
                            const cont_vector<T> &other)
     {
@@ -73,19 +74,18 @@ namespace contentious
         for (size_t i = a; i < b; ++i) {
             splt.mut_comp(i, other[i]);
         }
-        cont.join(splt);
+        cont.reattach(splt, dep);
     }
 
     template <typename T>
-    void foreach_splt_off(cont_vector<T> &cont,
+    void foreach_splt_off(cont_vector<T> &cont, cont_vector<T> &dep,
                           const size_t a, const size_t b,
-                          const cont_vector<T> &other,
-                          const int off)
+                          const cont_vector<T> &other, const int off)
     {
         size_t start = 0;
         size_t end = cont.size();
         if (off < 0) { start -= off; }
-        else if (off > 0) { assert(end >= off); end -= off; }
+        else if (off > 0) { assert(end >= (size_t)off); end -= off; }
         start = std::max(start, a);
         end = std::min(end, b);
 
@@ -94,7 +94,7 @@ namespace contentious
         for (size_t i = start; i < end; ++i) {
             splt.mut_comp(i, other[i + off]);
         }
-        cont.join(splt);
+        cont.reattach(splt, dep);
     }
 
 }   // end namespace contentious
@@ -156,8 +156,12 @@ public:
     tr_vector<T> _data;
     const Operator<T> *op;
 
+    splt_vector()
+      : op(nullptr)
+    {   /* nothing to do here */ }
+
     splt_vector(const cont_vector<T> &trunk)
-      : _data(trunk._data.new_id()), op(trunk.op)
+      : _data(trunk._used.new_id()), op(trunk.op)
     {   /* nothing to do here */ }
 
     inline splt_vector<T> comp(const size_t i, const T &val)
@@ -180,21 +184,25 @@ class cont_vector
     friend class splt_vector<T>;
 
     friend void contentious::reduce_splt<T>(
-            cont_vector<T> &, size_t, size_t);
+            cont_vector<T> &, cont_vector<T> &, size_t, size_t);
 
     friend void contentious::foreach_splt<T>(
-            cont_vector<T> &, const size_t, const size_t, const T);
+            cont_vector<T> &, cont_vector<T> &,
+            const size_t, const size_t, const T);
 
     friend void contentious::foreach_splt_cvec<T>(
-            cont_vector<T> &, const size_t, const size_t,
+            cont_vector<T> &, cont_vector<T> &,
+            const size_t, const size_t,
             const cont_vector<T> &);
 
     friend void contentious::foreach_splt_off<T>(
-            cont_vector<T> &, const size_t, const size_t,
+            cont_vector<T> &, cont_vector<T> &,
+            const size_t, const size_t,
             const cont_vector<T> &, const int);
 
 private:
     tr_vector<T> _data;
+    tr_vector<T> _used;
 
     std::set<uint16_t> splinters;
     std::map<uint16_t, bool> resolved;
@@ -202,9 +210,7 @@ private:
     std::mutex data_lock;
     boost::latch resolve_latch;
 
-    //std::vector<cont_vector<T> *> dependents;
-    cont_vector<T> *next;
-    std::map<std::thread::id, bool> prescient;
+    std::vector<cont_vector<T> *> dependents;
 
     // TODO: op in cont? stencil? both? what's the deal
     //       requires determining if a single cont can have multiple ops
@@ -219,23 +225,47 @@ private:
     //std::atomic<uint16_t> ts_r;
     //std::atomic<uint16_t> ts_w;
 
-    // user can tick the read counter
+    // user can tick the read counter (obsolete)
     //void tick_r() { ++tick_r; }
+
+    // tids to lookahead if prescient (obsolete)
+    //std::map<std::thread::id, bool> prescient;
 
 public:
     cont_vector() = delete;
     cont_vector(Operator<T> *_op)
-      : resolve_latch(4), next(nullptr), op(_op) {}
-
+      : resolve_latch(4), op(_op)
+    {
+        // nothing to do here
+    }
     cont_vector(const cont_vector<T> &other)
-      : _data(other._data.new_id()), resolved(other.resolved),
-        resolve_latch(4), next(nullptr), op(other.op)
+      : _data(other._data.new_id()), resolve_latch(4), op(other.op)
+    {
+        // nothing to do here
+    }
+    cont_vector(const std::vector<T> &other)
+      : _data(other), resolve_latch(4), op(nullptr)
     {
         // nothing to do here
     }
 
-    cont_vector(const std::vector<T> &other)
-      : _data(other), resolve_latch(4), next(nullptr), op(nullptr) {}
+    ~cont_vector()
+    {
+        resolve_latch.wait();
+        if (dependents.size() > 0) {
+            assert(dependents.size() == 1);
+            bool flag = false;
+            while (!flag) {
+                std::lock_guard<std::mutex>(this->data_lock);
+                flag = true;
+                std::cout << "spinning... " << std::endl;
+                for (const auto &it : dependents[0]->resolved) {
+                    //std::cout << "bool for " << it.first << ": " << it.second << std::endl;
+                    flag &= it.second;
+                }
+            }
+        }
+    }
 
     inline const T &operator[](size_t i) const {    return _data[i]; }
     inline T &operator[](size_t i) {                return _data[i]; }
@@ -243,8 +273,8 @@ public:
     inline const T &at(size_t i) const {    return _data.at(i); }
     inline T &at(size_t i) {                return _data.at(i); }
 
-    inline const T &at_prescient(size_t i) const {  return next->at(i); }
-    inline T &at_prescient(size_t i) {              return next->at(i); }
+    inline const T &at_prescient(size_t i) const {  return dependents[0]->at(i); }
+    inline T &at_prescient(size_t i) {              return dependents[0]->at(i); }
 
     inline size_t size() const {  return _data.size(); }
 
@@ -259,18 +289,30 @@ public:
     }
 
 
+    inline void reset_latch(const size_t count) {   resolve_latch.reset(count); }
+
     splt_vector<T> detach()
     {
-        splt_vector<T> ret(*this);
+        splt_vector<T> ret;
         {   // locked
             std::lock_guard<std::mutex> lock(this->data_lock);
+            if (splinters.size() == 0) {
+                _used = _data;
+                _data = _data.new_id();
+                dependents[0]->_data = _used.new_id();
+                //std::cout << "_used in detach: " << _used << std::endl;
+
+            }
+            ret = *this;
             splinters.insert(ret._data.get_id());
+            dependents[0]->resolved.emplace(std::make_pair(ret._data.get_id(), false));
         }
         return ret;
     }
 
 
-    void join(splt_vector<T> &splinter)
+    /* TODO: add next parameter */
+    void reattach(splt_vector<T> &splinter, cont_vector<T> &dep)
     {
         //--num_detached;
         // TODO: no check that other was actually detached from this
@@ -283,13 +325,14 @@ public:
         // if we haven't yet started building a more current vector, make one
         // grow out from ourselves. this is safe to modify, but this isn't,
         // because others may be depending on it for resolution
+        /*
+        auto dep = new cont_vector<T>(*this);
         {   // locked
             std::lock_guard<std::mutex> lock(this->data_lock);
-            if (next == nullptr) {
-                std::cout << "making new next: " << std::endl;
-                next = new cont_vector<T>(*this);
-            }
+            dependents.push_back(dep);
+            std::cout << "making new dep: " << std::endl;
         }
+        */
 
         const uint16_t sid = splinter._data.get_id();
 
@@ -302,20 +345,75 @@ public:
 
         // TODO: better (lock-free) mechanism here
         if (splinters.find(sid) != splinters.end()) {
-            for (size_t i = 0; i < next->size(); ++i) { // locked
-                std::lock_guard<std::mutex> lock(this->data_lock);
-                diff = op->inv(splinter._data[i], _data[i]);
-                //std::cout << "resolving with diff " << diff << " at " << i
-                //          << ", next->_data has size " << next->_data.size() << std::endl;
-                next->_data = next->_data.set(i, op->f(next->at(i), diff));
+            for (size_t i = 0; i < dep.size(); ++i) { // locked
+                std::lock_guard<std::mutex> lock(dep.data_lock);
+                diff = op->inv(splinter._data[i], _used[i]);
+                /*
+                std::cout << "sid " << sid
+                          << " resolving with diff " << diff << " at " << i
+                          << ", dep._data has size " << dep._data.size() << std::endl;
+                */
+                dep._data = dep._data.set(i, op->f(dep[i], diff));
             }
+            {   //locked
+                std::lock_guard<std::mutex>(dep.data_lock);
+                dep.resolved[sid] = true;
+            }
+            /*
+            for (const auto &it : dep.resolved) {
+                std::cout << "bool for " << it.first << ": " << it.second << std::endl;
+            }
+            */
         }
 
         //splinters.erase(sid);
+        //std::cout << "counting down for " << sid << std::endl;
         resolve_latch.count_down();
 
     }
 
+    // TODO: add next parameter, make it work for multiple deps (or at all)
+    void resolve(cont_vector<T> &dep)
+    {
+        resolve_latch.wait();
+        if (resolve_latch.try_wait()) {
+            cont_vector<T> *curr = this;
+            auto next = &dep;
+            //for (auto next : curr->dependents) {
+                for (size_t i = 0; i < next->size(); ++i) {  // locked
+                    std::lock_guard<std::mutex> lock(next->data_lock);
+                    T diff = next->op->inv(curr->at(i),
+                                           curr->_used.at(i));
+                    if (diff > 0) {
+                        std::cout << "resolving forward with diff: " << diff << std::endl;
+                    }
+                    next->_data = next->_data.set(
+                                        i, next->op->f(next->at(i), diff));
+                    curr->_used = curr->_used.set(i, curr->at(i));
+                }
+            //}
+            /*
+            cont_vector<T> *next;
+            while (curr->dependents.size() > 0) {
+                next = curr->dependents[0];
+                for (size_t i = 0; i < next->size(); ++i) {  // locked
+                    std::lock_guard<std::mutex> lock(next->data_lock);
+                    T diff = next->op->inv(curr->at(i),
+                                           curr->_used.at(i));
+                    if (diff > 0) {
+                        std::cout << "resolving forward with diff: " << diff << std::endl;
+                    }
+                    next->_data = next->_data.set(
+                                        i, next->op->f(next->at(i), diff));
+                    curr->_used = curr->_used.set(i, curr->at(i));
+                }
+                curr = next;
+            }
+            */
+        }
+    }
+
+    /* obsolete
     inline cont_vector<T> pull()
     {
         resolve_latch.wait();
@@ -325,34 +423,27 @@ public:
 
     inline void sync()
     {
-        join();
+        reattach();
         pull();
     }
+    */
 
-    void resolve()
+    void register_dependent(cont_vector<T> *dep)
     {
-        if (resolve_latch.try_wait()) {
-            cont_vector<T> *forward = this->next;
-            while (forward != nullptr) {
-                for (size_t i = 0; i < next->size(); ++i) { // locked
-                    std::lock_guard<std::mutex> lock(forward->data_lock);
-                    T diff = forward->op->inv(forward->next->at(i), forward->at(i));
-                    forward->next->_data = next->_data.set(
-                                i,
-                                forward->next->op->f(forward->next->at(i), diff));
-                }
-                forward = forward->next;
-            }
+        {   // locked
+            std::lock_guard<std::mutex> lock(data_lock);
+            dependents.push_back(dep);
+            //std::cout << "registered dependent: " << dep << std::endl;
         }
     }
-
 
     /* this function performs thread function f on the passed cont_vector
      * between size_t (f's second arg) and size_t (f's third arg)
      * with extra args U... as necessary */
     template <typename... U>
-    void exec_par(void f(cont_vector<T> &, const size_t, const size_t, U...),
-                  cont_vector<T> &cont, U... args)
+    void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
+                         const size_t, const size_t, U...),
+                  cont_vector<T> &cont, cont_vector<T> &dep, U... args)
     {
         int num_threads = std::thread::hardware_concurrency(); // * 16;
         size_t chunk_sz = (this->size()/num_threads) + 1;
@@ -360,9 +451,8 @@ public:
         for (int i = 0; i < num_threads; ++i) {
             cont_threads.push_back(
                     std::thread(f,
-                        std::ref(cont),
-                        chunk_sz * i,
-                        std::min(chunk_sz * (i+1), this->size()),
+                        std::ref(cont), std::ref(dep),
+                        chunk_sz * i, std::min(chunk_sz * (i+1), this->size()),
                         args...));
         }
         for (int i = 0; i < num_threads; ++i) {
@@ -373,54 +463,39 @@ public:
 
     cont_vector<T> reduce(Operator<T> *op)
     {
-        {   // locked
-            std::lock_guard<std::mutex> lock(data_lock);
-            this->op = op;
-            if (next == nullptr) {
-                std::cout << "making new next: " << std::endl;
-                next = new cont_vector<T>(op);
-                next->unprotected_push_back(op->identity);
-            }
-        }
+        // our reduce dep is just one value
+        auto dep = new cont_vector<T>(op);
+        dep->unprotected_push_back(op->identity);
+        register_dependent(dep);
         // no template parameters
-        exec_par<>(contentious::reduce_splt<T>, *this);
-        return *next;
+        this->op = op;
+        exec_par<>(contentious::reduce_splt<T>, *this, *dep);
+        return *dep;
     }
 
     cont_vector<T> foreach(const Operator<T> *op, const T val)
     {
-        {   // locked
-            std::lock_guard<std::mutex> lock(data_lock);
-            this->op = op;
-            if (next == nullptr) {
-                std::cout << "making new next: " << std::endl;
-                next = new cont_vector<T>(*this);
-            }
-        }
+        auto dep = new cont_vector<T>(*this);
+        register_dependent(dep);
         // template parameter is the arg to the foreach op
         // TODO: why cannot put const T?
-        exec_par<T>(contentious::foreach_splt<T>, *this, val);
+        this->op = op;
+        exec_par<T>(contentious::foreach_splt<T>, *this, *dep, val);
 
-        return *next;
+        return *dep;
     }
 
     // TODO: right now, this->()size must be equal to other.size()
     cont_vector<T> foreach(const Operator<T> *op, const cont_vector<T> &other)
     {
-        {   // locked
-            std::lock_guard<std::mutex> lock(data_lock);
-            this->op = op;
-            if (next == nullptr) {
-                std::cout << "making new next: " << std::endl;
-                next = new cont_vector<T>(*this);
-            }
-        }
+        auto dep = new cont_vector<T>(*this);
+        register_dependent(dep);
         // template parameter is the arg to the foreach op
+        this->op = op;
         exec_par<const cont_vector<T> &>(
-                contentious::foreach_splt_cvec<T>,
-                *this, other);
+                contentious::foreach_splt_cvec<T>, *this, *dep, other);
 
-        return *next;
+        return *dep;
     }
 
 
@@ -429,12 +504,15 @@ public:
                            const Operator<T> *op1 = new Multiply<T>,
                            const Operator<T> *op2 = new Plus<T>())
     {
+        /*
+         * part 1
+         */
         // get unique coefficients
         auto coeffs_unique = coeffs;
         auto it = std::unique(coeffs_unique.begin(), coeffs_unique.end());
         coeffs_unique.resize(std::distance(coeffs_unique.begin(), it));
 
-        resolve_latch.reset((offs.size() + coeffs_unique.size()) * 
+        resolve_latch.reset((offs.size() + coeffs_unique.size()) * \
                             std::thread::hardware_concurrency());
 
         // perform coefficient multiplications on original vector
@@ -446,37 +524,34 @@ public:
                             this->foreach(op1, coeffs_unique[i])
                          ));
             // TODO: keep track of nexts so they can be resolved
-            next = nullptr;
+            // (done inside foreach I believe...)
             //assert(resolve_latch.try_wait());
             //resolve_latch.wait();
             //resolve_latch.reset(std::thread::hardware_concurrency());
         }
         std::cout << "after foreaches (this): " << *this << std::endl;
 
-        {   // locked
-            std::lock_guard<std::mutex> lock(data_lock);
-            this->op = op;
-            if (next == nullptr) {
-                std::cout << "making new next..." << std::endl;
-                next = new cont_vector<T>(*this);
-            }
-        }
-        this->op = op2;
-        std::cout << "after foreaches (next): " << *next << std::endl;
-
+        /*
+         * part 2
+         */
         // sum up the different parts of the stencil
-        std::vector<splt_vector<T>> splts;
+        // TODO: move inside for loop to correct semantics?
+        auto dep = new cont_vector<T>(*this);
+        register_dependent(dep);
+        this->op = op2;
+        std::cout << "after foreaches (dep): " << *dep << std::endl;
         for (size_t i = 0; i < offs.size(); ++i) {
             //resolve_latch.reset(std::thread::hardware_concurrency());
             exec_par<const cont_vector<T> &, int>(
                     contentious::foreach_splt_off<T>,
-                    *this, step1.at(coeffs[i]), offs[i]
+                    *this, *dep, step1.at(coeffs[i]), offs[i]
             );
         }
         /*
-        {
-            // TODO: parallelize this
-            // TODO: emplace?
+        // TODO: parallelize this
+        // TODO: emplace?
+        std::vector<splt_vector<T>> splts;
+        for (size_t i = 0; i < offs.size(); ++i) {
             splts.push_back(this->detach());
             splt_vector<T> &splt = splts[splts.size()-1];
             for (size_t j = start; j < end; ++j) {
@@ -485,13 +560,13 @@ public:
             std::cout << "after sum " << i << ": " << *this << std::endl;
         }
         for (size_t i = 0; i < offs.size(); ++i) {
-            this->join(splts[i]);
+            this->reattach(splts[i], );
         }
         */
         //assert(resolve_latch.try_wait());
         //resolve_latch.wait();
 
-        return *next;
+        return *dep;
     }
 
 
@@ -515,6 +590,7 @@ public:
     {
         out << "cont_vector{" << std::endl;
         out << "  data: " << cont._data << std::endl;
+        out << "  used: " << cont._used << std::endl;
         out << "  splt: ";
         for (const auto &i : cont.splinters) { out << i << " "; }
         out << std::endl << "}/cont_vector" << std::endl;
