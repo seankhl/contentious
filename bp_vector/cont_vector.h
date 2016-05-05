@@ -61,6 +61,16 @@ namespace contentious
         for (size_t i = a; i < b; ++i) {
             splt.mut_comp(i, val);
         }
+        /*
+        const uint16_t sid = splt._data.get_id();
+        std::cout << std::endl << std::endl << sid << std::endl << std::endl;
+        if (sid == 25) {
+            std::this_thread::yield();
+            using namespace std::literals::chrono_literals;
+            std::this_thread::sleep_for(1s);
+            std::this_thread::yield();
+        }
+        */
         cont.reattach(splt, dep);
     }
 
@@ -349,10 +359,13 @@ public:
                 std::lock_guard<std::mutex> lock(dep.data_lock);
                 diff = op->inv(splinter._data[i], _used[i]);
                 /*
-                std::cout << "sid " << sid
-                          << " resolving with diff " << diff << " at " << i
-                          << ", dep._data has size " << dep._data.size() << std::endl;
+                if (diff == 2) {
+                    std::cout << "sid " << sid
+                    << " resolving with diff " << diff << " at " << i
+                    << ", dep._data has size " << dep._data.size() << std::endl;
+                }
                 */
+                
                 dep._data = dep._data.set(i, op->f(dep[i], diff));
             }
             {   //locked
@@ -372,11 +385,15 @@ public:
 
     }
 
+    void resolve() {
+        resolve_latch.wait();
+    }
+
     // TODO: add next parameter, make it work for multiple deps (or at all)
     void resolve(cont_vector<T> &dep)
     {
         resolve_latch.wait();
-        if (resolve_latch.try_wait()) {
+        if (true) {
             cont_vector<T> *curr = this;
             auto next = &dep;
             //for (auto next : curr->dependents) {
@@ -385,7 +402,7 @@ public:
                     T diff = next->op->inv(curr->at(i),
                                            curr->_used.at(i));
                     if (diff > 0) {
-                        std::cout << "resolving forward with diff: " << diff << std::endl;
+                        //std::cout << "resolving forward with diff: " << diff << std::endl;
                     }
                     next->_data = next->_data.set(
                                         i, next->op->f(next->at(i), diff));
@@ -456,12 +473,12 @@ public:
                         args...));
         }
         for (int i = 0; i < num_threads; ++i) {
-            cont_threads[i].join();
+            cont_threads[i].detach();
         }
     }
 
 
-    cont_vector<T> reduce(Operator<T> *op)
+    cont_vector<T> *reduce(Operator<T> *op)
     {
         // our reduce dep is just one value
         auto dep = new cont_vector<T>(op);
@@ -470,10 +487,10 @@ public:
         // no template parameters
         this->op = op;
         exec_par<>(contentious::reduce_splt<T>, *this, *dep);
-        return *dep;
+        return dep;
     }
 
-    cont_vector<T> foreach(const Operator<T> *op, const T val)
+    cont_vector<T> *foreach(const Operator<T> *op, const T val)
     {
         auto dep = new cont_vector<T>(*this);
         register_dependent(dep);
@@ -481,8 +498,8 @@ public:
         // TODO: why cannot put const T?
         this->op = op;
         exec_par<T>(contentious::foreach_splt<T>, *this, *dep, val);
-
-        return *dep;
+        //std::cout << *dep << std::endl;
+        return dep;
     }
 
     // TODO: right now, this->()size must be equal to other.size()
@@ -521,7 +538,7 @@ public:
         for (size_t i = 0; i < coeffs_unique.size(); ++i) {
             step1.emplace(std::make_pair(
                             coeffs_unique[i],
-                            this->foreach(op1, coeffs_unique[i])
+                            *(this->foreach(op1, coeffs_unique[i]))
                          ));
             // TODO: keep track of nexts so they can be resolved
             // (done inside foreach I believe...)
