@@ -14,9 +14,11 @@
 #include "boost/variant.hpp"
 #include "boost/bind.hpp"
 
-//#include "bp_vector.h"
-//#include "cont_vector.h"
+// redundant, but in case we reorganize testing...
+#include "cont_vector.h"
+
 #include "reduce-tests.h"
+#include "cont_vector-tests.h"
 
 using namespace std;
 
@@ -404,38 +406,44 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
 }
 int test_cvec()
 {
+    // create a cont_vector with integers 0, 1, ..., nthreads
     cont_vector<double> test(new Plus<double>());
     unsigned nthreads = thread::hardware_concurrency();
-    //cout << "hardware concurrency: " << nthreads << endl;
     for (unsigned i = 0; i < nthreads; ++i) {
         test.unprotected_push_back(i);
     }
+
+    // create a copy of test; next has a unique ID, as do all cont_vectors
     cont_vector<double> *next = new cont_vector<double>(test);
     next->reset_latch(0);
+    // this tells test that next depends on it, for resolution purposes
     test.register_dependent(next);
 
+    // accumulate values on index comp_locus
+    size_t comp_locus = 1;
+    assert(comp_locus < sizeof(test));
     vector<thread> threads;
     for (unsigned i = 0; i < nthreads; ++i) {
         threads.push_back(
-                thread(my_accumulate, std::ref(test), std::ref(*next), 1));
+                thread(my_accumulate,
+                       std::ref(test), std::ref(*next), comp_locus)
+        );
     }
+    // detach threads; so, the threads run asynchronously and their scheduling
+    // is determined by forces unknown (OS? std::thread?)
     for (unsigned i = 0; i < nthreads; ++i) {
         threads[i].detach();
     }
-    /*
-    {
-        using namespace literals::chrono_literals;
-        std::this_thread::sleep_for(2ms);
-    }
-    */
-    //test.resolve(*next);
-    //cout << *next << endl;
 
+    // create a new cont_vector identical to next, which may not be finalized
     cont_vector<double> *next2 = new cont_vector<double>(*next);
     next->reset_latch(nthreads);
+    // otherwise, next will hang at its destructor; TODO fix this
     next2->reset_latch(0);
+    // next is a dependent of next2; or, next2 depends on next
     next->register_dependent(next2);
 
+    // accumulate again
     vector<thread> threads2;
     for (unsigned i = 0; i < nthreads; ++i) {
         threads2.push_back(
@@ -445,30 +453,30 @@ int test_cvec()
         threads2[i].detach();
     }
 
-    //cout << *next << endl;
+
+    /* // if we sleep before checking next, likely it will have finished,
+       // but not for sure
+    {
+        using namespace literals::chrono_literals;
+        std::this_thread::sleep_for(1s);
+    }
+    cout << *next << endl;
+    */
+
+    // we must resolve test before checking next's values
     test.resolve(*next);
     if (next->at(1) != 181) {
         cerr << "! test_cvec failed:  " << next->at(1)
              << ", expected " << 181 << endl;
         return 1;
     }
+    // we must resolve test and next before checking next2's values
     next->resolve(*next2);
     if (next2->at(1) != 361) {
         cerr << "! test_cvec failed: at index 1, got " << next2->at(1)
              << ", expected " << 361 << endl;
         return 1;
     }
-    //cout << *next2 << endl;
-
-
-    /*
-    {
-        using namespace literals::chrono_literals;
-        std::this_thread::sleep_for(1s);
-    }
-    */
-    //cout << *next << endl;
-    //cout << *next2 << endl;
 
     cerr << "+ test_cvec passed" << endl;
     return 0;
@@ -565,6 +573,7 @@ int main()
     }
     //vec_timing();
     reduce_timing();
+    cont_testing();
 
     return ret;
 }
