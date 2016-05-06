@@ -55,14 +55,17 @@ private:
 
 class bp_vector_glob
 {
-protected:
+private:
     static std::atomic<int16_t> unique_id;
+
+protected:
+    static inline int16_t get_unique_id() { return unique_id++; }
 
 };
 
 
 template <typename T, template<typename> typename TDer>
-class bp_vector_base : bp_vector_glob
+class bp_vector_base : protected bp_vector_glob
 {
     template <typename U, template <typename> typename TDerOther>
     friend class bp_vector_base;
@@ -106,8 +109,6 @@ protected:
     inline uint8_t calc_depth() const { return shift / BITPART_SZ + 1; }
 
 public:
-    static inline int16_t get_unique_id() { return unique_id++; }
-
     // size-related getters
     inline bool empty() const           { return sz == 0; }
     inline size_t size() const          { return sz; }
@@ -127,6 +128,7 @@ public:
         }
         */
     }
+
     inline int16_t get_id() const       { return id; }
     inline uint8_t get_depth() const    { return calc_depth(); }
 
@@ -152,7 +154,7 @@ public:
     TDer<T> set(const size_t i, const T &val) const;
     TDer<T> push_back(const T &val) const;
 
-    const std::string get_name() const { return "bp_vector_base"; }
+    inline const std::string get_name() const { return "bp_vector_base"; }
     friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
     {
         std::string name = data.get_name();
@@ -361,7 +363,7 @@ public:
     //bp_vector<T> push_back(const T &val);
     //bp_vector<T> pers_insert(const size_t i, const T val);
 
-    const std::string get_name() const { return "bp_vector"; }
+    inline const std::string get_name() const { return "bp_vector"; }
 
 };
 
@@ -389,7 +391,7 @@ public:
     //ps_vector<T> push_back(const T &val);
     //ps_vector<T> pers_insert(const size_t i, const T val);
 
-    const std::string get_name() const { return "ps_vector"; }
+    inline const std::string get_name() const { return "ps_vector"; }
 
 };
 
@@ -425,7 +427,7 @@ public:
     //tr_vector<T> push_back(const T &val);
     //tr_vector<T> pers_insert(const size_t i, const T val);
 
-    const std::string get_name() const { return "tr_vector"; }
+    inline const std::string get_name() const { return "tr_vector"; }
 
 };
 

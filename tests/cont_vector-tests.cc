@@ -187,7 +187,7 @@ void cont_stencil(const vector<double> &test_vec)
 
 /* runner *********************************************************************/
 
-void cont_testing()
+int cont_vector_runner()
 {
     int64_t test_sz = 33; // numeric_limits<int64_t>::max() / pow(2,36);
 
@@ -206,6 +206,8 @@ void cont_testing()
     cout << answer_new << endl;
     //cont_reduce_new(test_vec);
     cont_foreach(test_vec);
-    //cont_stencil(test_vec);
+    cont_stencil(test_vec);
+
+    return 0;
 }
 

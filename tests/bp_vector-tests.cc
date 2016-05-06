@@ -500,8 +500,8 @@ void vec_timing()
     bp_start = chrono::system_clock::now();
     bp_vector<double> bp_test;
     for (int i = 0; i < test_sz; ++i) {
-        bp_test.mut_push_back(i);
         //bp_test = bp_test.push_back(i);
+        bp_test.mut_push_back(i);
     }
     bp_end = chrono::system_clock::now();
 
@@ -517,8 +517,8 @@ void vec_timing()
     tr_start = chrono::system_clock::now();
     tr_vector<double> tr_test;
     for (int i = 0; i < test_sz; ++i) {
-        //tr_test.mut_push_back(i);
-        tr_test = tr_test.push_back(i);
+        //tr_test = tr_test.push_back(i);
+        tr_test.mut_push_back(i);
     }
     tr_end = chrono::system_clock::now();
 
@@ -540,15 +540,11 @@ void vec_timing()
     */
 }
 
-/*
-int main()
+
+/* runner *********************************************************************/
+
+int bp_vector_runner()
 {
-#ifdef DEBUG
-    cout << "debugging" << endl;
-#endif
-#ifdef RELEASE
-    cout << "profiling" << endl;
-#endif
     int ret = 0;
 
     vector<function<int()>> runner;
@@ -562,6 +558,7 @@ int main()
     runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);
     runner.push_back(test_cvec);
+
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {
         ret += runner[i]();
@@ -573,10 +570,8 @@ int main()
     else {
         cout << " " << ret << " tests failed!" << endl;
     }
-    //vec_timing();
-    reduce_timing();
-    cont_testing();
+    vec_timing();
 
     return ret;
 }
-*/
+

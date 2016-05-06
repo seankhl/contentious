@@ -1,4 +1,19 @@
 
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <future>
+#include <atomic>
+#include <limits>
+
+#include <cmath>
+
+#include <immintrin.h>
+
+#include <CL/cl.h>
+
+#include "../bp_vector/cont_vector.h"
+
 #include "reduce-tests.h"
 
 using namespace std;
@@ -142,7 +157,7 @@ double vec_reduce(const vector<double> &test_vec)
 }
 
 
-void reduce_timing()
+int reduce_runner()
 {
     int64_t test_sz = 33; // numeric_limits<int64_t>::max() / pow(2,36);
 
@@ -256,5 +271,6 @@ void reduce_timing()
     cout << "vec took: " << vec_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     */
+    return 0;
 }
 
