@@ -10,6 +10,8 @@ SRC_EXT = cc
 SRC_PATH = ./bp_vector
 # Path to directory where libs will be built
 LIB_PATH = ./lib
+# Path to test source directory
+TEST_PATH = ./tests
 # Space-separated pkg-config libraries used by this project
 LIBS =
 # General compiler flags
@@ -70,75 +72,93 @@ ifeq ($(V),true)
 	CMD_PREFIX :=
 endif
 
-# Combine compiler and linker flags
-release: export CXXFLAGS := $(CXXFLAGS) $(COMPILE_FLAGS) $(RCOMPILE_FLAGS)
-release: export LDFLAGS := $(LDFLAGS) $(LINK_FLAGS) $(RLINK_FLAGS)
-debug: export CXXFLAGS := $(CXXFLAGS) $(COMPILE_FLAGS) $(DCOMPILE_FLAGS)
-debug: export LDFLAGS := $(LDFLAGS) $(LINK_FLAGS) $(DLINK_FLAGS)
+# Debug by default, or use make DEBUG=0
+DEBUG ?= 1
+ifeq ($(DEBUG), 1)
+	export CXXFLAGS = $(COMPILE_FLAGS) $(DCOMPILE_FLAGS)
+	export LDFLAGS = $(LINK_FLAGS) $(DLINK_FLAGS)
+	export BUILD_PATH = build/debug
+	export BIN_PATH = bin/debug
+else
+	export CXXFLAGS = $(COMPILE_FLAGS) $(RCOMPILE_FLAGS)
+	export LDFLAGS = $(LINK_FLAGS) $(RLINK_FLAGS)
+	export BUILD_PATH = build/release
+	export BIN_PATH = bin/release
+endif
 
 # Build and output paths
-release: export BUILD_PATH := build/release
-release: export BIN_PATH := bin/release
-debug: export BUILD_PATH := build/debug
-debug: export BIN_PATH := bin/debug
 install: export BIN_PATH := bin/release
+test: export SRC_PATH := tests
+
+rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard,$d/,$2) \
+				$(filter $(subst *,%,$2), $d))
 
 # Find all source files in the source directory, sorted by most
 # recently modified
-SOURCES = $(shell find $(SRC_PATH)/ -not -path "$(SRC_PATH)/boost-deps/*"	 \
-		  							-name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
+SOURCES = $(shell find $(SRC_PATH)/ -not -path "$(SRC_PATH)/boost-deps/*"		\
+		  							-name '*.$(SRC_EXT)' -printf '%T@\t%p\n' 	\
 				| sort -k 1nr | cut -f2-)
-
 # fallback in case the above fails
-rwildcard = $(foreach d, $(wildcard $1*), $(call rwildcard,$d/,$2) \
-				$(filter $(subst *,%,$2), $d))
 ifeq ($(SOURCES),)
 	SOURCES := $(call rwildcard, $(SRC_PATH)/, *.$(SRC_EXT))
 endif
-
 # Set the object file names, with the source directory stripped
 # from the path, and the build path prepended in its place
 OBJECTS = $(SOURCES:$(SRC_PATH)/%.$(SRC_EXT)=$(BUILD_PATH)/%.o)
 # Set the dependency files that will be used to add header dependencies
 DEPS = $(OBJECTS:.o=.d)
 
+# Same stuff for tests
+TESTSOURCES = $(shell find $(TEST_PATH)/ 								\
+		  					-name '*.$(SRC_EXT)' -printf '%T@\t%p\n'	\
+				| sort -k 1nr | cut -f2-)
+ifeq ($(TESTSOURCES),)
+	SOURCES := $(call rwildcard, $(TEST_PATH)/, *.$(SRC_EXT))
+endif
+TESTOBJECTS = $(TESTSOURCES:$(TEST_PATH)/%.$(SRC_EXT)=$(BUILD_PATH)/%.o)
+TESTDEPS = $(TESTOBJECTS:.o=.d)
+
 .PHONY: all
-all: debug
-
-# Standard, non-optimized release build
-.PHONY: release
-release: dirs
+all:
 	@$(MAKE) lib --no-print-directory
-
-# Debug build for gdb debugging
-.PHONY: debug
-debug: dirs
-	@$(MAKE) lib --no-print-directory
-
-# Create the directories used in the build
-.PHONY: dirs
-dirs:
-	@mkdir -p $(dir $(OBJECTS))
-	@mkdir -p $(BIN_PATH)
+	@$(MAKE) test --no-print-directory
 
 # Create library without executable
 .PHONY: lib
 lib:
-	@$(MAKE) buildlib --no-print-directory
+	@mkdir -p $(dir $(OBJECTS))
 	@mkdir -p $(LIB_PATH)
-	ar -rsv $(LIB_PATH)/libcontentious.a $(OBJECTS)
+	@$(MAKE) buildlib --no-print-directory
+
+.PHONY: test
+test:
+	@mkdir -p $(dir $(TESTOBJECTS))
+	@mkdir -p $(BIN_PATH)
+	@$(MAKE) buildexec --no-print-directory
 
 # Installs to the set path
+# TODO: add headers and libs
 .PHONY: install
 install:
 	@echo "Installing to $(DESTDIR)$(INSTALL_PREFIX)/bin"
 	@$(INSTALL_PROGRAM) $(BIN_PATH)/$(BIN_NAME) $(DESTDIR)$(INSTALL_PREFIX)/bin
 
 # Uninstalls the program
+# TODO: add headers and libs
 .PHONY: uninstall
 uninstall:
 	@echo "Removing $(DESTDIR)$(INSTALL_PREFIX)/bin/$(BIN_NAME)"
 	@$(RM) $(DESTDIR)$(INSTALL_PREFIX)/bin/$(BIN_NAME)
+
+# Removes all build files
+.PHONY: clean
+clean:
+	@echo "Deleting $(BIN_NAME) symlink"
+	$(CMD_PREFIX)$(RM) $(BIN_NAME)
+	@echo "Deleting directories"
+	$(CMD_PREFIX)$(RM) -r build
+	$(CMD_PREFIX)$(RM) -r lib
+	$(CMD_PREFIX)$(RM) -r bin
 
 # Compiles the protocol buffer files
 .PHONY: proto
@@ -152,29 +172,26 @@ clean-proto:
 	@$(RM) *.pb.cc
 	@$(RM) *.pb.h
 
-# Removes all build files
-.PHONY: clean
-clean:
-	@echo "Deleting $(BIN_NAME) symlink"
-	$(CMD_PREFIX)$(RM) $(BIN_NAME)
-	@echo "Deleting directories"
-	$(CMD_PREFIX)$(RM) -r build
-	$(CMD_PREFIX)$(RM) -r lib
-	$(CMD_PREFIX)$(RM) -r bin
 
-
-# Main rule, checks the executable and symlinks to the output
 .PHONY: buildexec
 buildexec: $(BIN_PATH)/$(BIN_NAME)
 
+# Add dependency files, if they exist
+-include $(TESTDEPS)
+
 # Link the executable
-$(BIN_PATH)/$(BIN_NAME): $(OBJECTS)
-	$(CMD_PREFIX)$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
+$(BIN_PATH)/$(BIN_NAME): $(TESTOBJECTS)
+	$(CMD_PREFIX)$(CXX) $(TESTOBJECTS) -L$(LIB_PATH) -lcontentious $(LDFLAGS) -o $@
 	@$(RM) $(BIN_NAME)
 	@ln -s $(BIN_PATH)/$(BIN_NAME) $(BIN_NAME)
 
+$(BUILD_PATH)/%.o: $(TEST_PATH)/%.$(SRC_EXT)
+	$(CMD_PREFIX)$(CXX) $(CXXFLAGS) $(INCLUDES) -MP -MMD -c $< -o $@
+
+
 .PHONY: buildlib
 buildlib: $(OBJECTS)
+	ar -rsv $(LIB_PATH)/libcontentious.a $(OBJECTS)
 
 # Add dependency files, if they exist
 -include $(DEPS)

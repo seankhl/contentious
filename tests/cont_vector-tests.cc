@@ -1,8 +1,9 @@
 
 #include <iostream>
 
+#include "../bp_vector/cont_vector.h"
+
 #include "cont_vector-tests.h"
-#include "cont_vector.h"
 
 using namespace std;
 

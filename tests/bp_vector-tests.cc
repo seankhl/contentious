@@ -15,8 +15,9 @@
 #include "boost/bind.hpp"
 
 // redundant, but in case we reorganize testing...
-#include "cont_vector.h"
+#include "../bp_vector/cont_vector.h"
 
+#include "bp_vector-tests.h"
 #include "reduce-tests.h"
 #include "cont_vector-tests.h"
 

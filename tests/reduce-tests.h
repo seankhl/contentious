@@ -14,7 +14,7 @@
 
 #include <CL/cl.h>
 
-#include "cont_vector.h"
+#include "../bp_vector/cont_vector.h"
 
 double seq_reduce(const std::vector<double> &test_vec);
 double locked_reduce(const std::vector<double> &test_vec);
