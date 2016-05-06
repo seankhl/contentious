@@ -1,4 +1,5 @@
 #### PROJECT SETTINGS ####
+
 # The name of the executable to be created
 BIN_NAME := vector-tests
 # Compiler used
@@ -7,10 +8,12 @@ CXX ?= g++
 SRC_EXT = cc
 # Path to the source directory, relative to the makefile
 SRC_PATH = ./bp_vector
+# Path to directory where libs will be built
+LIB_PATH = ./lib
 # Space-separated pkg-config libraries used by this project
-LIBS = 
+LIBS =
 # General compiler flags
-COMPILE_FLAGS = -fopenmp -mavx -std=c++14 -march=native -Wall -Wextra
+COMPILE_FLAGS = -std=c++14 -Wall -Wextra -march=native -fopenmp -mavx
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3
 # Additional debug-specific flags
@@ -18,8 +21,13 @@ DCOMPILE_FLAGS = -DDEBUG -Og -g
 # Add additional include paths
 INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
-#LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib -L./bp_vector/boost-deps/stage/lib -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
-LINK_FLAGS = -fopenmp -mavx -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib -L/home/sean/Documents/software/modular-boost/stage/lib -lpthread -lboost_thread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+#LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib	\
+			  -L./bp_vector/boost-deps/stage/lib			\
+			  -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+LINK_FLAGS = -fopenmp -mavx -lpthread											\
+			 -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib	\
+			 -L/home/sean/Documents/software/modular-boost/stage/lib			\
+			 -lboost_thread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings
@@ -33,7 +41,7 @@ INSTALL_PREFIX = usr/local
 # Generally should not need to edit below this line
 
 # Function used to check variables. Use on the command line:
-# make print-VARNAME
+# 	make print-VARNAME
 # Useful for debugging and adding features
 print-%: ; @echo $*=$($*)
 
@@ -59,7 +67,7 @@ endif
 export V := true
 export CMD_PREFIX := @
 ifeq ($(V),true)
-	CMD_PREFIX := 
+	CMD_PREFIX :=
 endif
 
 # Combine compiler and linker flags
@@ -77,7 +85,8 @@ install: export BIN_PATH := bin/release
 
 # Find all source files in the source directory, sorted by most
 # recently modified
-SOURCES = $(shell find $(SRC_PATH)/ -not -path "$(SRC_PATH)/boost-deps/*" -name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
+SOURCES = $(shell find $(SRC_PATH)/ -not -path "$(SRC_PATH)/boost-deps/*"	 \
+		  							-name '*.$(SRC_EXT)' -printf '%T@\t%p\n' \
 				| sort -k 1nr | cut -f2-)
 
 # fallback in case the above fails
@@ -99,18 +108,25 @@ all: debug
 # Standard, non-optimized release build
 .PHONY: release
 release: dirs
-	@$(MAKE) build --no-print-directory
+	@$(MAKE) lib --no-print-directory
 
 # Debug build for gdb debugging
 .PHONY: debug
 debug: dirs
-	@$(MAKE) build --no-print-directory
+	@$(MAKE) lib --no-print-directory
 
 # Create the directories used in the build
 .PHONY: dirs
 dirs:
 	@mkdir -p $(dir $(OBJECTS))
 	@mkdir -p $(BIN_PATH)
+
+# Create library without executable
+.PHONY: lib
+lib:
+	@$(MAKE) buildlib --no-print-directory
+	@mkdir -p $(LIB_PATH)
+	ar -rsv $(LIB_PATH)/libcontentious.a $(OBJECTS)
 
 # Installs to the set path
 .PHONY: install
@@ -140,20 +156,25 @@ clean-proto:
 .PHONY: clean
 clean:
 	@echo "Deleting $(BIN_NAME) symlink"
-	@$(RM) $(BIN_NAME)
+	$(CMD_PREFIX)$(RM) $(BIN_NAME)
 	@echo "Deleting directories"
-	@$(RM) -r build
-	@$(RM) -r bin
+	$(CMD_PREFIX)$(RM) -r build
+	$(CMD_PREFIX)$(RM) -r lib
+	$(CMD_PREFIX)$(RM) -r bin
+
 
 # Main rule, checks the executable and symlinks to the output
-.PHONY: build
-build: $(BIN_PATH)/$(BIN_NAME)
-	@$(RM) $(BIN_NAME)
-	@ln -s $(BIN_PATH)/$(BIN_NAME) $(BIN_NAME)
+.PHONY: buildexec
+buildexec: $(BIN_PATH)/$(BIN_NAME)
 
 # Link the executable
 $(BIN_PATH)/$(BIN_NAME): $(OBJECTS)
 	$(CMD_PREFIX)$(CXX) $(OBJECTS) $(LDFLAGS) -o $@
+	@$(RM) $(BIN_NAME)
+	@ln -s $(BIN_PATH)/$(BIN_NAME) $(BIN_NAME)
+
+.PHONY: buildlib
+buildlib: $(OBJECTS)
 
 # Add dependency files, if they exist
 -include $(DEPS)

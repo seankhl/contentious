@@ -483,7 +483,8 @@ int test_cvec()
 }
 
 
-void vec_timing() {
+void vec_timing()
+{
     int test_sz = 4096;
 
     chrono::time_point<chrono::system_clock> st_start, st_end;
@@ -538,7 +539,7 @@ void vec_timing() {
     */
 }
 
-
+/*
 int main()
 {
 #ifdef DEBUG
@@ -577,4 +578,4 @@ int main()
 
     return ret;
 }
-
+*/
