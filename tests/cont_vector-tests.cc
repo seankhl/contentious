@@ -44,7 +44,7 @@ void cont_inc_reduce(cont_vector<double> &cont_ret,
     //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
     cont_vector<double> *next = new cont_vector<double>(cont_ret);
     cont_ret.register_dependent(next);
-    cont_ret.reattach(splt_ret, *next);
+    cont_ret.reattach(splt_ret, *next, 0, next->size());
 }
 double cont_reduce_manual(const vector<double> &test_vec)
 {
@@ -111,18 +111,16 @@ double cont_foreach(const vector<double> &test_vec)
 
 void cont_reduce(const vector<double> &test_vec)
 {
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cout << test_vec[i] << " ";
-    }
-    cout << endl;
     cont_vector<double> cont_inp(new Plus<double>());
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    cout << cont_inp << endl;
+    //cout << cont_inp << endl;
     auto cont_ret = cont_inp.reduce(new Plus<double>());
+    cont_ret.reset_latch(0);
+    cont_inp.resolve(cont_ret);
     //auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
-    cout << cont_ret << endl;
+    cout << cont_ret[0] << endl;
     /*
     for (size_t i = 0; i < cont_ret2.size(); ++i) {
         cout << cont_ret2[i] << " ";
@@ -131,46 +129,77 @@ void cont_reduce(const vector<double> &test_vec)
     */
 }
 
+void stdv_foreach(const vector<double> &test_vec)
+{
+    vector<double> inp;
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        inp.push_back(test_vec[i]);
+    }
+    auto ret = inp;
+    for (size_t i = 0; i < inp.size(); ++i) {
+        ret[i] = inp[i] * 2;
+    }
+
+    vector<double> other;
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        other.push_back(i);
+    }
+    //auto cont_ret2 = cont_ret.foreach(new Multiply<double>(), cont_other);
+    auto ret2 = ret;
+    for (size_t i = 0; i < inp.size(); ++i) {
+        ret2[i] = ret[i] * other[i];
+    }
+    for (size_t i = 0; i < inp.size(); ++i) {
+        if (inp[i] * 2 * other[i] != ret2[i]) {
+            cout << "bad resolution at ret2[" << i << "]: "
+                 << inp[i] * 2 * other[i] << " "
+                 << ret2[i] << endl;
+            //cout << "cont_ret2: " << ret2 << endl;
+        }
+    }
+
+    //cout << "cont_inp: " << cont_inp << endl;
+    //cout << "cont_ret: " << cont_ret << endl;
+    //cout << "cont_ret2: " << cont_ret2 << endl;
+    //delete cont_ret;
+    //delete cont_ret2;
+}
+
 void cont_foreach(const vector<double> &test_vec)
 {
-    /*
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cout << test_vec[i] << " ";
-    }
-    cout << endl;
-    */
     cont_vector<double> cont_inp(new Multiply<double>());
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    cout << cont_inp << endl;
+    //cout << "cont_inp: " << cont_inp << endl;
     auto cont_ret = cont_inp.foreach(new Multiply<double>(), 2);
-    //cont_inp.resolve(cont_ret);
-    //cont_inp.resolve(*cont_ret);
-    //cout << cont_inp << endl;
-    cout << *cont_ret << endl;
+    //cout << "cont_ret: " << cont_ret << endl;
 
-    /*
     cont_vector<double> cont_other(new Multiply<double>());
-    cout << "cont_other: ";
+    cont_other.reset_latch(0);
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_other.unprotected_push_back(i);
-        cout << cont_other[i] << " ";
     }
-    cout << endl;
-    */
-    auto cont_ret2 = cont_ret->foreach(new Multiply<double>(), 3);
-    cont_ret2->reset_latch(0);
-    cont_inp.resolve(*cont_ret);
-    cont_ret->resolve(*cont_ret2);
-    cout << *cont_ret2 << endl;
+    //cout << "cont_other: " << cont_other << endl;
+    auto cont_ret2 = cont_ret.foreach(new Multiply<double>(), cont_other);
+    cont_ret2.reset_latch(0);
+    cont_inp.resolve(cont_ret);
+    cont_ret.resolve(cont_ret2);
+    //cout << "cont_ret2: " << cont_ret2 << endl;
     for (size_t i = 0; i < cont_inp.size(); ++i) {
-        if (cont_inp[i] * 6 != cont_ret2->at(i)) {
-            cout << "bad resolution at i: "
-                 << cont_inp[i] << " "
-                 << cont_ret2->at(i) << endl;
+        if (cont_inp[i] * 2 * cont_other[i] != cont_ret2[i]) {
+            cout << "bad resolution at cont_ret2[" << i << "]: "
+                 << cont_inp[i] * 2 * cont_other[i] << " "
+                 << cont_ret2[i] << endl;
+            //cout << "cont_ret2: " << cont_ret2 << endl;
         }
     }
+
+    //cout << "cont_inp: " << cont_inp << endl;
+    //cout << "cont_ret: " << cont_ret << endl;
+    //cout << "cont_ret2: " << cont_ret2 << endl;
+    //delete cont_ret;
+    //delete cont_ret2;
 }
 
 void cont_stencil(const vector<double> &test_vec)
@@ -189,7 +218,8 @@ void cont_stencil(const vector<double> &test_vec)
 
 int cont_vector_runner()
 {
-    int64_t test_sz = 33; // numeric_limits<int64_t>::max() / pow(2,36);
+    int64_t test_sz = 160000;// numeric_limits<int64_t>::max() / pow(2,42);
+    if (test_sz < 0) return 1;
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
@@ -204,9 +234,31 @@ int cont_vector_runner()
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
+    
     //cont_reduce_new(test_vec);
-    cont_foreach(test_vec);
-    cont_stencil(test_vec);
+    //cont_reduce(test_vec);
+    
+    chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
+    stdv_start = chrono::system_clock::now();
+    for (size_t i = 0; i < 100; ++i) {
+        stdv_foreach(test_vec);
+    }
+    stdv_end = chrono::system_clock::now();
+    chrono::duration<double> stdv_dur = stdv_end - stdv_start;
+
+    chrono::time_point<chrono::system_clock> cont_start, cont_end;
+    cont_start = chrono::system_clock::now();
+    for (size_t i = 0; i < 100; ++i) {
+        cont_foreach(test_vec);
+    }
+    cont_end = chrono::system_clock::now();
+    chrono::duration<double> cont_dur = cont_end - cont_start;
+    cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
+    cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
+    cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
+    
+    //cont_stencil(test_vec);
+    cout << "DONE! " << test_sz << endl;
 
     return 0;
 }

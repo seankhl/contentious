@@ -401,7 +401,7 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
     for (int i = 0; i < 10; ++i) {
         test_splinter.comp(index, i);
     }
-    test.reattach(test_splinter, next);
+    test.reattach(test_splinter, next, index, index+1);
     //cont_vector<double> next = test.pull();
     //cout << "next[1] is: " << next.at(1) << endl;
 }
@@ -415,10 +415,10 @@ int test_cvec()
     }
 
     // create a copy of test; next has a unique ID, as do all cont_vectors
-    cont_vector<double> *next = new cont_vector<double>(test);
-    next->reset_latch(0);
+    cont_vector<double> next = cont_vector<double>(test);
+    next.reset_latch(0);
     // this tells test that next depends on it, for resolution purposes
-    test.register_dependent(next);
+    test.register_dependent(&next);
 
     // accumulate values on index comp_locus
     size_t comp_locus = 1;
@@ -427,7 +427,7 @@ int test_cvec()
     for (unsigned i = 0; i < nthreads; ++i) {
         threads.push_back(
                 thread(my_accumulate,
-                       std::ref(test), std::ref(*next), comp_locus)
+                       std::ref(test), std::ref(next), comp_locus)
         );
     }
     // detach threads; so, the threads run asynchronously and their scheduling
@@ -436,6 +436,7 @@ int test_cvec()
         threads[i].detach();
     }
 
+    /*
     // create a new cont_vector identical to next, which may not be finalized
     cont_vector<double> *next2 = new cont_vector<double>(*next);
     next->reset_latch(nthreads);
@@ -453,7 +454,7 @@ int test_cvec()
     for (unsigned i = 0; i < nthreads; ++i) {
         threads2[i].detach();
     }
-
+    */
 
     /* // if we sleep before checking next, likely it will have finished,
        // but not for sure
@@ -465,12 +466,13 @@ int test_cvec()
     */
 
     // we must resolve test before checking next's values
-    test.resolve(*next);
-    if (next->at(1) != 181) {
-        cerr << "! test_cvec failed:  " << next->at(1)
+    test.resolve(next);
+    if (next[1] != 181) {
+        cerr << "! test_cvec failed:  " << next[1]
              << ", expected " << 181 << endl;
         return 1;
     }
+    /*
     // we must resolve test and next before checking next2's values
     next->resolve(*next2);
     if (next2->at(1) != 361) {
@@ -478,7 +480,7 @@ int test_cvec()
              << ", expected " << 361 << endl;
         return 1;
     }
-
+    */
     cerr << "+ test_cvec passed" << endl;
     return 0;
 }

@@ -402,7 +402,9 @@ class tr_vector : public bp_vector_base<T, tr_vector>
 private:
 
 public:
-    tr_vector() = default;
+    tr_vector()
+      : bp_vector_base<T, tr_vector>(this->get_unique_id())
+    {   /* nothing to do here */ }
     tr_vector(const tr_vector<T> &other) = default;
 
     tr_vector(const bp_vector_base<T, tr_vector> &other)

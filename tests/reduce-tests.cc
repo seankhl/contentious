@@ -15,6 +15,7 @@
 #include "../bp_vector/cont_vector.h"
 
 #include "reduce-tests.h"
+#include "timing.h"
 
 using namespace std;
 
@@ -156,121 +157,96 @@ double vec_reduce(const vector<double> &test_vec)
     return vec_ret[0];
 }
 
+double cont_reduce_dup(const cont_vector<double> &cont_arg)
+{
+    auto cont_inp(cont_arg);
+    //cont_vector<double> cont_inp(new Plus<double>());
+    //for (size_t i = 0; i < test_vec.size(); ++i) {
+    //    cont_inp.unprotected_push_back(test_vec[i]);
+    //}
+    //cout << cont_inp << endl;
+    chrono::time_point<chrono::system_clock> cont_piece_start, cont_piece_end;
+    cont_piece_start = chrono::system_clock::now();
+    auto cont_ret = cont_inp.reduce(new Plus<double>());
+    cont_ret.reset_latch(0);
+    cont_inp.resolve(cont_ret);
+    cont_piece_end = chrono::system_clock::now();
+    chrono::duration<double> cont_piece_dur = cont_piece_end - cont_piece_start;
+    cout << "cont took: " << cont_piece_dur.count() << " seconds; " << endl;
+    //auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
+    //cout << cont_ret[0] << endl;
+    /*
+    for (size_t i = 0; i < cont_ret2.size(); ++i) {
+        cout << cont_ret2[i] << " ";
+    }
+    cout << endl;
+    */
+    return cont_ret[0];
+}
+
 
 int reduce_runner()
 {
-    int64_t test_sz = 33; // numeric_limits<int64_t>::max() / pow(2,36);
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,38);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
     uniform_real_distribution<double> dist(-32.768, 32.768);
-
     auto gen = std::bind(dist, mersenne_engine);
+    
+    // make regular vector with vals in it
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
 
-    double answer_new = 0;
+    // make cont_vector with vals in it
+    cont_vector<double> test_cvec(new Plus<double>());
     for (size_t i = 0; i < test_vec.size(); ++i) {
-        answer_new += test_vec[i];
+        test_cvec.unprotected_push_back(test_vec[i]);
     }
-    cout << answer_new << endl;
-
-    /*
-    chrono::time_point<chrono::system_clock> locked_start, locked_end;
-    locked_start = chrono::system_clock::now();
-    double locked_test = locked_reduce(test_vec);
-    locked_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> atomic_start, atomic_end;
-    atomic_start = chrono::system_clock::now();
-    double atomic_test = atomic_reduce(test_vec);
-    atomic_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> async_start, async_end;
-    async_start = chrono::system_clock::now();
-    double async_test = async_reduce(test_vec);
-    async_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> avx_start, avx_end;
-    avx_start = chrono::system_clock::now();
-    double avx_test = avx_reduce(test_vec);
-    avx_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> cont_start, cont_end;
-    cont_start = chrono::system_clock::now();
-    double cont_test = cont_reduce(test_vec);
-    cont_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> omp_start, omp_end;
-    omp_start = chrono::system_clock::now();
-    double omp_test = omp_reduce(test_vec);
-    omp_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> seq_start, seq_end;
-    seq_start = chrono::system_clock::now();
-    double seq_test = seq_reduce(test_vec);
-    seq_end = chrono::system_clock::now();
-
-    chrono::time_point<chrono::system_clock> vec_start, vec_end;
-    vec_start = chrono::system_clock::now();
-    double vec_test = vec_reduce(test_vec);
-    vec_end = chrono::system_clock::now();
-    */
-
-    /*
-    if (seq_test != locked_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and locked_test is " << locked_test << endl;
-    } else if (seq_test != atomic_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and atomic_test is " << atomic_test << endl;
-    } else if (seq_test != async_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and async_test is " << async_test << endl;
-    } else if (seq_test != avx_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and avx_test is " << avx_test << endl;
-    } else if (seq_test != omp_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and omp_test is " << omp_test << endl;
-    } else if (seq_test != cont_test) {
-        cout << "error: seq_test is " << seq_test
-             << " and cont_test is " << cont_test << endl;
+    test_cvec.reset_latch(0);
+    
+    // compute reference answer
+    double answer = 0;
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        answer += test_vec[i];
     }
-    */
+    cout << "reference: size is " << test_vec.size() 
+         << " and reduce with addition gives " << answer << endl;
 
-    /*
-    cout << "seq_test: " << seq_test << endl;
-    cout << "locked_test: " << locked_test << endl;
-    cout << "atomic_test: " << atomic_test << endl;
-    cout << "async_test: " << async_test << endl;
-    cout << "avx_test: " << avx_test << endl;
-    cout << "omp_test: " << omp_test << endl;
-    cout << "vec_test: " << vec_test << endl;
-    cout << "cont_test: " << cont_test << endl;
-    */
+    // create runner for all the variations of reduce
+    map< string, function< pair<double, chrono::duration<double>>() >> runner {
+        //bind(timetest<double, vector<double>>, &locked_reduce, test_vec),
+        //bind(timetest<double, vector<double>>, &atomic_reduce, test_vec),
+        { "async",  bind(timetest<double, vector<double>>, 
+                            &async_reduce, test_vec)                },
+        { "avx",    bind(timetest<double, vector<double>>, 
+                            &avx_reduce, test_vec)                  },
+        { "cont",   bind(timetest<double, cont_vector<double>>, 
+                            &cont_reduce_dup, std::cref(test_cvec)) },
+        { "omp",    bind(timetest<double, vector<double>>, 
+                            &omp_reduce, test_vec)                  },
+        { "seq",    bind(timetest<double, vector<double>>, 
+                            &seq_reduce, test_vec)                  },
+        { "vec",    bind(timetest<double, vector<double>>, 
+                            &vec_reduce, test_vec)                  }
+    };
 
-    /*
-    chrono::duration<double> seq_dur = seq_end - seq_start;
-    chrono::duration<double> locked_dur = locked_end - locked_start;
-    chrono::duration<double> atomic_dur = atomic_end - atomic_start;
-    chrono::duration<double> async_dur = async_end - async_start;
-    chrono::duration<double> avx_dur = avx_end - avx_start;
-    chrono::duration<double> omp_dur = omp_end - omp_start;
-    chrono::duration<double> vec_dur = vec_end - vec_start;
-    chrono::duration<double> cont_dur = cont_end - cont_start;
-    */
+    double out, cont_dur = 0, vec_dur = 0;
+    chrono::duration<double> dur;
+    for (const auto &test : runner) {
+        tie(out, dur) = test.second();
+        cout << test.first << endl
+             << "  rest: " << out << endl
+             << "  took: " << dur.count() << " seconds; " << endl;
+        if (test.first == "cont") {
+            cont_dur = dur.count();
+        } else if (test.first == "vec") {
+            vec_dur = dur.count();
+        }
+    }
 
-    /*
-    cout << "seq took: " << seq_dur.count() << " seconds; " << endl;
-    cout << "locked took: " << locked_dur.count() << " seconds; " << endl;
-    cout << "atomic took: " << atomic_dur.count() << " seconds; " << endl;
-    cout << "async took: " << async_dur.count() << " seconds; " << endl;
-    cout << "avx took: " << avx_dur.count() << " seconds; " << endl;
-    cout << "omp took: " << omp_dur.count() << " seconds; " << endl;
-    cout << "vec took: " << vec_dur.count() << " seconds; " << endl;
-    cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
-    */
+    cout << "ratio is: " << cont_dur/vec_dur << endl;
+
     return 0;
 }
 
