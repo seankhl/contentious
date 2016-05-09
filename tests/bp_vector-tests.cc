@@ -422,7 +422,7 @@ int test_coroutine_practical() {
 void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
                    size_t index)
 {
-    splt_vector<double> test_splinter = test.detach();
+    splt_vector<double> test_splinter = test.detach(next);
     for (int i = 0; i < 10; ++i) {
         test_splinter.comp(index, i);
     }
@@ -441,9 +441,9 @@ int test_cvec()
 
     // create a copy of test; next has a unique ID, as do all cont_vectors
     cont_vector<double> next = cont_vector<double>(test);
-    next.reset_latch(0);
     // this tells test that next depends on it, for resolution purposes
     test.register_dependent(&next);
+    test.reset_latch(std::thread::hardware_concurrency());
 
     // accumulate values on index comp_locus
     size_t comp_locus = 1;
@@ -464,9 +464,7 @@ int test_cvec()
     /*
     // create a new cont_vector identical to next, which may not be finalized
     cont_vector<double> *next2 = new cont_vector<double>(*next);
-    next->reset_latch(nthreads);
     // otherwise, next will hang at its destructor; TODO fix this
-    next2->reset_latch(0);
     // next is a dependent of next2; or, next2 depends on next
     next->register_dependent(next2);
 

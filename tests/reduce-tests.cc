@@ -5,6 +5,7 @@
 #include <future>
 #include <atomic>
 #include <limits>
+#include <random>
 
 #include <cmath>
 
@@ -168,7 +169,6 @@ double cont_reduce_dup(const cont_vector<double> &cont_arg)
     chrono::time_point<chrono::system_clock> cont_piece_start, cont_piece_end;
     cont_piece_start = chrono::system_clock::now();
     auto cont_ret = cont_inp.reduce(new Plus<double>());
-    cont_ret.reset_latch(0);
     cont_inp.resolve(cont_ret);
     cont_piece_end = chrono::system_clock::now();
     chrono::duration<double> cont_piece_dur = cont_piece_end - cont_piece_start;
@@ -203,7 +203,6 @@ int reduce_runner()
     for (size_t i = 0; i < test_vec.size(); ++i) {
         test_cvec.unprotected_push_back(test_vec[i]);
     }
-    test_cvec.reset_latch(0);
     //cout << test_cvec << endl;
     
     // compute reference answer
@@ -242,7 +241,6 @@ int reduce_runner()
         if      (test.first == "cont")  { cont_dur = dur.count(); } 
         else if (test.first == "vec")   { vec_dur  = dur.count(); }
     }
-
     cout << "ratio is: " << cont_dur/vec_dur << endl;
 
     return 0;

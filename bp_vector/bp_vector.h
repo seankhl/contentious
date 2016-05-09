@@ -7,6 +7,7 @@
 #include <atomic>
 #include <array>
 #include <stack>
+#include <vector>
 #include <utility>
 #include <cmath>
 #include <iostream>
