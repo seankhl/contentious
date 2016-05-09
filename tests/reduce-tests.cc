@@ -187,7 +187,7 @@ double cont_reduce_dup(const cont_vector<double> &cont_arg)
 
 int reduce_runner()
 {
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,38);
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,42);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
@@ -204,6 +204,7 @@ int reduce_runner()
         test_cvec.unprotected_push_back(test_vec[i]);
     }
     test_cvec.reset_latch(0);
+    //cout << test_cvec << endl;
     
     // compute reference answer
     double answer = 0;
@@ -219,8 +220,8 @@ int reduce_runner()
         //bind(timetest<double, vector<double>>, &atomic_reduce, test_vec),
         { "async",  bind(timetest<double, vector<double>>, 
                             &async_reduce, test_vec)                },
-        { "avx",    bind(timetest<double, vector<double>>, 
-                            &avx_reduce, test_vec)                  },
+        /*{ "avx",    bind(timetest<double, vector<double>>, 
+                            &avx_reduce, test_vec)                  },*/
         { "cont",   bind(timetest<double, cont_vector<double>>, 
                             &cont_reduce_dup, std::cref(test_cvec)) },
         { "omp",    bind(timetest<double, vector<double>>, 
@@ -236,13 +237,10 @@ int reduce_runner()
     for (const auto &test : runner) {
         tie(out, dur) = test.second();
         cout << test.first << endl
-             << "  rest: " << out << endl
+             << "  diff: " << out - answer << endl
              << "  took: " << dur.count() << " seconds; " << endl;
-        if (test.first == "cont") {
-            cont_dur = dur.count();
-        } else if (test.first == "vec") {
-            vec_dur = dur.count();
-        }
+        if      (test.first == "cont")  { cont_dur = dur.count(); } 
+        else if (test.first == "vec")   { vec_dur  = dur.count(); }
     }
 
     cout << "ratio is: " << cont_dur/vec_dur << endl;

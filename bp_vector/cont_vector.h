@@ -29,37 +29,51 @@ namespace contentious
     void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
                      const size_t a, const size_t b)
     {
+        std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
+        splt_start = std::chrono::system_clock::now();
+        
+        /*
         {
             std::lock_guard<std::mutex> lock(dep.data_lock);
-            //std::cout << "dep in reduce_splt: " << dep << std::endl;
+            std::cout << "dep in reduce_splt: " << dep << std::endl;
         }
+        */
         splt_vector<T> splt = cont.detach();
+        /*
         {
-            //std::lock_guard<std::mutex> lock(dep.data_lock);
-            //std::cout << "cont in reduce_splt (after detach): " << cont << std::endl;
-            //std::cout << "splt[0] for " << splt._data.get_id()
-            //          << ": " << splt._data[0] << std::endl;
+            std::lock_guard<std::mutex> lock(dep.data_lock);
+            std::cout << "cont in reduce_splt (after detach): " << cont << std::endl;
+            std::cout << "splt[0] for " << splt._data.get_id()
+                      << ": " << splt._data[0] << std::endl;
         }
-        /*{
+        {
             std::cout << "splt[0] for " << splt._data.get_id()
                       << ": " << splt._data[0] << std::endl;
             std::cout << "cont is:" << cont << std::endl;
             std::cout << "dep is: " << dep << std::endl;
         }*/
-
+        /*
         {
-            std::lock_guard<std::mutex> lock(cont.data_lock);
-            std::cout << "range is: " << a << " to " << b << std::endl;
+        std::lock_guard<std::mutex> lock(cont.data_lock);
+        //std::cout << cont << std::endl;
+        std::cout << "range is: " << a << " to " << b << " with size "
+                  << b - a << std::endl;
         }
-        std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-        splt_start = std::chrono::system_clock::now();
+        */
+        auto start = cont._data.begin() + (a+1);
+        auto end   = cont._data.begin() + b;
 
-        for (size_t i = a; i < a+1; ++i) {
+        splt._data.mut_set(0, splt._data[0] + cont[a]);
+        T &valref = splt._data[0];
+        
+        for (auto it = start; it != end; ++it) {
             // TODO: right now, reduces happen at index 0, which probably isn't
             // exactly right
             //splt.mut_comp(0, cont[i]);
-            splt._data.mut_set(0, splt._data[0] + cont[i]);
+            valref += *it;
+            //std::cout << "*it: " << *it << std::endl;
         }
+        /*
         T &valref = splt._data[0];
         for (size_t i = a+1; i < b; ++i) {
             // TODO: right now, reduces happen at index 0, which probably isn't
@@ -67,13 +81,17 @@ namespace contentious
             //splt.mut_comp(0, cont[i]);
             valref += cont[i];
         }
-
-        splt_end = std::chrono::system_clock::now();
-        std::chrono::duration<double> splt_dur = splt_end - splt_start;
-        std::cout << "splt took: " << splt_dur.count() << " seconds; " << std::endl;
+        */
+        /*
+        }
+        */
 
         //std::cout << "one cont_inc done: " << splt_ret._data[0] << std::endl;
         cont.reattach(splt, dep, 0, 1);
+        
+        splt_end = std::chrono::system_clock::now();
+        std::chrono::duration<double> splt_dur = splt_end - splt_start;
+        std::cout << "splt took: " << splt_dur.count() << " seconds; " << std::endl;
     }
 
     template <typename T>

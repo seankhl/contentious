@@ -170,9 +170,15 @@ public:
 
     class const_iterator {
     private:
-        std::stack<std::pair<bp_node<T> *, size_t>> path;
+        // depth of the tree we're iterating over
         uint8_t depth;
+        
+        // path, from top to bottom, node pointers and index at that node
+        std::stack<std::pair<bp_node<T> *, size_t>> path;
+        
+        // leaf that we're at (array of node at end of path)
         std::array<T, br_sz> *leaf;
+        // pos at the leaf that we're at
         size_t pos_cached;
 
     public:
@@ -209,8 +215,8 @@ public:
         }
 
         const_iterator(const const_iterator &other)
-          : path(other.path), depth(other.depth),
-            leaf(other.leaf), pos_cached(0)
+          : depth(other.depth), path(other.path),
+            leaf(other.leaf), pos_cached(other.pos_cached)
         {   /* nothing to do here */ }
 
         //const_iterator(const const_iterator&);
@@ -236,8 +242,7 @@ public:
             auto pos = std::ref(path.top().second);
             // interior node iteration; != means fast overflow past end
             if (pos != br_sz - 1) {
-                ++pos;
-                pos_cached = pos;
+                pos_cached = ++pos;
                 return *this;
             }
             // go up until we're not at the end of our node
@@ -269,8 +274,17 @@ public:
         */
         const_iterator operator+(size_t n) const
         {
-            //TODO: make more efficient, can be O(log n) at worst
+            if (depth == 0) {
+                //std::cout << "depth: " << (int)depth << std::endl;
+                return *this;
+            }
+            // no need to do anything if size == 0
+            // TDOO: shoudl fall out from the below, though
+            if (n == 0) {
+                return *this;
+            }
             /*
+            //TODO: make more efficient, can be O(log n) at worst
             auto ret = *this;
             for (size_t i = 0; i < n; ++i) {
                 ++ret;
@@ -285,39 +299,51 @@ public:
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
             uint32_t p = 1;
-            // d is how far up to go to get to the largest jump
-            uint8_t d = 0;
-            while (n / p > 0) {
-                p *= br_sz;
-                ++d;
-            }
-
+            //std::cout << "before while: " << ret.path.top().second + (n/p) << std::endl;
+            
             std::vector<size_t> pos_chain;
-            for (; d > 0; --d) {
-                // store the current offets for each depth to modify
-                pos_chain.push_back(ret.path.top().second);
+            auto pos = std::ref(ret.path.top().second);
+            while (pos + (n / p) >= br_sz) {
+                pos_chain.push_back(pos);
                 ret.path.pop();
+                p *= br_sz;
+                pos = std::ref(ret.path.top().second);
+                if (ret.path.size() == 0) {
+                    ret.pos_cached = br_sz;
+                    return ret;
+                }
+                //std::cout << "looping... " << ret.path.top().second + (n/p) << std::endl;
             }
 
             size_t left = n;
             size_t i = 0;
-            size_t pos = pos_chain[i] + left / p;
+            size_t pos_this = pos + left / p;
+            ret.path.top().second = pos_this;
             size_t pos_next;
             while (ret.path.size() != ret.depth &&
-                   ret.path.top().first->branches[pos] != nullptr) {
-                left = left % n;
+                   ret.path.top().first->branches[pos_this] != nullptr) {
+                left = left % p;
                 p /= br_sz;
-                pos_next = pos_chain[++i] + left / p;
+                pos_next = pos_chain[i++] + left / p;
                 ret.path.push(std::pair<bp_node<T> *, size_t>(
-                         ret.path.top().first->branches[pos].get(), pos_next));
-                pos = pos_next;
+                         ret.path.top().first->branches[pos_this].get(), pos_next));
+                pos_this = pos_next;
+                //std::cout << "pls don't print" << std::endl;
             }
 
+            left = left % p;
             assert(left == 0);
+
             ret.leaf = &(ret.path.top().first->values);
-            ret.pos_cached = pos;
+            
+            ret.path.top().second = pos_this;
+            ret.pos_cached = pos_this;
+            //std::cout << "ret.pos_cached: " << ret.pos_cached << std::endl;
+            //std::cout << "first val at this iterator: "
+            //          << (*ret.leaf)[ret.pos_cached] << std::endl;
             return ret;
         }
+
         /*
         friend const_iterator operator+(size_t n, const const_iterator &it); //optional
         const_iterator& operator-=(size_type); //optional

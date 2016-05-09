@@ -60,6 +60,7 @@ int test_insert()
     default_random_engine e_val(r());
     uniform_real_distribution<double> dist_real;
     auto rand_val = std::bind(dist_real, e_val);
+    
     vector<double> test_vec;
     bp_vector<double> test_trie;
     size_t test_sz = 400000;
@@ -200,14 +201,19 @@ int test_pers_alternate()
 int test_pers_iter()
 {
     tr_vector<double> pers;
+    int index;
+
+    // testing ++
     for (int i = 0; i < 514; ++i) {
+        //cout << "at i: " << i << endl;
         pers = tr_vector<double>();
         for (int j = 0; j < i; ++j) {
             pers = pers.push_back(i);
         }
         //cout << "let's iterate! ";
-        int index = 0;
+        index = 0;
         for (auto it = pers.begin(); it != pers.end(); ++it) {
+            //cout << "at index: " << index << endl;
             if (*it != pers[index]) {
                 cerr << "! test_pers_iter failed: at index " << index
                      << "; got " << *it
@@ -222,8 +228,27 @@ int test_pers_iter()
                  << " times, but its size was " << i << endl;
             return 1;
         }
-        //cout << "done!" << endl;
+
     }
+    
+    // testing +
+    random_device r;
+    default_random_engine e_val(r());
+    uniform_int_distribution<int> dist_int(0, 513);
+    auto rand_val = std::bind(dist_int, e_val);
+    for (int i = 0; i < 10000; ++i) {
+        index = rand_val();
+        //cout << index << endl;
+        auto it_st = pers.begin() + index;
+        auto it = it_st;
+        if (*it != pers[index]) {
+            cerr << "! test_pers_iter (+) failed: at index " << index
+                << "; got " << *it
+                << ", expected " << pers[index] << endl;
+            return 1;
+        }
+    }
+
     cerr << "+ test_pers_iter passed" << endl;
     return 0;
 }
@@ -548,13 +573,14 @@ void vec_timing()
 int bp_vector_runner()
 {
     int ret = 0;
+    std::cout << "br_sz: " << (int)br_sz << std::endl;
 
     vector<function<int()>> runner;
     runner.push_back(test_simple);
     runner.push_back(test_insert);
     runner.push_back(test_pers);
     runner.push_back(test_pers_alternate);
-    //runner.push_back(test_pers_iter);
+    runner.push_back(test_pers_iter);
     runner.push_back(test_trans);
     runner.push_back(test_make);
     runner.push_back(test_coroutine);

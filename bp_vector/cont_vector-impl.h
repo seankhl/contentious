@@ -167,7 +167,7 @@ void cont_vector<T>::exec_par(void f(cont_vector<T> &, cont_vector<T> &,
 {
     int num_threads = std::thread::hardware_concurrency(); // * 16;
     reset_latch(num_threads);
-    size_t chunk_sz = (size()/num_threads) + 1;
+    size_t chunk_sz = std::ceil( ((double)size())/num_threads );
     std::vector<std::thread> cont_threads;
     for (int i = 0; i < num_threads; ++i) {
         cont_threads.push_back(
