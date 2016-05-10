@@ -280,9 +280,7 @@ public:
             if (depth == 0 || n == 0) {
                 return *this;
             }
-
             auto ret = *this;
-
             // p is the greatest jump between spots we'll make
             // 1 means jumps within node;
             // br_sz means jumps between leaves with the same parent;
@@ -300,7 +298,6 @@ public:
                 p *= br_sz;
                 pos = std::ref(ret.path.top().second);
             }
-
             size_t left = n;
             pos += left / p;
             size_t i = 0;
@@ -317,7 +314,6 @@ public:
             }
             left = left % p;
             assert(left == 0);
-
             ret.leaf = &(ret.path.top().first->values);
             ret.pos_cached = pos;
             return ret;

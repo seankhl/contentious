@@ -18,8 +18,6 @@
 #include "../bp_vector/cont_vector.h"
 
 #include "bp_vector-tests.h"
-#include "reduce-tests.h"
-#include "cont_vector-tests.h"
 
 using namespace std;
 
@@ -439,68 +437,46 @@ int test_cvec()
         test.unprotected_push_back(i);
     }
 
-    // create a copy of test; next has a unique ID, as do all cont_vectors
-    auto next = test;
-    // this tells test that next depends on it, for resolution purposes
-    test.register_dependent(&next);
-    // TODO: probably put this inside register_dependent
-    test.reset_latch(std::thread::hardware_concurrency());
-
     // accumulate values on index comp_locus
-    size_t comp_locus = 1;
-    assert(comp_locus < sizeof(test));
+    constexpr size_t locus = 3;
+    assert(locus < test.size());
+    constexpr size_t T = 100;
+
+    // faux iteration
+    array<cont_vector<double>, T+1> steps;
+    steps[0] = test;
     vector<thread> threads;
-    for (unsigned i = 0; i < nthreads; ++i) {
-        threads.push_back(
-                thread(my_accumulate,
-                       std::ref(test), std::ref(next), comp_locus)
-        );
-    }
-    // detach threads; so, the threads run asynchronously and their scheduling
-    // is determined by forces unknown (OS? std::thread?)
-    for (unsigned i = 0; i < nthreads; ++i) {
-        threads[i].detach();
-    }
-    test.resolve(next);
-
-    // create a new cont_vector identical to next, which may not be finalized
-    auto next2 = next;
-    next.register_dependent(&next2);
-    next.reset_latch(std::thread::hardware_concurrency());
-
-    // accumulate again
-    vector<thread> threads2;
-    for (unsigned i = 0; i < nthreads; ++i) {
-        threads2.push_back(
-                thread(my_accumulate,
-                       std::ref(next), std::ref(next2), comp_locus)
-        );
-    }
-    for (unsigned i = 0; i < nthreads; ++i) {
-        threads2[i].detach();
+    for (size_t t = 0; t < T; ++t) {
+        // create a copy of test; next has a unique ID, as do all cont_vectors
+        steps[t+1] = steps[t];
+        auto &curr = steps[t];
+        auto &next = steps[t+1];
+        // this tells test that next depends on it, for resolution purposes
+        curr.freeze(next);
+        for (unsigned i = 0; i < nthreads; ++i) {
+            threads.push_back(
+                    thread(my_accumulate,
+                           std::ref(curr), std::ref(next), locus)
+            );
+        }
+        // detach threads; so, the threads run asynchronously and their scheduling
+        // is determined by forces unknown (OS? std::thread?)
+        for (unsigned i = nthreads * t; i < nthreads * (t+1); ++i) {
+            threads[i].detach();
+        }
+        std::this_thread::yield();
     }
 
-    /* // if we sleep before checking next, likely it will have finished,
-       // but not for sure
-    {
-        using namespace literals::chrono_literals;
-        std::this_thread::sleep_for(1s);
-    }
-    cout << next << endl;
-    */
-
-    // we must resolve test before checking next's values
-    if (next[1] != 181) {
-        cerr << "! test_cvec failed:  " << next[1]
-             << ", expected " << 181 << endl;
-        return 1;
-    }
-    // we must resolve test and next before checking next2's values
-    next.resolve(next2);
-    if (next2[1] != 361) {
-        cerr << "! test_cvec failed: at index 1, got " << next2[1]
-             << ", expected " << 361 << endl;
-        return 1;
+    for (size_t t = 0; t < T; ++t) {
+        // we must resolve test before checking next's values
+        auto &curr = steps[t];
+        auto &next = steps[t+1];
+        curr.resolve(next);
+        if (next[locus] != test[locus] + 180 * (t+1)) {
+            cerr << "! test_cvec failed: got " << next[locus]
+                 << ", expected " << test[locus] + 180 * (t+1) << endl;
+            return 1;
+        }
     }
 
     cerr << "+ test_cvec passed" << endl;

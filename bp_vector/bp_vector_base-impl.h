@@ -73,7 +73,6 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         ret.root = new bp_node<T>();
         ret.root->id = id;
         ret.root->values[ret.sz++] = val;
-        //std::cout << "root node size: " << sizeof(*(ret.root)) << std::endl;
         return ret;
     }
     

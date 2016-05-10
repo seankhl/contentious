@@ -1,6 +1,6 @@
 
 #include <chrono>
-
+/*
 template<typename Sig, Sig &S>
 struct wrapper;
 
@@ -17,11 +17,11 @@ struct wrapper<Ret(Args...), P>
 double mymult(double a, double b) {
     return a * b;
 }
-/*
 template<, typename ...Args>
 double call_with_args(double F(ArgsArgs... args) {
     return wrapper<double F(Args...), F>::apply(args...);
-}*/
+}
+*/
 
 template <typename T, typename ...Args>
 std::pair<T, std::chrono::duration<double>> 

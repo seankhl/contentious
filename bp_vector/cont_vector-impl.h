@@ -1,19 +1,36 @@
 
 template <typename T>
-splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
-{   // locked *this
+void cont_vector<T>::freeze(cont_vector<T> &dep, bool nocopy)
+{   // locked
     std::lock_guard<std::mutex> lock(data_lock);
-    if (splinters.size() == 0) {
+    {
+        std::lock_guard<std::mutex> lock(dep.data_lock);
+        dependents.push_back(&dep);
+        dep.unsplintered = false;
         _used = _data;
         _data = _data.new_id();
+        if (!nocopy)
+            dep._data = _used.new_id();
+        resolve_latch.reset(hwconc);
     }
-    splt_vector<T> splt(*this);
-    splinters.insert(splt._data.get_id());
-    {   // locked dep
-        std::lock_guard<std::mutex> lock2(dep.data_lock);
-        dep.resolved.emplace(std::make_pair(splt._data.get_id(), false));
+}
+
+template <typename T>
+splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
+{
+    {   // locked *this
+        std::lock_guard<std::mutex> lock(data_lock);
+        splt_vector<T> splt(*this);
+        splinters.insert(splt._data.get_id());
+        {   // locked dep
+            std::lock_guard<std::mutex> lock2(dep.data_lock);
+            dep.resolved.emplace(
+                    std::make_pair(splt._data.get_id(),
+                                   false)
+            );
+        }
+        return splt;
     }
-    return splt;
 }
 
 template <typename T>
@@ -34,7 +51,6 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     // grow out from ourselves. this is safe to modify, but this isn't,
     // because others may be depending on it for resolution
 
-    T diff;
     const uint16_t sid = splt._data.get_id();
 
     // TODO: better (lock-free) mechanism here
@@ -43,12 +59,20 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         std::lock_guard<std::mutex> lock(data_lock);
         found = splinters.find(sid) != splinters.end();
     }
+    T diff;
     if (found) {
         for (size_t i = a; i < b; ++i) {    // locked dep
             std::lock_guard<std::mutex> lock(dep.data_lock);
             diff = op->inv(splt._data[i], _used[i]);
             if (diff != op->identity) {
                 dep._data.mut_set(i, op->f(dep[i], diff));
+                /*
+                std::cout << "sid " << sid
+                          << " joins with " << dep._data.get_id()
+                          << " with diff " << diff
+                          << " to produce " << dep[i]
+                          << std::endl;
+                */
             }
         }
         {   // locked dep
@@ -88,7 +112,14 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
         T diff = next->op->inv((*curr)[i], curr->_used[i]);
         if (diff != op->identity) {
             next->_data.mut_set(i, next->op->f((*next)[i], diff));
-            curr->_used.mut_set(i, (*curr)[i]);
+            //curr->_used.mut_set(i, (*curr)[i]);
+            /*
+            std::cout << "sid " << _data.get_id()
+                      << " resolves onto " << dep._data.get_id()
+                      << " with diff " << diff
+                      << " to produce " << (*next)[i]
+                      << std::endl;
+            */
         }
     }
     //}
@@ -104,17 +135,18 @@ void cont_vector<T>::exec_par(void f(cont_vector<T> &, cont_vector<T> &,
                                      const size_t, const size_t, const U &...),
                               cont_vector<T> &dep, const U &... args)
 {
-    int num_threads = std::thread::hardware_concurrency(); // * 16;
-    size_t chunk_sz = std::ceil( ((double)size())/num_threads );
+    size_t chunk_sz = std::ceil( ((double)size())/hwconc );
     std::vector<std::thread> cont_threads;
-    for (int i = 0; i < num_threads; ++i) {
+
+    freeze(dep, true);
+    for (int i = 0; i < hwconc; ++i) {
         cont_threads.push_back(
                 std::thread(f,
                     std::ref(*this), std::ref(dep),
                     chunk_sz * i, std::min(chunk_sz * (i+1), size()),
                     args...));
     }
-    for (int i = 0; i < num_threads; ++i) {
+    for (int i = 0; i < hwconc; ++i) {
         cont_threads[i].detach();
     }
 }
@@ -124,25 +156,21 @@ template <typename T>
 cont_vector<T> cont_vector<T>::reduce(const Operator<T> *op)
 {
     // our reduce dep is just one value
+    this->op = op;
     auto dep = cont_vector<T>(op);
     dep.unprotected_push_back(op->identity);
-    register_dependent(&dep);
+
     // no template parameters
-    this->op = op;
-    int num_threads = std::thread::hardware_concurrency(); // * 16;
-    reset_latch(num_threads);
     exec_par<>(contentious::reduce_splt<T>, dep);
+
     return dep;
 }
 
 template <typename T>
 cont_vector<T> cont_vector<T>::foreach(const Operator<T> *op, const T &val)
 {
-    auto dep = cont_vector<T>(*this);
-    register_dependent(&dep);
     this->op = op;
-    int num_threads = std::thread::hardware_concurrency(); // * 16;
-    reset_latch(num_threads);
+    auto dep = cont_vector<T>(*this);
 
     // template parameter is the arg to the foreach op
     exec_par<T>(contentious::foreach_splt<T>, dep, val);
@@ -155,11 +183,8 @@ template <typename T>
 cont_vector<T> cont_vector<T>::foreach(const Operator<T> *op,
                                        const cont_vector<T> &other)
 {
-    auto dep = cont_vector<T>(*this);
-    register_dependent(&dep);
     this->op = op;
-    int num_threads = std::thread::hardware_concurrency(); // * 16;
-    reset_latch(num_threads);
+    auto dep = cont_vector<T>(*this);
 
     // gratuitous use of reference_wrapper
     exec_par< std::reference_wrapper<const cont_vector<T>> >(
@@ -195,8 +220,6 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
                         std::forward_as_tuple(coeffs_unique[i]),
                         std::forward_as_tuple(*this)
         );
-        copy.register_dependent(&(step1.at(coeffs_unique[i])));
-        copy.reset_latch(std::thread::hardware_concurrency());
         copy.exec_par<T>(contentious::foreach_splt<T>,
                             step1.at(coeffs_unique[i]),
                             coeffs_unique[i]);
@@ -213,8 +236,6 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
 
     auto copy2a = *this;
     auto copy2b = *this;
-    copy2a.register_dependent(&copy2b);
-    copy2a.reset_latch(std::thread::hardware_concurrency());
     //step1a.register_dependent(&copy2b);
     //step1a.reset_latch(4);
     copy2a.exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
@@ -222,17 +243,14 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
                 copy2b, std::cref(step1.at(coeffs[0])), offs[0]
     );
 
-    std::cout << "copy2b: " << copy2b << std::endl;
-
     auto dep = copy2b;
-    copy2b.register_dependent(&dep);
-    copy2b.reset_latch(std::thread::hardware_concurrency());
     //step1b.register_dependent(&dep);
     //step1b.reset_latch(4);
     copy2b.exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
                 contentious::foreach_splt_off<T>,
                 dep, std::cref(step1.at(coeffs[1])), offs[1]
     );
+
     //step1a.resolve(copy2b);
     copy2a.resolve(copy2b);
     //step1b.resolve(dep);
@@ -241,7 +259,7 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
     //std::cout << "after foreaches (dep): " << *dep << std::endl;
     for (size_t i = 0; i < offs.size(); ++i) {
         step1.at(coeffs[i]).register_dependent(&dep);
-        //resolve_latch.reset(std::thread::hardware_concurrency());
+        //resolve_latch.reset(hwconc);
         std::cout << "butts" << std::endl;
         // TODO: fix suprious copy
         exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
