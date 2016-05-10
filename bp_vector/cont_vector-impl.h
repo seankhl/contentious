@@ -1,112 +1,57 @@
 
-/*
-#include "cont_vector.h"
-
-template <typename T>
-void cont_vector<T>::get(const size_t i, const uint16_t ts, const const T &out) {
-    out = PS_Trie<T>::get(i);
-    if (ts > ts_w) {
-        dependencies[i].push_back(&T);
-    }
-}
-
-template <typename T>
-void cont_vector<T>::set(const size_t i, const T &val) {
-    PS_Trie<T>::set(i, val);
-    for (dep : dependencies[i]) {
-        resolve(dep, val);
-    }
-}
-*/
-
 template <typename T>
 splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
-{   // locked
+{   // locked *this
     std::lock_guard<std::mutex> lock(data_lock);
     if (splinters.size() == 0) {
         _used = _data;
         _data = _data.new_id();
-        //dependents[0]->_data = _used.new_id();
-        //std::cout << "_used in detach: " << _used << std::endl;
     }
     splt_vector<T> splt(*this);
     splinters.insert(splt._data.get_id());
-    {   // locked again
+    {   // locked dep
         std::lock_guard<std::mutex> lock2(dep.data_lock);
-        dep.resolved.emplace(
-                std::make_pair(splt._data.get_id(), false));
-        std::cout << "cvec with id: " << dependents[0]->_data.get_id()
-                  << " added dependents. size: " 
-                  << dep.resolved.size() << std::endl;
-        //std::cout << "***** detaching from " << _data.get_id() 
-        //          << " onto " << dependents[0]->_data.get_id() << std::endl;
+        dep.resolved.emplace(std::make_pair(splt._data.get_id(), false));
     }
     return splt;
 }
 
-/* TODO: add next parameter */
 template <typename T>
 void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                               size_t a, size_t b)
 {
     //std::chrono::time_point<std::chrono::system_clock> exec_start, exec_end;
     //exec_start = std::chrono::system_clock::now();
-        
-    //--num_detached;
+
     // TODO: no check that other was actually detached from this
     // TODO: different behavior for other. don't want to loop over all
     // values for changes, there's too many and it ruins the complexity
     // TODO: generalize beyond addition, ya silly goose! don't forget
     // non-modification operations, like insert/remove/push_back/pop_back
-    T diff;
 
+    // OLD but leaving here for future reference
     // if we haven't yet started building a more current vector, make one
     // grow out from ourselves. this is safe to modify, but this isn't,
     // because others may be depending on it for resolution
-    /*
-    auto dep = new cont_vector<T>(*this);
-    {   // locked
-        std::lock_guard<std::mutex> lock(this->data_lock);
-        dependents.push_back(dep);
-        std::cout << "making new dep: " << std::endl;
-    }
-    */
 
+    T diff;
     const uint16_t sid = splt._data.get_id();
 
-    /*
-    std::cout << "sid: " << sid << std::endl;
-    for (auto it = splinters.begin(); it != splinters.end(); ++it) {
-        std::cout << "splinters[i]: " << *it << std::endl;
-    }
-    */
-
     // TODO: better (lock-free) mechanism here
-    //std::cout << "the splinters are: ";
-    //for (const auto &it : splinters) {
-    //    std::cout << it;
-    //}
     bool found = false;
-    //std::cout << std::endl;
-    {
+    {   // locked *this
         std::lock_guard<std::mutex> lock(data_lock);
         found = splinters.find(sid) != splinters.end();
     }
     if (found) {
-        for (size_t i = a; i < b; ++i) { // locked
+        for (size_t i = a; i < b; ++i) {    // locked dep
             std::lock_guard<std::mutex> lock(dep.data_lock);
             diff = op->inv(splt._data[i], _used[i]);
-            
-            //if (diff == 2) {
-            //    std::cout << "sid " << sid
-            //    << " resolving with diff " << diff << " at " << i
-            //    << ", dep._data has size " << dep._data.size() << std::endl;
-            //}
             if (diff != op->identity) {
                 dep._data.mut_set(i, op->f(dep[i], diff));
             }
         }
-        {   //locked
+        {   // locked dep
             std::lock_guard<std::mutex>(dep.data_lock);
             dep.resolved[sid] = true;
         }
@@ -120,8 +65,8 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         std::cout << std::endl;
     }
 
+    // TODO: erase splinters?
     //splinters.erase(sid);
-    //std::cout << "counting down for " << sid << std::endl;
     resolve_latch.count_down();
 
     //exec_end = std::chrono::system_clock::now();
@@ -134,9 +79,7 @@ template <typename T>
 void cont_vector<T>::resolve(cont_vector<T> &dep)
 {
     resolve_latch.wait();
-    //std::cout << "curr (size is " << this->size() << "): " << *this << std::endl;
-    //std::cout << "resolving dep (size is " << dep.size() << "): " << dep << std::endl;
-        
+
     cont_vector<T> *curr = this;
     cont_vector<T> *next = &dep;
     //for (auto next : curr->dependents) {
@@ -144,18 +87,11 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
         std::lock_guard<std::mutex> lock(next->data_lock);
         T diff = next->op->inv((*curr)[i], curr->_used[i]);
         if (diff != op->identity) {
-            //std::cout << "resolving forward with diff: " << diff << std::endl;
             next->_data.mut_set(i, next->op->f((*next)[i], diff));
             curr->_used.mut_set(i, (*curr)[i]);
         }
     }
     //}
-    /*
-    for (const auto &it : dep.resolved) {
-        std::cout << "resolving " << dep._data.get_id() << ": " << 
-                    it.first << ": " << it.second << std::endl;
-    }
-    */
 }
 
 
@@ -168,20 +104,16 @@ void cont_vector<T>::exec_par(void f(cont_vector<T> &, cont_vector<T> &,
                                      const size_t, const size_t, const U &...),
                               cont_vector<T> &dep, const U &... args)
 {
-    //std::cout << "other tracking (exec_par) " << std::endl;
     int num_threads = std::thread::hardware_concurrency(); // * 16;
     size_t chunk_sz = std::ceil( ((double)size())/num_threads );
     std::vector<std::thread> cont_threads;
     for (int i = 0; i < num_threads; ++i) {
-        //std::cout << "other tracking (exec_par, before pb) " << std::endl;
         cont_threads.push_back(
                 std::thread(f,
                     std::ref(*this), std::ref(dep),
                     chunk_sz * i, std::min(chunk_sz * (i+1), size()),
                     args...));
-        //std::cout << "other tracking (exec_par, after pb) " << std::endl;
     }
-    //unsplintered = true;
     for (int i = 0; i < num_threads; ++i) {
         cont_threads[i].detach();
     }
@@ -208,14 +140,13 @@ cont_vector<T> cont_vector<T>::foreach(const Operator<T> *op, const T &val)
 {
     auto dep = cont_vector<T>(*this);
     register_dependent(&dep);
-    // template parameter is the arg to the foreach op
-    // TODO: why cannot put const T?
-    // answer: because T is already marked const
     this->op = op;
     int num_threads = std::thread::hardware_concurrency(); // * 16;
     reset_latch(num_threads);
+
+    // template parameter is the arg to the foreach op
     exec_par<T>(contentious::foreach_splt<T>, dep, val);
-    //std::cout << *dep << std::endl;
+
     return dep;
 }
 
@@ -226,13 +157,14 @@ cont_vector<T> cont_vector<T>::foreach(const Operator<T> *op,
 {
     auto dep = cont_vector<T>(*this);
     register_dependent(&dep);
-    // template parameter is the arg to the foreach op
     this->op = op;
     int num_threads = std::thread::hardware_concurrency(); // * 16;
     reset_latch(num_threads);
+
+    // gratuitous use of reference_wrapper
     exec_par< std::reference_wrapper<const cont_vector<T>> >(
             contentious::foreach_splt_cvec<T>, dep, std::cref(other));
-    
+
     return dep;
 }
 
@@ -252,10 +184,12 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
 
     // perform coefficient multiplications on original vector
     // TODO: limit range of multiplications to only those necessary
-    
     std::map<T, cont_vector<T>> step1;
     this->op = op1;
     for (size_t i = 0; i < coeffs_unique.size(); ++i) {
+        // TODO: avoid copies here
+        // we can't use foreach because the return value cannot be emplaced
+        // directly into the map, which is kind of a problem
         auto copy = *this;
         step1.emplace(std::piecewise_construct,
                         std::forward_as_tuple(coeffs_unique[i]),
@@ -266,15 +200,10 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         copy.exec_par<T>(contentious::foreach_splt<T>,
                             step1.at(coeffs_unique[i]),
                             coeffs_unique[i]);
-        /*
-        step1.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(coeffs_unique[i]),
-                        std::forward_as_tuple(copy.foreach(op1, coeffs_unique[i]))
-        );
-        */
+        // TODO: if *this could have multiple dependents, remove this
         copy.resolve(step1.at(coeffs_unique[i]));
     }
-    
+
     /*
      * part 2
      */
@@ -322,26 +251,6 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         std::cout << "butts" << std::endl;
     }
     */
-    /*
-    // TODO: parallelize this
-    // TODO: emplace?
-    std::vector<splt_vector<T>> splts;
-    for (size_t i = 0; i < offs.size(); ++i) {
-    splts.push_back(this->detach());
-    splt_vector<T> &splt = splts[splts.size()-1];
-    for (size_t j = start; j < end; ++j) {
-    splt.mut_comp(j, step1.at(coeffs[i])[j+offs[i]]);
-    }
-    std::cout << "after sum " << i << ": " << *this << std::endl;
-    }
-    for (size_t i = 0; i < offs.size(); ++i) {
-    this->reattach(splts[i], );
-    }
-    */
-    //assert(resolve_latch.try_wait());
-    //resolve_latch.wait();
-    //
-    std::cout << "dep: " << dep << std::endl;
 
     return dep;
 }

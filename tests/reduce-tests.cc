@@ -193,7 +193,7 @@ int reduce_runner()
     mt19937 mersenne_engine(rnd_device());
     uniform_real_distribution<double> dist(-32.768, 32.768);
     auto gen = std::bind(dist, mersenne_engine);
-    
+
     // make regular vector with vals in it
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
@@ -204,30 +204,30 @@ int reduce_runner()
         test_cvec.unprotected_push_back(test_vec[i]);
     }
     //cout << test_cvec << endl;
-    
+
     // compute reference answer
     double answer = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer += test_vec[i];
     }
-    cout << "reference: size is " << test_vec.size() 
+    cout << "reference: size is " << test_vec.size()
          << " and reduce with addition gives " << answer << endl;
 
     // create runner for all the variations of reduce
     map< string, function< pair<double, chrono::duration<double>>() >> runner {
         //bind(timetest<double, vector<double>>, &locked_reduce, test_vec),
         //bind(timetest<double, vector<double>>, &atomic_reduce, test_vec),
-        { "async",  bind(timetest<double, vector<double>>, 
+        { "async",  bind(timetest<double, vector<double>>,
                             &async_reduce, test_vec)                },
-        /*{ "avx",    bind(timetest<double, vector<double>>, 
+        /*{ "avx",    bind(timetest<double, vector<double>>,
                             &avx_reduce, test_vec)                  },*/
-        { "cont",   bind(timetest<double, cont_vector<double>>, 
+        { "cont",   bind(timetest<double, cont_vector<double>>,
                             &cont_reduce_dup, std::cref(test_cvec)) },
-        { "omp",    bind(timetest<double, vector<double>>, 
+        { "omp",    bind(timetest<double, vector<double>>,
                             &omp_reduce, test_vec)                  },
-        { "seq",    bind(timetest<double, vector<double>>, 
+        { "seq",    bind(timetest<double, vector<double>>,
                             &seq_reduce, test_vec)                  },
-        { "vec",    bind(timetest<double, vector<double>>, 
+        { "vec",    bind(timetest<double, vector<double>>,
                             &vec_reduce, test_vec)                  }
     };
 
@@ -238,7 +238,7 @@ int reduce_runner()
         cout << test.first << endl
              << "  diff: " << out - answer << endl
              << "  took: " << dur.count() << " seconds; " << endl;
-        if      (test.first == "cont")  { cont_dur = dur.count(); } 
+        if      (test.first == "cont")  { cont_dur = dur.count(); }
         else if (test.first == "vec")   { vec_dur  = dur.count(); }
     }
     cout << "ratio is: " << cont_dur/vec_dur << endl;

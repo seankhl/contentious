@@ -173,10 +173,10 @@ public:
     private:
         // depth of the tree we're iterating over
         uint8_t depth;
-        
+
         // path, from top to bottom, node pointers and index at that node
         std::stack<std::pair<bp_node<T> *, size_t>> path;
-        
+
         // leaf that we're at (array of node at end of path)
         std::array<T, br_sz> *leaf;
         // pos at the leaf that we're at
@@ -273,25 +273,13 @@ public:
         const_iterator operator--(int); //optional
         const_iterator& operator+=(size_type); //optional
         */
+
         const_iterator operator+(size_t n) const
         {
-            if (depth == 0) {
-                //std::cout << "depth: " << (int)depth << std::endl;
+            // no need to do anything if size == 0 or if we're not incrementing
+            if (depth == 0 || n == 0) {
                 return *this;
             }
-            // no need to do anything if size == 0
-            // TDOO: shoudl fall out from the below, though
-            if (n == 0) {
-                return *this;
-            }
-            /*
-            //TODO: make more efficient, can be O(log n) at worst
-            auto ret = *this;
-            for (size_t i = 0; i < n; ++i) {
-                ++ret;
-            }
-            return ret;
-            */
 
             auto ret = *this;
 
@@ -299,49 +287,39 @@ public:
             // 1 means jumps within node;
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
-            uint32_t p = 1;
-            //std::cout << "before while: " << ret.path.top().second + (n/p) << std::endl;
-            
             std::vector<size_t> pos_chain;
             auto pos = std::ref(ret.path.top().second);
+            uint32_t p = 1;
             while (pos + (n / p) >= br_sz) {
                 pos_chain.push_back(pos);
                 ret.path.pop();
-                p *= br_sz;
-                pos = std::ref(ret.path.top().second);
                 if (ret.path.size() == 0) {
                     ret.pos_cached = br_sz;
                     return ret;
                 }
-                //std::cout << "looping... " << ret.path.top().second + (n/p) << std::endl;
+                p *= br_sz;
+                pos = std::ref(ret.path.top().second);
             }
 
             size_t left = n;
+            pos += left / p;
             size_t i = 0;
-            size_t pos_this = pos + left / p;
-            ret.path.top().second = pos_this;
-            size_t pos_next;
             while (ret.path.size() != ret.depth &&
-                   ret.path.top().first->branches[pos_this] != nullptr) {
+                   ret.path.top().first->branches[pos] != nullptr) {
                 left = left % p;
                 p /= br_sz;
-                pos_next = pos_chain[i++] + left / p;
-                ret.path.push(std::pair<bp_node<T> *, size_t>(
-                         ret.path.top().first->branches[pos_this].get(), pos_next));
-                pos_this = pos_next;
-                //std::cout << "pls don't print" << std::endl;
+                ret.path.push(
+                        std::pair<bp_node<T> *, size_t>(
+                             ret.path.top().first->branches[pos].get(),
+                             pos_chain[i++] + left / p)
+                );
+                pos = std::ref(ret.path.top().second);
             }
-
             left = left % p;
             assert(left == 0);
 
             ret.leaf = &(ret.path.top().first->values);
-            
-            ret.path.top().second = pos_this;
-            ret.pos_cached = pos_this;
-            //std::cout << "ret.pos_cached: " << ret.pos_cached << std::endl;
-            //std::cout << "first val at this iterator: "
-            //          << (*ret.leaf)[ret.pos_cached] << std::endl;
+            ret.pos_cached = pos;
             return ret;
         }
 

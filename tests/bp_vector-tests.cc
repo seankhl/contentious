@@ -60,7 +60,7 @@ int test_insert()
     default_random_engine e_val(r());
     uniform_real_distribution<double> dist_real;
     auto rand_val = std::bind(dist_real, e_val);
-    
+
     vector<double> test_vec;
     bp_vector<double> test_trie;
     size_t test_sz = 400000;
@@ -230,7 +230,7 @@ int test_pers_iter()
         }
 
     }
-    
+
     // testing +
     random_device r;
     default_random_engine e_val(r());
@@ -424,7 +424,7 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
 {
     splt_vector<double> test_splinter = test.detach(next);
     for (int i = 0; i < 10; ++i) {
-        test_splinter.comp(index, i);
+        test_splinter.mut_comp(index, i);
     }
     test.reattach(test_splinter, next, index, index+1);
     //cont_vector<double> next = test.pull();
@@ -440,9 +440,10 @@ int test_cvec()
     }
 
     // create a copy of test; next has a unique ID, as do all cont_vectors
-    cont_vector<double> next = cont_vector<double>(test);
+    auto next = test;
     // this tells test that next depends on it, for resolution purposes
     test.register_dependent(&next);
+    // TODO: probably put this inside register_dependent
     test.reset_latch(std::thread::hardware_concurrency());
 
     // accumulate values on index comp_locus
@@ -460,24 +461,24 @@ int test_cvec()
     for (unsigned i = 0; i < nthreads; ++i) {
         threads[i].detach();
     }
+    test.resolve(next);
 
-    /*
     // create a new cont_vector identical to next, which may not be finalized
-    cont_vector<double> *next2 = new cont_vector<double>(*next);
-    // otherwise, next will hang at its destructor; TODO fix this
-    // next is a dependent of next2; or, next2 depends on next
-    next->register_dependent(next2);
+    auto next2 = next;
+    next.register_dependent(&next2);
+    next.reset_latch(std::thread::hardware_concurrency());
 
     // accumulate again
     vector<thread> threads2;
     for (unsigned i = 0; i < nthreads; ++i) {
         threads2.push_back(
-                thread(my_accumulate, std::ref(*next), std::ref(*next2), 1));
+                thread(my_accumulate,
+                       std::ref(next), std::ref(next2), comp_locus)
+        );
     }
     for (unsigned i = 0; i < nthreads; ++i) {
         threads2[i].detach();
     }
-    */
 
     /* // if we sleep before checking next, likely it will have finished,
        // but not for sure
@@ -485,25 +486,23 @@ int test_cvec()
         using namespace literals::chrono_literals;
         std::this_thread::sleep_for(1s);
     }
-    cout << *next << endl;
+    cout << next << endl;
     */
 
     // we must resolve test before checking next's values
-    test.resolve(next);
     if (next[1] != 181) {
         cerr << "! test_cvec failed:  " << next[1]
              << ", expected " << 181 << endl;
         return 1;
     }
-    /*
     // we must resolve test and next before checking next2's values
-    next->resolve(*next2);
-    if (next2->at(1) != 361) {
-        cerr << "! test_cvec failed: at index 1, got " << next2->at(1)
+    next.resolve(next2);
+    if (next2[1] != 361) {
+        cerr << "! test_cvec failed: at index 1, got " << next2[1]
              << ", expected " << 361 << endl;
         return 1;
     }
-    */
+
     cerr << "+ test_cvec passed" << endl;
     return 0;
 }

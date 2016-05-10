@@ -12,12 +12,13 @@ using namespace std;
 /* old, but useful for testing ************************************************/
 
 void cont_inc_reduce(cont_vector<double> &cont_ret,
-              vector<double>::const_iterator a, vector<double>::const_iterator b)
+                     vector<double>::const_iterator a,
+                     vector<double>::const_iterator b)
 {
     //chrono::time_point<chrono::system_clock> splt_start, splt_end;
+    //splt_start = chrono::system_clock::now();
     splt_vector<double> splt_ret = cont_ret.detach(cont_ret);
     double temp(0);
-    //splt_start = chrono::system_clock::now();
     for (auto it = a; it != b; ++it) {
         temp += *it;
     }
@@ -64,7 +65,8 @@ double cont_reduce_manual(const vector<double> &test_vec)
     for (int i = 0; i < num_threads; ++i) {
         cont_threads[i].join();
     }
-    return cont_ret.at_prescient(0);
+
+    return cont_ret[0];
 }
 
 /*
@@ -116,17 +118,10 @@ void cont_reduce(const vector<double> &test_vec)
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    //cout << cont_inp << endl;
     auto cont_ret = cont_inp.reduce(new Plus<double>());
     cont_inp.resolve(cont_ret);
     //auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
     cout << cont_ret[0] << endl;
-    /*
-    for (size_t i = 0; i < cont_ret2.size(); ++i) {
-        cout << cont_ret2[i] << " ";
-    }
-    cout << endl;
-    */
 }
 
 void stdv_foreach(const vector<double> &test_vec)
@@ -153,15 +148,8 @@ void stdv_foreach(const vector<double> &test_vec)
             cout << "bad resolution at ret2[" << i << "]: "
                  << inp[i] * 2 * other[i] << " "
                  << ret2[i] << endl;
-            //cout << "cont_ret2: " << ret2 << endl;
         }
     }
-
-    //cout << "cont_inp: " << cont_inp << endl;
-    //cout << "cont_ret: " << cont_ret << endl;
-    //cout << "cont_ret2: " << cont_ret2 << endl;
-    //delete cont_ret;
-    //delete cont_ret2;
 }
 
 void cont_foreach(const vector<double> &test_vec)
@@ -170,63 +158,31 @@ void cont_foreach(const vector<double> &test_vec)
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    
-    cout << "construction here: ";
+
     auto cont_ret = cont_inp.foreach(new Multiply<double>(), 2);
-    cout << " :end" << endl;
-    
-    /*
+
+    cont_vector<double> cont_other(new Multiply<double>());
+    for (size_t i = 0; i < test_vec.size(); ++i) {
+        cont_other.unprotected_push_back(i);
+    }
+
+    auto cont_ret2 = cont_ret.foreach(new Multiply<double>(), cont_other);
+
+    cont_inp.resolve(cont_ret);
+    cont_ret.resolve(cont_ret2);
     for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (cont_inp[i] * 2 != cont_ret[i]) {
             cout << "bad resolution at cont_ret[" << i << "]: "
                  << cont_inp[i] * 2 << " " << cont_ret[i] << endl;
         }
     }
-    */
-    
-    /*
-    cont_vector<double> cont_other(new Multiply<double>());
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cont_other.unprotected_push_back(i);
-    }
-    cout << "construction here: ";
-    auto cont_ret2 = cont_inp.foreach(new Multiply<double>(), cont_other);
-    cout << " :end" << endl;
-    cont_inp.resolve(cont_ret2);
-    for (size_t i = 0; i < cont_inp.size(); ++i) {
-        if (cont_inp[i] * cont_other[i] != cont_ret2[i]) {
-            cout << "bad resolution at cont_ret2[" << i << "]: "
-                 << cont_inp[i] * cont_other[i] << " "
-                 << cont_ret2[i] << endl;
-            //cout << "cont_ret2: " << cont_ret2 << endl;
-        }
-    }
-    */
-    
-    cont_vector<double> cont_other(new Multiply<double>());
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cont_other.unprotected_push_back(i);
-    }
-    //cout << "cont_other: " << cont_other << endl;
-    auto cont_ret2 = cont_ret.foreach(new Multiply<double>(), cont_other);
-    
-    cont_inp.resolve(cont_ret);
-    cont_ret.resolve(cont_ret2);
-    //cout << "cont_ret2: " << cont_ret2 << endl;
     for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (cont_inp[i] * 2 * cont_other[i] != cont_ret2[i]) {
             cout << "bad resolution at cont_ret2[" << i << "]: "
                  << cont_inp[i] * cont_other[i] << " "
                  << cont_ret2[i] << endl;
-            //cout << "cont_ret2: " << cont_ret2 << endl;
         }
     }
-    
-    //cout << "cont_inp: " << cont_inp << endl;
-    //cout << "cont_ret: " << cont_ret << endl;
-    //cout << "cont_ret2: " << cont_ret2 << endl;
-    //delete cont_ret;
-    //delete cont_ret2;
 }
 
 void cont_stencil(const vector<double> &test_vec)
@@ -262,9 +218,9 @@ int cont_vector_runner()
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
-    
+
     cont_reduce(test_vec);
-    
+
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
     for (size_t i = 0; i < 1; ++i) {
@@ -283,7 +239,7 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    
+
     //cont_stencil(test_vec);
     cout << "DONE! " << test_sz << endl;
 
