@@ -234,42 +234,22 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
     // TODO: move inside for loop to correct semantics?
     this->op = op2;
 
-    auto copy2a = *this;
-    auto copy2b = *this;
-    //step1a.register_dependent(&copy2b);
-    //step1a.reset_latch(4);
-    copy2a.exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
-                contentious::foreach_splt_off<T>,
-                copy2b, std::cref(step1.at(coeffs[0])), offs[0]
-    );
-
-    auto dep = copy2b;
-    //step1b.register_dependent(&dep);
-    //step1b.reset_latch(4);
-    copy2b.exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
-                contentious::foreach_splt_off<T>,
-                dep, std::cref(step1.at(coeffs[1])), offs[1]
-    );
-
-    //step1a.resolve(copy2b);
-    copy2a.resolve(copy2b);
-    //step1b.resolve(dep);
-    copy2b.resolve(dep);
-    /*
-    //std::cout << "after foreaches (dep): " << *dep << std::endl;
+    std::vector<cont_vector<T>> step2;
+    step2.reserve(offs.size() + 1);
+    step2.emplace_back(*this);
     for (size_t i = 0; i < offs.size(); ++i) {
-        step1.at(coeffs[i]).register_dependent(&dep);
-        //resolve_latch.reset(hwconc);
-        std::cout << "butts" << std::endl;
-        // TODO: fix suprious copy
-        exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
-                    contentious::foreach_splt_off<T>,
-                    dep, std::cref(step1.at(coeffs[i])), offs[i]
+        step2.emplace_back(step2[i]);
+        //step1a.register_dependent(&copy2b);
+        //step1a.reset_latch(4);
+        step2[i].exec_par< std::reference_wrapper<const cont_vector<T>>, int >(
+                contentious::foreach_splt_off<T>,
+                step2[i+1], std::cref(step1.at(coeffs[i])), offs[i]
         );
-        std::cout << "butts" << std::endl;
     }
-    */
+    for (size_t i = 0; i < offs.size(); ++i) {
+        step2[i].resolve(step2[i+1]);
+    }
 
-    return dep;
+    return step2[step2.size()-1];
 }
 
