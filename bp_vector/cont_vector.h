@@ -15,7 +15,7 @@
 #include <boost/thread/latch.hpp>
 
 #include "bp_vector.h"
-
+#include "contentious.h"
 
 template <typename T>
 class splt_vector;
@@ -33,137 +33,15 @@ class cont_vector;
 //   _data/_used
 //   splinters
 //   resolved
-
-namespace contentious
-{
-    template <typename T>
-    void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
-                     const size_t a, const size_t b)
-    {
-        //std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-        //splt_start = std::chrono::system_clock::now();
-
-        splt_vector<T> splt = cont.detach(dep);
-
-        auto start = cont._data.begin() + (a+1);
-        auto end   = cont._data.begin() + b;
-
-        // once we mutate once, the vector is ours, and we can do unsafe writes
-        splt._data.mut_set(0, splt._data[0] + cont[a]);
-        T &valref = splt._data[0];
-        for (auto it = start; it != end; ++it) {
-            valref += *it;
-        }
-
-        cont.reattach(splt, dep, 0, 1);
-
-        //splt_end = std::chrono::system_clock::now();
-        //std::chrono::duration<double> splt_dur = splt_end - splt_start;
-        //std::cout << "splt took: " << splt_dur.count() << " seconds; " << std::endl;
-    }
-
-    template <typename T>
-    void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
-                      const size_t a, const size_t b,
-                      const T &val)
-    {
-        splt_vector<T> splt = cont.detach(dep);
-
-        // TODO: iterators, or at least all leaves at a time
-        for (size_t i = a; i < b; ++i) {
-            splt.mut_comp(i, val);
-        }
-
-        cont.reattach(splt, dep, a, b);
-    }
-
-    template <typename T>
-    void foreach_splt_cvec(
-                cont_vector<T> &cont, cont_vector<T> &dep,
-                const size_t a, const size_t b,
-                const std::reference_wrapper<const cont_vector<T>> &other)
-    {
-        splt_vector<T> splt = cont.detach(dep);
-
-        auto start = other.get()._data.begin() + a;
-        auto end   = other.get()._data.begin() + b;
-        size_t i = a;
-        for (auto it = start; it != end; ++it) {
-            splt.mut_comp(i++, *it);
-        }
-
-        cont.reattach(splt, dep, a, b);
-    }
-
-    template <typename T>
-    void foreach_splt_off(
-                cont_vector<T> &cont, cont_vector<T> &dep,
-                const size_t a, const size_t b,
-                const std::reference_wrapper<const cont_vector<T>> &other,
-                const int &off)
-    {
-        size_t start = 0;
-        size_t end = cont.size();
-
-        if (off < 0) { start -= off; }
-        else if (off > 0) { assert(end >= (size_t)off); end -= off; }
-
-        start = std::max(start, a);
-        end = std::min(end, b);
-
-        splt_vector<T> splt = cont.detach(dep);
-
-        for (size_t i = start; i < end; ++i) {
-            splt.mut_comp(i, other.get()[i + off]);
-        }
-
-        cont.reattach(splt, dep, a, b);
-    }
-
-}   // end namespace contentious
-
-
-template <typename T>
-class Operator
-{
-public:
-    T identity;
-    Operator(T identity_in)
-      : identity(identity_in) {}
-    virtual T f(const T &lhs, const T &rhs) const = 0;
-    virtual T inv(const T &lhs, const T &rhs) const = 0;
-    virtual ~Operator() {}
-};
-
-template <typename T>
-class Plus : public Operator<T>
-{
-public:
-    Plus()
-      : Operator<T>(0)
-    {   /* nothing to do here */ }
-    inline T f(const T &lhs, const T &rhs) const
-    {   return lhs + rhs; }
-    inline T inv(const T &lhs, const T &rhs) const
-    {   return lhs - rhs; }
-    virtual ~Plus()
-    {   /* nothing to do here */ }
-};
-
-template <typename T>
-class Multiply : public Operator<T>
-{
-public:
-    Multiply()
-      : Operator<T>(1)
-    {   /* nothing to do here */ }
-    inline T f(const T &lhs, const T &rhs) const
-    {   return lhs * rhs; }
-    inline T inv(const T &lhs, const T &rhs) const
-    {   return lhs / rhs; }
-    virtual ~Multiply()
-    {   /* nothing to do here */ }
-};
+//
+// TODO
+//   * multiple dependents (one->many and many->one)
+//   * correctly resolve many->one value deps (non identity index deps)
+//   * efficient mutable iterators for tr_vector
+//   * lifetimes
+//   * efficient/correct dependent vector shapes (reduce should be just single
+//     val; not all deps are necessarily the same shape as their originators
+//   * cheap attachment/resolution for identity index deps
 
 
 template <typename T>
@@ -180,36 +58,37 @@ class splt_vector
     friend void contentious::foreach_splt_cvec<T>(
                     cont_vector<T> &, cont_vector<T> &,
                     const size_t, const size_t,
-                    const std::reference_wrapper<const cont_vector<T>> &);
+                    const std::reference_wrapper<cont_vector<T>> &);
 
     friend void contentious::foreach_splt_off<T>(
                     cont_vector<T> &, cont_vector<T> &,
                     const size_t, const size_t,
-                    const std::reference_wrapper<const cont_vector<T>> &,
+                    const std::reference_wrapper<cont_vector<T>> &,
                     const int &);
 
     friend class cont_vector<T>;
 
 private:
     tr_vector<T> _data;
-    const Operator<T> *op;
+    const contentious::op<T> op;
 
 public:
     splt_vector() = delete;
 
-    splt_vector(const cont_vector<T> &trunk)
-      : _data(trunk._used.new_id()), op(trunk.op)
+    splt_vector(const cont_vector<T> &trunk, const tr_vector<T> &_used,
+                const contentious::op<T> &_op)
+      : _data(_used.new_id()), op(_op)
     {   /* nothing to do here */ }
 
     inline splt_vector<T> comp(const size_t i, const T &val)
     {
-        _data = _data.set(i, op->f(_data.at(i), val));
+        _data = _data.set(i, op.f(_data.at(i), val));
         return *this;
     }
 
     inline void mut_comp(const size_t i, const T &val)
     {
-        _data.mut_set(i, op->f(_data[i], val));
+        _data.mut_set(i, op.f(_data[i], val));
     }
 
 };
@@ -228,35 +107,51 @@ class cont_vector
     friend void contentious::foreach_splt_cvec<T>(
                     cont_vector<T> &, cont_vector<T> &,
                     const size_t, const size_t,
-                    const std::reference_wrapper<const cont_vector<T>> &);
+                    const std::reference_wrapper<cont_vector<T>> &);
 
     friend void contentious::foreach_splt_off<T>(
                     cont_vector<T> &, cont_vector<T> &,
                     const size_t, const size_t,
-                    const std::reference_wrapper<const cont_vector<T>> &,
+                    const std::reference_wrapper<cont_vector<T>> &,
                     const int &);
 
     friend class splt_vector<T>;
 
 private:
+    struct dependency_tracker
+    {
+        dependency_tracker()
+          : indexmap(contentious::identity)
+        {   /* nothing to do here! */ }
+        dependency_tracker(const tr_vector<T> &_data)
+          : _used(_data), indexmap(contentious::identity)
+        {   /* nothing to do here! */ }
+        dependency_tracker(const tr_vector<T> &_data,
+                           const std::function<int(int)> imap,
+                           const contentious::op<T> opin)
+          : _used(_data), indexmap(imap), op(opin)
+        {   /* nothing to do here! */ }
+
+        const tr_vector<T> _used;
+        std::function<int(int)> indexmap;
+        contentious::op<T> op;
+
+    };
+
     tr_vector<T> _data;
-    tr_vector<T> _used;
-
-    std::set<uint16_t> splinters;
-    std::map<uint16_t, bool> resolved;
-
     std::mutex data_lock;
-    boost::latch resolve_latch;
+    contentious::op<T> op;
 
-    std::vector<cont_vector<T> *> dependents;
+    // forward tracking : dep_ptr -> tracker
+    std::map<const cont_vector<T> *, dependency_tracker> tracker;
+    // resolving onto (backward) :  uid -> latch
+    std::map<uint16_t, std::unique_ptr<boost::latch>> resolve_latch;
+    std::map<uint16_t, bool> reattached;
     volatile bool unsplintered = true;
+    
+    //std::vector<cont_vector<T> *> dependents;
 
     uint16_t hwconc = std::thread::hardware_concurrency();
-
-    // TODO: op in cont? stencil? both? what's the deal
-    //       requires determining if a single cont can have multiple ops
-    //       (other than stencils, which as for now have exactly 2)
-    const Operator<T> *op;
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
@@ -265,19 +160,17 @@ private:
 
 public:
     cont_vector()
-      : resolve_latch(0), op(nullptr)
     {   /* nothing to do here */ }
-    cont_vector(const Operator<T> *_op)
-      : resolve_latch(0), op(_op)
+    cont_vector(const contentious::op<T> _op)
+      : op(_op)
     {   /* nothing to do here */ }
 
     cont_vector(const cont_vector<T> &other)
-      : _data(other._data.new_id()), resolve_latch(0), op(other.op)
+      : _data(other._data.new_id()), op(other.op)
     {   /* nothing to do here */ }
     cont_vector<T> &operator=(cont_vector<T> other)
     {
         _data = other._data.new_id();
-        resolve_latch.reset(0);
         std::swap(op, other.op);
         return *this;
     }
@@ -302,7 +195,7 @@ public:
 
     /*
     cont_vector(const std::vector<T> &other)
-      : _data(other), resolve_latch(0), op(nullptr)
+      : _data(other), op(nullptr)
     {   // nothing to do here
     }
     */
@@ -310,12 +203,15 @@ public:
     ~cont_vector()
     {
         // finish this round of resolutions to avoid segfaulting on ourselves
-        resolve_latch.wait();
-        // make sure I am resolved, to avoid segfaulting in the cont_vector I
-        // depend on
+        for (auto &rl : resolve_latch) {
+            rl.second->wait();
+        }
+        /*
+        // make sure splinters are reattached, to avoid segfaulting in the
+        // cont_vector I depend on
         // TODO: BAD SPINLOCK! BAD!!!
         if (!unsplintered) {
-            while (resolved.size() != hwconc) {
+            while (reattached.size() != hwconc) {
                 std::this_thread::yield();
             }
         }
@@ -323,11 +219,12 @@ public:
         while (!flag) {
             std::this_thread::yield();
             flag = true;
-            for (const auto &it : resolved) {
+            for (const auto &it : reattached) {
                 std::lock_guard<std::mutex> lock(data_lock);
                 flag &= it.second;
             }
         }
+        */
         // should be okay now
     }
 
@@ -349,19 +246,21 @@ public:
         _data.mut_push_back(val);
     }
 
-    void freeze(cont_vector<T> &dep, bool nocopy = false);
+    void freeze(cont_vector<T> &dep,
+                bool nocopy = false, uint16_t splinters = 4,
+                std::function<int(int)> imap = contentious::identity);
     splt_vector<T> detach(cont_vector &dep);
     void reattach(splt_vector<T> &splinter, cont_vector<T> &dep,
                   size_t a, size_t b);
     void resolve(cont_vector<T> &dep);
 
-    cont_vector<T> reduce(const Operator<T> *op);
-    cont_vector<T> foreach(const Operator<T> *op, const T &val);
-    cont_vector<T> foreach(const Operator<T> *op, const cont_vector<T> &other);
+    cont_vector<T> reduce(const contentious::op<T> op);
+    cont_vector<T> foreach(const contentious::op<T> op, const T &val);
+    cont_vector<T> foreach(const contentious::op<T> op, cont_vector<T> &other);
     cont_vector<T> stencil(const std::vector<int> &offs,
                            const std::vector<T> &coeffs,
-                           const Operator<T> *op1 = new Multiply<T>,
-                           const Operator<T> *op2 = new Plus<T>());
+                           const contentious::op<T> op1 = contentious::mult,
+                           const contentious::op<T> op2 = contentious::mult);
 
     friend std::ostream &operator<<(std::ostream &out,
                                     const cont_vector<T> &cont)
@@ -369,9 +268,9 @@ public:
         out << "cont_vector{" << std::endl;
         out << "  id: " << cont._data.get_id() << std::endl;
         out << "  data: " << cont._data << std::endl;
-        out << "  used: " << cont._used << std::endl;
-        out << "  splt: ";
-        for (const auto &i : cont.splinters) { out << i << " "; }
+        //out << "  used: " << cont._used << std::endl;
+        //out << "  splt: ";
+        //for (const auto &i : cont.splinters) { out << i << " "; }
         out << std::endl << "}/cont_vector" << std::endl;
         return out;
     }

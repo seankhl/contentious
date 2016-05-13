@@ -168,7 +168,7 @@ double cont_reduce_dup(const cont_vector<double> &cont_arg)
     //cout << cont_inp << endl;
     chrono::time_point<chrono::system_clock> cont_piece_start, cont_piece_end;
     cont_piece_start = chrono::system_clock::now();
-    auto cont_ret = cont_inp.reduce(new Plus<double>());
+    auto cont_ret = cont_inp.reduce(contentious::plus);
     cont_inp.resolve(cont_ret);
     cont_piece_end = chrono::system_clock::now();
     chrono::duration<double> cont_piece_dur = cont_piece_end - cont_piece_start;
@@ -199,7 +199,7 @@ int reduce_runner()
     generate(begin(test_vec), end(test_vec), gen);
 
     // make cont_vector with vals in it
-    cont_vector<double> test_cvec(new Plus<double>());
+    cont_vector<double> test_cvec(contentious::plus);
     for (size_t i = 0; i < test_vec.size(); ++i) {
         test_cvec.unprotected_push_back(test_vec[i]);
     }

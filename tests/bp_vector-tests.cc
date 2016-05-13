@@ -431,7 +431,7 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
 int test_cvec()
 {
     // create a cont_vector with integers 0, 1, ..., nthreads
-    cont_vector<double> test(new Plus<double>());
+    cont_vector<double> test(contentious::plus);
     unsigned nthreads = thread::hardware_concurrency();
     for (unsigned i = 0; i < nthreads; ++i) {
         test.unprotected_push_back(i);
