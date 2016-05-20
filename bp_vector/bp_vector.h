@@ -172,10 +172,12 @@ public:
     class const_iterator {
     private:
         // depth of the tree we're iterating over
-        uint8_t depth;
+        int16_t depth;
 
         // path, from top to bottom, node pointers and index at that node
-        std::stack<std::pair<bp_node<T> *, size_t>> path;
+        //std::stack<std::pair<bp_node<T> *, size_t>> path;
+        std::vector<std::pair<bp_node<T> *, size_t>> path;
+        int16_t last;
 
         // leaf that we're at (array of node at end of path)
         std::array<T, br_sz> *leaf;
@@ -196,27 +198,32 @@ public:
         const_iterator(const bp_vector_base<T, TDer> &toit)
         {
             depth = toit.calc_depth();
+            path.reserve(depth);
+            last = -1;
             if (toit.size() == 0) {
                 --depth;
             } else {
-                path.push(std::pair<bp_node<T> *, size_t>(
-                        toit.root.get(), 0));
+                path.emplace_back(
+                        std::make_pair(toit.root.get(), 0));
+                ++last;
             }
-            while (path.size() != depth) {
-                path.push(std::pair<bp_node<T> *, size_t>(
-                            path.top().first->branches[0].get(), 0));
+            while (last+1 != depth) {
+                path.emplace_back(
+                        std::make_pair(path[last].first->branches[0].get(), 0));
+                ++last;
             }
+            path.resize(depth);
             if (toit.size() == 0) {
                 leaf = nullptr;
                 pos_cached = 0;
             } else {
-                leaf = &(path.top().first->values);
-                pos_cached = path.top().second;
+                leaf = &(path[last].first->values);
+                pos_cached = path[last].second;
             }
         }
 
         const_iterator(const const_iterator &other)
-          : depth(other.depth), path(other.path),
+          : depth(other.depth), path(other.path), last(other.last),
             leaf(other.leaf), pos_cached(other.pos_cached)
         {   /* nothing to do here */ }
 
@@ -231,7 +238,7 @@ public:
         }
         bool operator!=(const const_iterator &other) const
         {
-            return !(*this == other);
+            return leaf != other.leaf || pos_cached != other.pos_cached;
         }
         //bool operator<(const const_iterator&) const; //optional
         //bool operator>(const const_iterator&) const; //optional
@@ -240,30 +247,32 @@ public:
 
         const_iterator &operator++()
         {
-            auto pos = std::ref(path.top().second);
             // interior node iteration; != means fast overflow past end
-            if (pos != br_sz - 1) {
-                pos_cached = ++pos;
+            if (pos_cached != br_sz - 1) {
+                ++pos_cached;
                 return *this;
             }
+            auto pos = std::ref(path[last].second);
+            pos.get() = pos_cached;
             // go up until we're not at the end of our node
             while (pos == br_sz - 1) {
-                path.pop();
-                if (path.size() == 0) {
+                --last;
+                if (last == -1) {
                     pos_cached = br_sz;
                     return *this;
                 }
-                pos = std::ref(path.top().second);
+                pos = std::ref(path[last].second);
             }
             ++pos;
             assert(pos < br_sz);
-            while (path.size() != depth &&
-                   path.top().first->branches[pos] != nullptr) {
-                path.push(std::pair<bp_node<T> *, size_t>(
-                            path.top().first->branches[pos].get(), 0));
-                pos = std::ref(path.top().second);
+            while (last+1 != depth &&
+                   path[last].first->branches[pos] != nullptr) {
+                path[last+1] = std::make_pair(
+                             path[last].first->branches[pos].get(), 0);
+                ++last;
+                pos = std::ref(path[last].second);
             }
-            leaf = &(path.top().first->values);
+            leaf = &(path[last].first->values);
             pos_cached = pos;
             return *this;
         }
@@ -286,35 +295,38 @@ public:
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
             std::vector<size_t> pos_chain;
-            auto pos = std::ref(ret.path.top().second);
+            auto pos = std::ref(ret.path[ret.last].second);
+            pos.get() = ret.pos_cached;
             uint32_t p = 1;
+            //std::cout << "ret.last before loop : " << ret.last << std::endl;
             while (pos + (n / p) >= br_sz) {
                 pos_chain.push_back(pos);
-                ret.path.pop();
-                if (ret.path.size() == 0) {
+                --ret.last;
+                //std::cout << "ret.last in loop : " << ret.last << std::endl;
+                if (ret.last == -1) {
                     ret.pos_cached = br_sz;
                     return ret;
                 }
                 p *= br_sz;
-                pos = std::ref(ret.path.top().second);
+                pos = std::ref(ret.path[ret.last].second);
             }
             size_t left = n;
             pos += left / p;
             size_t i = 0;
-            while (ret.path.size() != ret.depth &&
-                   ret.path.top().first->branches[pos] != nullptr) {
+            while (ret.last+1 != ret.depth &&
+                   ret.path[ret.last].first->branches[pos] != nullptr) {
                 left = left % p;
                 p /= br_sz;
-                ret.path.push(
-                        std::pair<bp_node<T> *, size_t>(
-                             ret.path.top().first->branches[pos].get(),
-                             pos_chain[i++] + left / p)
-                );
-                pos = std::ref(ret.path.top().second);
+                ret.path[ret.last+1] =
+                        std::make_pair(
+                             ret.path[ret.last].first->branches[pos].get(),
+                             pos_chain[i++] + left / p);
+                ++ret.last;
+                pos = std::ref(ret.path[ret.last].second);
             }
             left = left % p;
             assert(left == 0);
-            ret.leaf = &(ret.path.top().first->values);
+            ret.leaf = &(ret.path[ret.last].first->values);
             ret.pos_cached = pos;
             return ret;
         }
@@ -378,8 +390,8 @@ public:
     ps_vector() = default;
     ps_vector(const ps_vector<T> &other) = default;
 
-    ps_vector(const bp_vector_base<T, ps_vector> &other)
-      : bp_vector_base<T, ps_vector>(other)
+    ps_vector(const bp_vector_base<T, ::ps_vector> &other)
+      : bp_vector_base<T, ::ps_vector>(other)
     {   /* nothing to do here */ }
 
     ps_vector(const tr_vector<T> &other);
@@ -404,12 +416,12 @@ private:
 
 public:
     tr_vector()
-      : bp_vector_base<T, tr_vector>(this->get_unique_id())
+      : bp_vector_base<T, ::tr_vector>(this->get_unique_id())
     {   /* nothing to do here */ }
     tr_vector(const tr_vector<T> &other) = default;
 
-    tr_vector(const bp_vector_base<T, tr_vector> &other)
-      : bp_vector_base<T, tr_vector>(other)
+    tr_vector(const bp_vector_base<T, ::tr_vector> &other)
+      : bp_vector_base<T, ::tr_vector>(other)
     {   /* nothing to do here */ }
 
     tr_vector(const bp_vector<T> &other);

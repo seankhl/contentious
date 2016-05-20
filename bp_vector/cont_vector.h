@@ -75,8 +75,7 @@ private:
 public:
     splt_vector() = delete;
 
-    splt_vector(const cont_vector<T> &trunk, const tr_vector<T> &_used,
-                const contentious::op<T> &_op)
+    splt_vector(const tr_vector<T> &_used, const contentious::op<T> &_op)
       : _data(_used.new_id()), op(_op)
     {   /* nothing to do here */ }
 
@@ -148,10 +147,10 @@ private:
     std::map<uint16_t, std::unique_ptr<boost::latch>> resolve_latch;
     std::map<uint16_t, bool> reattached;
     volatile bool unsplintered = true;
-    
+
     //std::vector<cont_vector<T> *> dependents;
 
-    uint16_t hwconc = std::thread::hardware_concurrency();
+    static const uint16_t hwconc = 4;
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
@@ -247,7 +246,7 @@ public:
     }
 
     void freeze(cont_vector<T> &dep,
-                bool nocopy = false, uint16_t splinters = 4,
+                bool nocopy = false, uint16_t splinters = hwconc,
                 std::function<int(int)> imap = contentious::identity);
     splt_vector<T> detach(cont_vector &dep);
     void reattach(splt_vector<T> &splinter, cont_vector<T> &dep,

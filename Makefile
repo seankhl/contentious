@@ -2,8 +2,16 @@
 
 # The name of the executable to be created
 BIN_NAME := vector-tests
+
 # Compiler used
-CXX ?= g++
+CXX_NAME = g++
+ifeq ($(CXX_NAME),clang++)
+	CXX_VER = 3.9
+else
+	CXX_VER = 5
+endif
+CXX = $(CXX_NAME)-$(CXX_VER)
+
 # Extension of source files used in the project
 SRC_EXT = cc
 # Path to the source directory, relative to the makefile
@@ -14,22 +22,31 @@ LIB_PATH = ./lib
 TEST_PATH = ./tests
 # Space-separated pkg-config libraries used by this project
 LIBS =
+
+ifeq ($(CXX_NAME),clang++)
+	OPENMP = -fopenmp=libiomp5
+	CXX_OG = -O0
+else
+	OPENMP = -fopenmp
+	CXX_OG = -Og
+endif
+
+BOOST_PATH = /home/sean/Documents/software/modular-boost/stage/lib
+#BOOST_PATH = ./bp_vector/boost-deps/stage/lib
+
 # General compiler flags
-COMPILE_FLAGS = -std=c++14 -Wall -Wextra -march=native -fopenmp -mavx
+COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native $(OPENMP) -mavx
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3
 # Additional debug-specific flags
-DCOMPILE_FLAGS = -DDEBUG -Og -g
+DCOMPILE_FLAGS = -DDEBUG $(CXX_OG) -g
 # Add additional include paths
 INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
-#LINK_FLAGS = -Wl,-rpath=./bp_vector/boost-deps/stage/lib	\
-			  -L./bp_vector/boost-deps/stage/lib			\
-			  -lpthread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
-LINK_FLAGS = -fopenmp -mavx -lpthread											\
-			 -Wl,-rpath=/home/sean/Documents/software/modular-boost/stage/lib	\
-			 -L/home/sean/Documents/software/modular-boost/stage/lib			\
-			 -lboost_thread -lboost_coroutine -lboost_system# -lzmq -lprotobuf
+LINK_FLAGS = $(OPENMP) -mavx -lpthread							\
+			 -Wl,-rpath=$(BOOST_PATH) -L$(BOOST_PATH)			\
+			 -lboost_thread -lboost_coroutine -lboost_system	\
+			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
 # Additional debug-specific linker settings
@@ -37,7 +54,7 @@ DLINK_FLAGS =
 # Destination directory, like a jail or mounted system
 DESTDIR = /
 # Install path (bin/ is appended automatically)
-INSTALL_PREFIX = usr/local
+INSTALL_PREFIX = /usr/local
 #### END PROJECT SETTINGS ####
 
 # Generally should not need to edit below this line

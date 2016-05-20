@@ -1,7 +1,7 @@
 
 template <typename T>
-void cont_vector<T>::freeze(cont_vector<T> &dep, 
-                            bool nocopy, uint16_t splinters, 
+void cont_vector<T>::freeze(cont_vector<T> &dep,
+                            bool nocopy, uint16_t splinters,
                             std::function<int(int)> imap)
 {   // locked
     std::lock_guard<std::mutex> lock(data_lock);
@@ -14,18 +14,18 @@ void cont_vector<T>::freeze(cont_vector<T> &dep,
         // if we want our output to depend on input
         if (!nocopy) { dep._data = _data.new_id(); }
         // create _used, which has the old id of _data
-        const auto did = &dep;
+        const auto dep_ptr = &dep;
         tracker.emplace(std::piecewise_construct,
-                            std::forward_as_tuple(did),
+                            std::forward_as_tuple(dep_ptr),
                             std::forward_as_tuple(dependency_tracker(_data, imap, op))
         );
         // modifications to data cannot affect _used
         _data = _data.new_id();
         dep.resolve_latch.emplace(std::piecewise_construct,
-                                    std::forward_as_tuple(tracker[did]._used.get_id()),
+                                    std::forward_as_tuple(tracker[dep_ptr]._used.get_id()),
                                     std::forward_as_tuple(new boost::latch(splinters))
         );
-        //std::cout << "this used: " << tracker[did]._used << std::endl;
+        //std::cout << "this used: " << tracker[dep_ptr]._used << std::endl;
     }
 }
 
@@ -34,9 +34,9 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
 {
     {   // locked *this
         std::lock_guard<std::mutex> lock(data_lock);
-        const auto did = &dep;
-        if (tracker.count(did) > 0) {
-            splt_vector<T> splt(*this, tracker[did]._used, tracker[did].op);
+        const auto dep_ptr = &dep;
+        if (tracker.count(dep_ptr) > 0) {
+            splt_vector<T> splt(tracker[dep_ptr]._used, tracker[dep_ptr].op);
             {   // locked dep
                 std::lock_guard<std::mutex> lock2(dep.data_lock);
                 dep.reattached.emplace(
@@ -46,8 +46,8 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
             }
             return splt;
         } else {
-            std::cout << "DETACH ERROR: NO DEP IN TRACKER: did is " << did << std::endl;
-            return splt_vector<T>(*this, tracker[did]._used, tracker[did].op);
+            std::cout << "DETACH ERROR: NO DEP IN TRACKER: dep_ptr is " << dep_ptr << std::endl;
+            return splt_vector<T>(tracker[dep_ptr]._used, tracker[dep_ptr].op);
         }
 
     }
@@ -71,23 +71,25 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     // grow out from ourselves. this is safe to modify, but this isn't,
     // because others may be depending on it for resolution
 
-    const auto did = &dep;
-    const uint16_t uid = tracker[did]._used.get_id();
     const uint16_t sid = splt._data.get_id();
-
     // TODO: better (lock-free) mechanism here
     bool found = false;
     {   // locked *this
         std::lock_guard<std::mutex> lock(data_lock);
         found = dep.reattached.count(sid) > 0;
     }
+
+    const auto dep_ptr = &dep;
+    auto &dep_tracker = tracker[dep_ptr];
+    const uint16_t uid = dep_tracker._used.get_id();
     T diff;
     if (found) {
         for (size_t i = a; i < b; ++i) {    // locked dep
             std::lock_guard<std::mutex> lock(dep.data_lock);
-            diff = tracker[did].op.inv(splt._data[i], tracker[did]._used[i]);
-            if (diff != tracker[did].op.identity) {
-                dep._data.mut_set(i, tracker[did].op.f(dep[i], diff));
+            const auto &dep_op = dep_tracker.op;
+            diff = dep_op.inv(splt._data[i], dep_tracker._used[i]);
+            if (diff != dep_op.identity) {
+                dep._data.mut_set(i, dep_op.f(dep[i], diff));
                 /*
                 std::cout << "sid " << sid
                           << " joins with " << dep._data.get_id()
@@ -103,7 +105,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         }
     } else {
         std::cout << "TROUBLE with " << sid
-                  << "!!! splinters.size(): " << dep.reattached.size() 
+                  << "!!! splinters.size(): " << dep.reattached.size()
                   << std::endl;
         std::cout << "the splinters are: ";
         for (const auto &p : dep.reattached) {
@@ -131,32 +133,36 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
 template <typename T>
 void cont_vector<T>::resolve(cont_vector<T> &dep)
 {
-    const auto did = &dep;
-    const uint16_t uid = tracker[did]._used.get_id();
+    const auto dep_ptr = &dep;
+    const uint16_t uid = tracker[dep_ptr]._used.get_id();
     dep.resolve_latch[uid]->wait();
 
     cont_vector<T> *curr = this;
     cont_vector<T> *next = &dep;
     //for (auto next : curr->dependents) {
+    auto &dep_tracker = curr->tracker[dep_ptr];
     for (size_t i = 0; i < next->size(); ++i) {  // locked
         std::lock_guard<std::mutex> lock(next->data_lock);
-        int index = tracker[&dep].indexmap(i);
+
+        int index = dep_tracker.indexmap(i);
         if (index < 0 || index >= (int64_t)next->size()) { continue; }
-        T diff = tracker[did].op.inv((*curr)[i], curr->tracker[did]._used[i]);
-        if (diff != tracker[did].op.identity) {
-            next->_data.mut_set(index, tracker[did].op.f((*next)[index], diff));
+
+        const auto &dep_op = dep_tracker.op;
+        T diff = dep_op.inv((*curr)[i], dep_tracker._used[i]);
+        if (diff != dep_op.identity) {
+            next->_data.mut_set(index, dep_op.f((*next)[index], diff));
             /*
             std::cout << "sid " << _data.get_id() << "at " << i
                 << " resolves onto " << dep._data.get_id()
-                << " with stale value " << curr->tracker[did]._used[i]
+                << " with stale value " << curr->tracker[dep_ptr]._used[i]
                 << " and fresh value " << _data[i]
                 << std::endl;
-            std::cout << "_used for " << did << " -> " << uid << ": "
-                << curr->tracker[did]._used << std::endl;
+            std::cout << "_used for " << dep_ptr << " -> " << uid << ": "
+                << curr->tracker[dep_ptr]._used << std::endl;
             std::cout << "next: "
                 << next->_data << std::endl;
             */
-            //curr->tracker[did]._used.mut_set(i, (*curr)[i]);
+            //curr->tracker[dep_ptr]._used.mut_set(i, (*curr)[i]);
         }
     }
     //}
@@ -279,12 +285,12 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
             step1.at(coeffs[i]).freeze(step2[i+1], true, 0, contentious::offset<1>);
         }
         step2[i].freeze(step2[i+1]);
-        step2[i].exec_par< std::reference_wrapper<cont_vector<T>>>(
+        step2[i].template exec_par< std::reference_wrapper<cont_vector<T>>>(
                 contentious::foreach_splt_cvec<T>,
                 step2[i+1], std::ref(step1.at(coeffs[i]))
         );
     }
-    
+
     // all the resolutions... *exhale*
     this->op = op1;
     for (size_t i = 0; i < coeffs_unique.size(); ++i) {
@@ -298,7 +304,6 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         //std::cout << "step2: " << step2[i+1] << std::endl;
     }
     //step1.at(coeffs[offs.size()-1]).resolve(step2[offs.size()]);
-
 
     return step2[step2.size()-1];
 }

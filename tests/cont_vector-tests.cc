@@ -249,7 +249,7 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    
+
     cont_stencil(test_vec);
     cout << "DONE! " << test_sz << endl;
 
