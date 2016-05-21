@@ -21,6 +21,8 @@ template <typename T>
 class splt_vector;
 template <typename T>
 class cont_vector;
+    
+using contentious::hwconc;
 
 // locks in:
 //   * move constructor (other)
@@ -149,8 +151,6 @@ private:
     volatile bool unsplintered = true;
 
     //std::vector<cont_vector<T> *> dependents;
-
-    static const uint16_t hwconc = 4;
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,

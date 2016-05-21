@@ -187,7 +187,7 @@ double cont_reduce_dup(const cont_vector<double> &cont_arg)
 
 int reduce_runner()
 {
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,38);
+    int64_t test_sz = 32;//numeric_limits<int64_t>::max() / pow(2,38);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
@@ -197,6 +197,11 @@ int reduce_runner()
     // make regular vector with vals in it
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
+
+    for (auto &it : test_vec) {
+        std::cout << it << " ";
+    }
+    std::cout << std::endl;
 
     // make cont_vector with vals in it
     cont_vector<double> test_cvec(contentious::plus);

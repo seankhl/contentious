@@ -180,9 +180,9 @@ public:
         int16_t last;
 
         // leaf that we're at (array of node at end of path)
-        std::array<T, br_sz> *leaf;
         // pos at the leaf that we're at
-        size_t pos_cached;
+        typename std::array<T, br_sz>::const_iterator cur;
+        typename std::array<T, br_sz>::const_iterator end;
 
     public:
         /*
@@ -214,17 +214,16 @@ public:
             }
             path.resize(depth);
             if (toit.size() == 0) {
-                leaf = nullptr;
-                pos_cached = 0;
+                cur = toit.root->values.end();
             } else {
-                leaf = &(path[last].first->values);
-                pos_cached = path[last].second;
+                cur = path[last].first->values.begin();
+                end = path[last].first->values.end();
             }
         }
 
         const_iterator(const const_iterator &other)
           : depth(other.depth), path(other.path), last(other.last),
-            leaf(other.leaf), pos_cached(other.pos_cached)
+            cur(other.cur), end(other.end)
         {   /* nothing to do here */ }
 
         //const_iterator(const const_iterator&);
@@ -234,11 +233,11 @@ public:
         //const_iterator &operator=(const const_iterator &other)
         bool operator==(const const_iterator &other) const
         {
-            return leaf == other.leaf && pos_cached == other.pos_cached;
+            return cur == other.cur;
         }
         bool operator!=(const const_iterator &other) const
         {
-            return leaf != other.leaf || pos_cached != other.pos_cached;
+            return cur != other.cur;
         }
         //bool operator<(const const_iterator&) const; //optional
         //bool operator>(const const_iterator&) const; //optional
@@ -248,17 +247,16 @@ public:
         const_iterator &operator++()
         {
             // interior node iteration; != means fast overflow past end
-            if (pos_cached != br_sz - 1) {
-                ++pos_cached;
+            if (cur != end) {
+                ++cur;
                 return *this;
             }
+            --last;
             auto pos = std::ref(path[last].second);
-            pos.get() = pos_cached;
             // go up until we're not at the end of our node
             while (pos == br_sz - 1) {
                 --last;
                 if (last == -1) {
-                    pos_cached = br_sz;
                     return *this;
                 }
                 pos = std::ref(path[last].second);
@@ -272,8 +270,8 @@ public:
                 ++last;
                 pos = std::ref(path[last].second);
             }
-            leaf = &(path[last].first->values);
-            pos_cached = pos;
+            cur = path[last].first->values.begin();
+            end = path[last].first->values.end();
             return *this;
         }
         /*
@@ -289,22 +287,28 @@ public:
             if (depth == 0 || n == 0) {
                 return *this;
             }
+
             auto ret = *this;
+            // +ing within leaf
+            if (end - cur > (int64_t)n) {
+                ret.cur += n;
+                return *this;
+            }
             // p is the greatest jump between spots we'll make
             // 1 means jumps within node;
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
             std::vector<size_t> pos_chain;
+            --ret.last;
             auto pos = std::ref(ret.path[ret.last].second);
-            pos.get() = ret.pos_cached;
-            uint32_t p = 1;
+            uint32_t p = br_sz;
             //std::cout << "ret.last before loop : " << ret.last << std::endl;
             while (pos + (n / p) >= br_sz) {
                 pos_chain.push_back(pos);
                 --ret.last;
                 //std::cout << "ret.last in loop : " << ret.last << std::endl;
                 if (ret.last == -1) {
-                    ret.pos_cached = br_sz;
+                    ret.cur = ret.end;
                     return ret;
                 }
                 p *= br_sz;
@@ -326,8 +330,8 @@ public:
             }
             left = left % p;
             assert(left == 0);
-            ret.leaf = &(ret.path[ret.last].first->values);
-            ret.pos_cached = pos;
+            ret.cur = ret.path[ret.last].first->values.begin() + pos;
+            ret.end = ret.path[ret.last].first->values.end();
             return ret;
         }
 
@@ -337,8 +341,8 @@ public:
         const_iterator operator-(size_type) const; //optional
         difference_type operator-(const_iterator) const; //optional
         */
-        const T &operator*() const  { return (*leaf)[pos_cached]; }
-        const T *operator->() const { return (*leaf) + pos_cached; }
+        const T &operator*() const  { return *cur; }
+        const T *operator->() const { return cur; }
         /*
         const_reference operator[](size_type) const; //optional
         */
