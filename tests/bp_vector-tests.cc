@@ -203,7 +203,6 @@ int test_pers_iter()
 
     // testing ++
     for (int i = 0; i < 514; ++i) {
-        //cout << "at i: " << i << endl;
         pers = tr_vector<double>();
         for (int j = 0; j < i; ++j) {
             pers = pers.push_back(i);
@@ -211,9 +210,9 @@ int test_pers_iter()
         //cout << "let's iterate! ";
         index = 0;
         for (auto it = pers.begin(); it != pers.end(); ++it) {
-            //cout << "at index: " << index << endl;
             if (*it != pers[index]) {
                 cerr << "! test_pers_iter failed: at index " << index
+                     << " of " << i
                      << "; got " << *it
                      << ", expected " << pers[index] << endl;
                 return 1;
@@ -440,7 +439,7 @@ int test_cvec()
     // accumulate values on index comp_locus
     constexpr size_t locus = 3;
     assert(locus < test.size());
-    constexpr size_t T = 100;
+    constexpr size_t T = 1;
 
     // faux iteration
     array<cont_vector<double>, T+1> steps;

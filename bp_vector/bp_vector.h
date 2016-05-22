@@ -171,11 +171,15 @@ public:
 
     class const_iterator {
     private:
+        const bp_node<T> *root;
+        const uint16_t shift;
+        size_t i;
+        size_t sz;
+        
         // depth of the tree we're iterating over
         int16_t depth;
 
         // path, from top to bottom, node pointers and index at that node
-        //std::stack<std::pair<bp_node<T> *, size_t>> path;
         std::vector<std::pair<bp_node<T> *, size_t>> path;
         int16_t last;
 
@@ -196,6 +200,7 @@ public:
         const_iterator() = delete;
 
         const_iterator(const bp_vector_base<T, TDer> &toit)
+          : root(toit.root.get()), shift(toit.shift), i(0), sz(toit.size())
         {
             depth = toit.calc_depth();
             path.reserve(depth);
@@ -214,29 +219,41 @@ public:
             }
             path.resize(depth);
             if (toit.size() == 0) {
-                cur = toit.root->values.end();
+                //cur = toit.root->values.end();
             } else {
                 cur = path[last].first->values.begin();
-                end = path[last].first->values.end();
+                end = path[last].first->values.begin() + (br_sz - 1);
             }
         }
 
         const_iterator(const const_iterator &other)
-          : depth(other.depth), path(other.path), last(other.last),
+          : root(other.root), shift(other.shift), i(other.i), sz(other.sz),
+            depth(other.depth), path(other.path), last(other.last),
             cur(other.cur), end(other.end)
         {   /* nothing to do here */ }
 
-        //const_iterator(const const_iterator&);
         //const_iterator(const iterator&);
         //~const_iterator();
 
-        //const_iterator &operator=(const const_iterator &other)
+        const_iterator &operator=(const const_iterator &other)
+        {
+            std::swap(depth, other.depth);
+            std::swap(path, other.path);
+            std::swap(last, other.last);
+            std::swap(cur, other.cur);
+            std::swap(end, other.end);
+            std::cout << "fuck" << std::endl;
+        }
+
         bool operator==(const const_iterator &other) const
         {
-            return cur == other.cur;
+            return shift == other.shift && cur == other.cur;
         }
         bool operator!=(const const_iterator &other) const
         {
+            if (depth == 0 && other.depth == 0) {
+                return false;
+            }
             return cur != other.cur;
         }
         //bool operator<(const const_iterator&) const; //optional
@@ -251,27 +268,53 @@ public:
                 ++cur;
                 return *this;
             }
-            --last;
+            i += br_sz;
+            if (i == sz) {
+                std::cout << "++ sz - 1" << std::endl;
+                ++cur;
+                return *this;
+            }
+            
+            const bp_node<T> *node = root;
+            for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+                node = node->branches[i >> s & br_mask].get();
+            }
+            cur = node->values.begin() + (i & br_mask);
+            end = node->values.begin() + (br_sz-1);
+            i -= i & br_mask;
+            return *this;
+            
             auto pos = std::ref(path[last].second);
             // go up until we're not at the end of our node
-            while (pos == br_sz - 1) {
-                --last;
-                if (last == -1) {
+            int16_t s = 0;
+            do {
+                if (last == 0) {
+                    cur = path[last].first->values.end();
                     return *this;
                 }
+                --last;
                 pos = std::ref(path[last].second);
-            }
+                s += BITPART_SZ;
+            } while ((i >> s & br_mask) == 0);
+
             ++pos;
             assert(pos < br_sz);
-            while (last+1 != depth &&
-                   path[last].first->branches[pos] != nullptr) {
+            size_t pos_next = 0;
+            while (last+1 != depth) {
+                if (path[last].first->branches[pos] == nullptr) {
+                    --pos;
+                    pos_next = br_sz;
+                }
                 path[last+1] = std::make_pair(
-                             path[last].first->branches[pos].get(), 0);
+                             path[last].first->branches[pos].get(),
+                             pos_next);
                 ++last;
                 pos = std::ref(path[last].second);
+                if (pos == br_sz) { break; }
             }
-            cur = path[last].first->values.begin();
-            end = path[last].first->values.end();
+
+            cur = path[last].first->values.begin() + pos;
+            end = path[last].first->values.begin() + (br_sz-1);
             return *this;
         }
         /*
@@ -287,51 +330,81 @@ public:
             if (depth == 0 || n == 0) {
                 return *this;
             }
-
             auto ret = *this;
             // +ing within leaf
-            if (end - cur > (int64_t)n) {
+            if (ret.end - ret.cur >= (int64_t)n) {
                 ret.cur += n;
-                return *this;
+                return ret;
             }
+
+            int plusplus = 0;
+            // update i and add n to it
+            ret.i += (br_sz - (ret.end - ret.cur)) - 1 + n;
+            std::cout << ret.i << std::endl;
+            if (ret.i >= ret.sz) {
+                ret.i = ret.sz - 1;
+                plusplus = 1;
+            }
+
+            
+            const bp_node<T> *node = ret.root;
+            for (int16_t s = ret.shift; s > 0; s -= BITPART_SZ) {
+                node = node->branches[ret.i >> s & br_mask].get();
+            }
+            ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
+            ret.end = node->values.begin() + (br_sz-1);
+            ret.i -= ret.i & br_mask;
+            return ret;
+
             // p is the greatest jump between spots we'll make
             // 1 means jumps within node;
             // br_sz means jumps between leaves with the same parent;
             // br_sz ** 2 would mean shared grandparents
-            std::vector<size_t> pos_chain;
-            --ret.last;
+            std::vector<size_t> pos_chain{};
+            uint32_t p = 1;
+            uint32_t shift = 0;
             auto pos = std::ref(ret.path[ret.last].second);
-            uint32_t p = br_sz;
-            //std::cout << "ret.last before loop : " << ret.last << std::endl;
-            while (pos + (n / p) >= br_sz) {
-                pos_chain.push_back(pos);
-                --ret.last;
-                //std::cout << "ret.last in loop : " << ret.last << std::endl;
-                if (ret.last == -1) {
-                    ret.cur = ret.end;
+            pos.get() = 0;
+            do {
+                if (ret.last == 0) {
+                    std::cout << "trie totally full" << std::endl;
+                    ret.cur = ret.path[ret.last].first->values.end();
                     return ret;
                 }
+                pos_chain.push_back(pos);
+                --ret.last;
                 p *= br_sz;
+                shift += BITPART_SZ;
                 pos = std::ref(ret.path[ret.last].second);
-            }
+            } while (pos + (n / p) >= br_sz);
+
             size_t left = n;
             pos += left / p;
             size_t i = 0;
-            while (ret.last+1 != ret.depth &&
-                   ret.path[ret.last].first->branches[pos] != nullptr) {
+            size_t pos_next = 0;
+            for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+                node = node->branches[i >> s & br_mask].get();
+            }
+            while (ret.last+1 != ret.depth) {
                 left = left % p;
                 p /= br_sz;
-                ret.path[ret.last+1] =
-                        std::make_pair(
-                             ret.path[ret.last].first->branches[pos].get(),
-                             pos_chain[i++] + left / p);
+                if (ret.path[ret.last].first->branches[pos] == nullptr) {
+                    --pos;
+                    pos_next = br_sz;
+                } else {
+                    pos_next = pos_chain[i++] + left / p;
+                }
+                ret.path[ret.last+1] = std::make_pair(
+                                ret.path[ret.last].first->branches[pos].get(),
+                                pos_next);
                 ++ret.last;
                 pos = std::ref(ret.path[ret.last].second);
+                if (pos == br_sz) { break; }
             }
-            left = left % p;
-            assert(left == 0);
+
+            assert(left % p == 0);
             ret.cur = ret.path[ret.last].first->values.begin() + pos;
-            ret.end = ret.path[ret.last].first->values.end();
+            ret.end = ret.path[ret.last].first->values.begin() + (br_sz-1);
             return ret;
         }
 

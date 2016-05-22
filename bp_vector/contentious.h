@@ -8,7 +8,7 @@ class cont_vector;
 
 namespace contentious
 {
-    static constexpr uint16_t hwconc = 8;
+    static constexpr uint16_t hwconc = 4;
 
     /* index mappings *********************************************************/
 
@@ -21,7 +21,7 @@ namespace contentious
     /* operators **************************************************************/
 
     template <typename T>
-    struct op 
+    struct op
     {
         T identity;
         std::function<T(T,T)> f;
