@@ -16,7 +16,7 @@ using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 template <typename T, template<typename> typename TDer>
 const T &bp_vector_base<T, TDer>::at(size_t i) const
 {
-    if (i >= sz) {  // presumably, throw an exception... 
+    if (i >= sz) {  // presumably, throw an exception...
         throw std::out_of_range("trie has size " + std::to_string(sz) +
                                 ", given index " + std::to_string(i));
     }
@@ -37,13 +37,13 @@ TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
 {
     // copy trie
     TDer<T> ret(*this);
-    
+
     // copy root node and get it in a variable
     if (node_copy(ret.root->id)) {
         ret.root = new bp_node<T>(*root, id);
     }
     bp_node<T> *node = ret.root.get();
-    for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+    for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
         bp_node_ptr<T> &next = node->branches[i >> s & br_mask];
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next, id);
@@ -63,11 +63,11 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         ++(ret.sz);
         return ret;
     }
-    
+
     TDer<T> ret(*this);
-    
+
     // we're gonna have to construct new nodes, or rotate
-    
+
     // subvector capacity at this depth
     size_t depth_cap = capacity();
     // depth at which to insert new node
@@ -77,7 +77,7 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         ++depth_ins;
         depth_cap /= br_sz;
     }
-    
+
     if (node_copy(ret.root->id)) {
         ret.root = new bp_node<T>(*root, id);
     }
@@ -90,15 +90,15 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>(id);
         ret.root.swap(temp);
         ret.root->branches[0] = std::move(temp);
-    } 
+    }
 
     // travel to branch of trie where new node will be constructed (if any)
     bp_node<T> *node = ret.root.get();
-    int16_t s = ret.shift;
+    uint16_t s = ret.shift;
     while (depth_ins > 0) {
         bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
         if (!next) {
-            std::cout << "Constructing node where one should have already been" 
+            std::cout << "Constructing node where one should have already been"
                       << std::endl;
             next = new bp_node<T>(id);
         }
@@ -111,7 +111,7 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     }
     // we're either at the top, the bottom or somewhere in-between...
     assert(s <= ret.shift && s >= 0);
-    
+
     // keep going, but this time, construct new nodes as necessary
     while (s > BITPART_SZ) {
         bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];

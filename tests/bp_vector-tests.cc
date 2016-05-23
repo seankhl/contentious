@@ -196,7 +196,7 @@ int test_pers_alternate()
     return 0;
 }
 
-int test_pers_iter()
+int test_iter()
 {
     tr_vector<double> pers;
     int index;
@@ -210,22 +210,22 @@ int test_pers_iter()
         //cout << "let's iterate! ";
         index = 0;
         for (auto it = pers.begin(); it != pers.end(); ++it) {
+            //cout << *it << " ";
             if (*it != pers[index]) {
-                cerr << "! test_pers_iter failed: at index " << index
+                cerr << "! test_iter failed: at index " << index
                      << " of " << i
                      << "; got " << *it
                      << ", expected " << pers[index] << endl;
                 return 1;
             }
-            //cout << *it << " ";
             ++index;
         }
         if (index != i) {
-            cerr << "! test_pers_iter failed: iterated " << index
+            cerr << "! test_iter failed: iterated " << index
                  << " times, but its size was " << i << endl;
             return 1;
         }
-
+        //cout << endl;
     }
 
     // testing +
@@ -236,17 +236,17 @@ int test_pers_iter()
     for (int i = 0; i < 10000; ++i) {
         index = rand_val();
         //cout << index << endl;
-        auto it_st = pers.begin() + index;
+        auto it_st = pers.cbegin() + index;
         auto it = it_st;
         if (*it != pers[index]) {
-            cerr << "! test_pers_iter (+) failed: at index " << index
+            cerr << "! test_iter (+) failed: at index " << index
                 << "; got " << *it
                 << ", expected " << pers[index] << endl;
             return 1;
         }
     }
 
-    cerr << "+ test_pers_iter passed" << endl;
+    cerr << "+ test_iter passed" << endl;
     return 0;
 }
 
@@ -439,7 +439,7 @@ int test_cvec()
     // accumulate values on index comp_locus
     constexpr size_t locus = 3;
     assert(locus < test.size());
-    constexpr size_t T = 1;
+    constexpr size_t T = 100;
 
     // faux iteration
     array<cont_vector<double>, T+1> steps;
@@ -451,7 +451,7 @@ int test_cvec()
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
-        curr.freeze(next);
+        curr.freeze(next, false, nthreads, contentious::identity);
         for (unsigned i = 0; i < nthreads; ++i) {
             threads.push_back(
                     thread(my_accumulate,
@@ -552,12 +552,12 @@ int bp_vector_runner()
     runner.push_back(test_insert);
     runner.push_back(test_pers);
     runner.push_back(test_pers_alternate);
-    runner.push_back(test_pers_iter);
+    runner.push_back(test_iter);
     runner.push_back(test_trans);
     runner.push_back(test_make);
     runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);
-    runner.push_back(test_cvec);
+    //runner.push_back(test_cvec);
 
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {

@@ -21,7 +21,7 @@ template <typename T>
 class splt_vector;
 template <typename T>
 class cont_vector;
-    
+
 using contentious::hwconc;
 
 // locks in:
@@ -146,8 +146,8 @@ private:
     // forward tracking : dep_ptr -> tracker
     std::map<const cont_vector<T> *, dependency_tracker> tracker;
     // resolving onto (backward) :  uid -> latch
-    std::map<uint16_t, std::unique_ptr<boost::latch>> resolve_latch;
-    std::map<uint16_t, bool> reattached;
+    std::map<int32_t, std::unique_ptr<boost::latch>> resolve_latch;
+    std::map<int32_t, bool> reattached;
     volatile bool unsplintered = true;
 
     //std::vector<cont_vector<T> *> dependents;

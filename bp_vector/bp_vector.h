@@ -23,8 +23,8 @@
 
 constexpr uint8_t BITPART_SZ = 6;
 // TODO: make these all caps
-constexpr size_t br_sz = 1 << BITPART_SZ;
-constexpr uint8_t br_mask = br_sz - 1;
+constexpr uint16_t br_sz = 1 << BITPART_SZ;
+constexpr uint16_t br_mask = br_sz - 1;
 
 
 template <typename T, template<typename> typename TDer>
@@ -64,10 +64,10 @@ private:
 class bp_vector_glob
 {
 private:
-    static std::atomic<int16_t> unique_id;
+    static std::atomic<int32_t> unique_id;
 
 protected:
-    static inline int16_t get_unique_id() { return unique_id++; }
+    static inline int32_t get_unique_id() { return unique_id++; }
 
 };
 
@@ -80,9 +80,9 @@ class bp_vector_base : protected bp_vector_glob
 
 protected:
     size_t sz;
-    uint8_t shift;
+    uint16_t shift;
     boost::intrusive_ptr<bp_node<T>> root;
-    int16_t id;
+    int32_t id;
 
     // protected because we cannot create instances of base type
     // TODO: remove...
@@ -104,13 +104,12 @@ protected:
         for (int i = 0; i < other.size(); ++i) {
     */
 
-
     // constructor that takes arbitrary id, for making transients
-    bp_vector_base(int16_t id_in)
+    bp_vector_base(int32_t id_in)
       : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
     {   /* nothing to do here */ }
 
-    inline bool node_copy(const int16_t other_id) const
+    inline bool node_copy(const int32_t other_id) const
     {
         return static_cast<const TDer<T> *>(this)->node_copy_impl(other_id);
     }
@@ -137,14 +136,30 @@ public:
         */
     }
 
-    inline int16_t get_id() const       { return id; }
+    using bp_branch_iterator =
+        typename std::array<boost::intrusive_ptr<bp_node<T>>, br_sz>::iterator;
+
+    inline std::pair<uint16_t, uint16_t>
+    contained_by(size_t a, size_t b) const
+    {
+        assert(a < b);
+        std::cout << a << " cb " << b << std::endl;
+        return std::make_pair(a >> shift & br_mask, b >> shift & br_mask);
+    }
+
+    inline bp_branch_iterator branch_iterator() const
+    {
+        return root->branches.begin();
+    }
+
+    inline int32_t get_id() const       { return id; }
     inline uint8_t get_depth() const    { return calc_depth(); }
 
     // value-related getters
     const T &operator[](size_t i) const
     {
         const bp_node<T> *node = root.get();
-        for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+        for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
             node = node->branches[i >> s & br_mask].get();
         }
         return node->values[i & br_mask];
@@ -176,13 +191,171 @@ public:
 
     /**  iterator *************************************************************/
 
+    class iterator {
+        using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
+
+    private:
+        bp_node<T> *root;
+        const uint16_t shift;
+        size_t i;
+        const size_t sz;
+        const int32_t id;
+
+        // leaf that we're at (array of node at end of path)
+        // pos at the leaf that we're at
+        typename std::array<T, br_sz>::iterator cur;
+        typename std::array<T, br_sz>::iterator end;
+
+    public:
+        /*
+        typedef typename A::difference_type difference_type;
+        typedef typename A::value_type value_type;
+        typedef typename A::reference const_reference;
+        typedef typename A::pointer const_pointer;
+        typedef std::random_access_iterator_tag iterator_category; //or another tag
+        */
+
+        iterator() = delete;
+
+        iterator(bp_vector_base<T, TDer> &toit)
+          : shift(toit.shift), i(0), sz(toit.sz), id(toit.id)
+        {
+            if (id != toit.root->id) {
+                toit.root = new bp_node<T>(*toit.root, id);
+            }
+            root = toit.root.get();
+            bp_node<T> *node = root;
+            for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
+                bp_node_ptr &next = node->branches[i >> s & br_mask];
+                if (id != next->id) {
+                    next = new bp_node<T>(*next, id);
+                }
+                node = node->branches[i >> s & br_mask].get();
+            }
+            cur = node->values.begin();
+            end = node->values.begin() + (br_sz-1);
+        }
+
+        iterator(const iterator &other)
+          : root(other.root), shift(other.shift), i(other.i), sz(other.sz),
+            id(other.id),
+            cur(other.cur), end(other.end)
+        {   /* nothing to do here */ }
+
+        //iterator(const iterator&);
+        //~iterator();
+
+        //iterator &operator=(const iterator &other)
+
+        inline bool operator==(const iterator &other) const
+        {
+            return cur == other.cur;
+        }
+        inline bool operator!=(const iterator &other) const
+        {
+            return cur != other.cur;
+        }
+        //bool operator<(const iterator&) const; //optional
+        //bool operator>(const iterator&) const; //optional
+        //bool operator<=(const iterator&) const; //optional
+        //bool operator>=(const iterator&) const; //optional
+
+        iterator &operator++()
+        {
+            // interior node iteration; != means fast overflow past end
+            if (cur != end) {
+                ++cur;
+                //std::cout << cur << std::endl;
+                return *this;
+            }
+            // end of full trie
+            i += br_sz;
+            if (i == sz) {
+                ++cur;
+                return *this;
+            }
+
+            bp_node<T> *node = root;
+            for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
+                bp_node_ptr &next = node->branches[i >> s & br_mask];
+                if (id != next->id) {
+                    next = new bp_node<T>(*next, id);
+                }
+                node = node->branches[i >> s & br_mask].get();
+            }
+            cur = node->values.begin();
+            end = node->values.begin() + (br_sz-1);
+            return *this;
+        }
+        /*
+        iterator operator++(int); //optional
+        iterator& operator--(); //optional
+        iterator operator--(int); //optional
+        iterator& operator+=(size_type); //optional
+        */
+
+        iterator operator+(size_t n) const
+        {
+            // no need to do anything if size == 0 or if we're not incrementing
+            if (sz == 0 || n == 0) {
+                return *this;
+            }
+            auto ret = *this;
+            // +ing within leaf
+            //std::cout << "e-c: " << ret.end - ret.cur << std::endl;
+            if (ret.end - ret.cur >= (int64_t)n) {
+                ret.cur += n;
+                return ret;
+            }
+
+            int plusplus = 0;
+            // update i and add n to it
+            ret.i += br_sz - (ret.end - ret.cur + 1) + n;
+            if (ret.i >= ret.sz) {
+                ret.i = ret.sz - 1;
+                plusplus = 1;
+            }
+
+            bp_node<T> *node = ret.root;
+            for (uint16_t s = ret.shift; s > 0; s -= BITPART_SZ) {
+                //std::cout << "ind at s " << s << " : " << (ret.i >> s & br_mask) << std::endl;
+                bp_node_ptr &next = node->branches[ret.i >> s & br_mask];
+                if (ret.id != next->id) {
+                    next = new bp_node<T>(*next, ret.id);
+                }
+                node = node->branches[ret.i >> s & br_mask].get();
+            }
+            ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
+            ret.end = node->values.begin() + (br_sz-1);
+            ret.i -= ret.i & br_mask;
+            //std::cout << "d: " << ret.i << ", " << ret.cur << std::endl;
+            return ret;
+        }
+
+        /*
+        friend iterator operator+(size_t n, const iterator &it); //optional
+        iterator& operator-=(size_type); //optional
+        iterator operator-(size_type) const; //optional
+        difference_type operator-(iterator) const; //optional
+        */
+        T &operator*() const
+        {
+            //std::cout << i << "/" << sz << ":" << shift << "|" << std::endl;
+            return *cur;
+        }
+        const T *operator->() const { return cur; }
+        /*
+        const_reference operator[](size_type) const; //optional
+        */
+    };
+
     class const_iterator {
     private:
         const bp_node<T> *root;
         const uint16_t shift;
         size_t i;
-        size_t sz;
-        
+        const size_t sz;
+
         // leaf that we're at (array of node at end of path)
         // pos at the leaf that we're at
         typename std::array<T, br_sz>::const_iterator cur;
@@ -203,7 +376,7 @@ public:
           : root(toit.root.get()), shift(toit.shift), i(0), sz(toit.sz)
         {
             const bp_node<T> *node = root;
-            for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+            for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
                 node = node->branches[i >> s & br_mask].get();
             }
             cur = node->values.begin() + (i & br_mask);
@@ -246,9 +419,9 @@ public:
                 ++cur;
                 return *this;
             }
-            
+
             const bp_node<T> *node = root;
-            for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
+            for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
                 node = node->branches[i >> s & br_mask].get();
             }
             cur = node->values.begin() + (i & br_mask);
@@ -285,7 +458,7 @@ public:
             }
 
             const bp_node<T> *node = ret.root;
-            for (int16_t s = ret.shift; s > 0; s -= BITPART_SZ) {
+            for (uint16_t s = ret.shift; s > 0; s -= BITPART_SZ) {
                 node = node->branches[ret.i >> s & br_mask].get();
             }
             ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
@@ -309,9 +482,9 @@ public:
 
     /**  end iterator *********************************************************/
 
-    const_iterator begin() const    { return const_iterator(*this); }
+    iterator begin()          { return iterator(*this); }
+    iterator end()            { return iterator(*this) + sz; }
     const_iterator cbegin() const   { return const_iterator(*this); }
-    const_iterator end() const      { return const_iterator(*this) + sz; }
     const_iterator cend() const     { return const_iterator(*this) + sz; }
 
 };
@@ -326,7 +499,7 @@ public:
     bp_vector() = default;
     bp_vector(const bp_vector<T> &other) = default;
 
-    inline bool node_copy_impl(const int16_t) const { return false; }
+    inline bool node_copy_impl(const int32_t) const { return false; }
 
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
@@ -359,7 +532,7 @@ public:
 
     ps_vector(const tr_vector<T> &other);
 
-    inline bool node_copy_impl(const int16_t) const { return true; }
+    inline bool node_copy_impl(const int32_t) const { return true; }
 
     tr_vector<T> make_transient() const;
 
@@ -390,7 +563,7 @@ public:
     tr_vector(const bp_vector<T> &other);
     tr_vector(const ps_vector<T> &other);
 
-    inline bool node_copy_impl(const int16_t other_id) const
+    inline bool node_copy_impl(const int32_t other_id) const
     {
         return this->id != other_id;
     }

@@ -16,14 +16,14 @@ void cont_vector<T>::freeze(cont_vector<T> &dep,
         // create _used, which has the old id of _data
         const auto dep_ptr = &dep;
         tracker.emplace(std::piecewise_construct,
-                            std::forward_as_tuple(dep_ptr),
-                            std::forward_as_tuple(dependency_tracker(_data, imap, op))
+                    std::forward_as_tuple(dep_ptr),
+                    std::forward_as_tuple(dependency_tracker(_data, imap, op))
         );
         // modifications to data cannot affect _used
         _data = _data.new_id();
         dep.resolve_latch.emplace(std::piecewise_construct,
-                                    std::forward_as_tuple(tracker[dep_ptr]._used.get_id()),
-                                    std::forward_as_tuple(new boost::latch(splinters))
+                    std::forward_as_tuple(tracker[dep_ptr]._used.get_id()),
+                    std::forward_as_tuple(new boost::latch(splinters))
         );
         //std::cout << "this used: " << tracker[dep_ptr]._used << std::endl;
     }
@@ -46,7 +46,8 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
             }
             return splt;
         } else {
-            std::cout << "DETACH ERROR: NO DEP IN TRACKER: dep_ptr is " << dep_ptr << std::endl;
+            std::cout << "DETACH ERROR: NO DEP IN TRACKER: dep_ptr is "
+                      << dep_ptr << std::endl;
             return splt_vector<T>(tracker[dep_ptr]._used, tracker[dep_ptr].op);
         }
 
@@ -71,7 +72,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     // grow out from ourselves. this is safe to modify, but this isn't,
     // because others may be depending on it for resolution
 
-    const uint16_t sid = splt._data.get_id();
+    const int32_t sid = splt._data.get_id();
     // TODO: better (lock-free) mechanism here
     bool found = false;
     {   // locked *this
@@ -79,11 +80,33 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         found = dep.reattached.count(sid) > 0;
     }
 
+
     const auto dep_ptr = &dep;
     auto &dep_tracker = tracker[dep_ptr];
-    const uint16_t uid = dep_tracker._used.get_id();
+    const int32_t uid = dep_tracker._used.get_id();
     T diff;
     if (found) {
+        if (true/*dep_tracker.indexmap == contentious::identity*/) {
+            std::lock_guard<std::mutex> lock(dep.data_lock);
+            dep._data.mut_set(a, splt._data[a]);
+            uint16_t br_a;
+            uint16_t br_b;
+            std::tie(br_a, br_b) = dep_tracker._used.contained_by(a, b);
+            if (b == splt._data.size()) br_b = 64;
+            std::cout << br_a << " " << br_b << std::endl;
+            //std::cout << splt._data << std::endl;
+            auto splt_s = splt._data.branch_iterator() + br_a;
+            auto splt_e = splt._data.branch_iterator() + br_b;
+            auto join_s = dep._data.branch_iterator() + br_a;
+            while (splt_s != splt_e) {
+                std::cout << "*";
+                boost::swap(*splt_s, *join_s);
+                ++splt_s;
+                ++join_s;
+            }
+            std::cout << std::endl;
+        } else {
+
         for (size_t i = a; i < b; ++i) {    // locked dep
             std::lock_guard<std::mutex> lock(dep.data_lock);
             const auto &dep_op = dep_tracker.op;
@@ -99,10 +122,13 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                 */
             }
         }
+        }
+
         {   // locked dep
             std::lock_guard<std::mutex>(dep.data_lock);
             dep.reattached[sid] = true;
         }
+
     } else {
         std::cout << "TROUBLE with " << sid
                   << "!!! splinters.size(): " << dep.reattached.size()
@@ -133,10 +159,13 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
 template <typename T>
 void cont_vector<T>::resolve(cont_vector<T> &dep)
 {
-    const auto dep_ptr = &dep;
-    const uint16_t uid = tracker[dep_ptr]._used.get_id();
-    dep.resolve_latch[uid]->wait();
+    std::chrono::time_point<std::chrono::system_clock> start, end;
+    start = std::chrono::system_clock::now();
 
+    const auto dep_ptr = &dep;
+    const int32_t uid = tracker[dep_ptr]._used.get_id();
+    dep.resolve_latch[uid]->wait();
+    
     cont_vector<T> *curr = this;
     cont_vector<T> *next = &dep;
     //for (auto next : curr->dependents) {
@@ -166,6 +195,10 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
         }
     }
     //}
+    end = std::chrono::system_clock::now();
+    std::chrono::duration<double> dur = end - start;
+    std::cout << "resolving took: " << dur.count() << " seconds; " << std::endl;
+    
 }
 
 
