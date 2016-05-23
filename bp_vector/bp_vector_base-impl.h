@@ -40,15 +40,13 @@ TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
     
     // copy root node and get it in a variable
     if (node_copy(ret.root->id)) {
-        ret.root = new bp_node<T>(*root);
-        ret.root->id = id;
+        ret.root = new bp_node<T>(*root, id);
     }
     bp_node<T> *node = ret.root.get();
     for (int16_t s = shift; s > 0; s -= BITPART_SZ) {
         bp_node_ptr<T> &next = node->branches[i >> s & br_mask];
         if (node_copy(next->id)) {
-            next = new bp_node<T>(*next);
-            next->id = id;
+            next = new bp_node<T>(*next, id);
         }
         node = next.get();
     }
@@ -68,14 +66,6 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     
     TDer<T> ret(*this);
     
-    // simple case for empty trie
-    if (sz == 0) {
-        ret.root = new bp_node<T>();
-        ret.root->id = id;
-        ret.root->values[ret.sz++] = val;
-        return ret;
-    }
-    
     // we're gonna have to construct new nodes, or rotate
     
     // subvector capacity at this depth
@@ -89,8 +79,7 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     }
     
     if (node_copy(ret.root->id)) {
-        ret.root = new bp_node<T>(*root);
-        ret.root->id = id;
+        ret.root = new bp_node<T>(*root, id);
     }
 
     // must rotate trie, as it's totally full (new root, depth_ins is -1)
@@ -98,8 +87,7 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         // update appropriate values
         ret.shift += BITPART_SZ;
         // rotate trie
-        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>();
-        temp->id = id;
+        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>(id);
         ret.root.swap(temp);
         ret.root->branches[0] = std::move(temp);
     } 
@@ -112,12 +100,10 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         if (!next) {
             std::cout << "Constructing node where one should have already been" 
                       << std::endl;
-            next = new bp_node<T>();
-            next->id = id;
+            next = new bp_node<T>(id);
         }
         if (node_copy(next->id)) {
-            next = new bp_node<T>(*next);
-            next->id = id;
+            next = new bp_node<T>(*next, id);
         }
         node = next.get();
         s -= BITPART_SZ;
@@ -129,15 +115,13 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     // keep going, but this time, construct new nodes as necessary
     while (s > BITPART_SZ) {
         bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
-        next = new bp_node<T>();
-        next->id = id;
+        next = new bp_node<T>(id);
         node = next.get();
         s -= BITPART_SZ;
     }
     if (s > 0) {
         bp_node_ptr<T> &next = node->branches[sz >> s & br_mask];
-        next = new bp_node<T>();
-        next->id = id;
+        next = new bp_node<T>(id);
         node = next.get();
         s -= BITPART_SZ;
     }

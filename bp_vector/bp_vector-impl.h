@@ -34,12 +34,6 @@ void bp_vector<T>::mut_push_back(const T &val)
         return;
     }
     
-    if (this->sz == 0) {
-        this->root = new bp_node<T>();
-        this->root->values[this->sz++] = val;
-        return;
-    }
-
     size_t depth_cap = this->capacity();
     int16_t depth_ins = -1;
     while (this->sz % depth_cap != 0) {
