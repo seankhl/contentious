@@ -1,4 +1,10 @@
 
+#include "bp_vector-tests.h"
+#include "../bp_vector/cont_vector.h"
+
+#include <cmath>
+#include <cassert>
+
 #include <iostream>
 #include <sstream>
 #include <chrono>
@@ -7,16 +13,8 @@
 #include <limits>
 #include <queue>
 
-#include <cassert>
-#include <cmath>
-
 #include <boost/coroutine2/coroutine.hpp>
 #include <boost/thread/latch.hpp>
-
-// redundant, but in case we reorganize testing...
-#include "../bp_vector/cont_vector.h"
-
-#include "bp_vector-tests.h"
 
 using namespace std;
 
@@ -438,10 +436,8 @@ int test_coroutine_practical()
 
 int test_threadpool()
 {
-    contentious::threadpool tp;
-
     uint16_t nthreads = contentious::hwconc;
-    int T = 1000;
+    int T = 10000;
     int off = 128;
     std::vector<std::unique_ptr<boost::latch>> latches;
     std::vector<int> v(nthreads * off);
@@ -453,7 +449,7 @@ int test_threadpool()
             auto f = std::bind(test_coro_inc,
                                std::ref(*latches[t]), std::ref(v),
                                off*(i), off*(i+1), i+1);
-            tp.submit(f, i);
+            contentious::tp.submit(f, i);
         }
     }
     for (int t = 0; t < T; ++t) {
@@ -473,7 +469,6 @@ int test_threadpool()
             return 1;
         }
     }
-    tp.stop();
     cerr << "+ test_threadpool passed" << endl;
     return 0;
 }
@@ -492,9 +487,9 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
 int test_cvec()
 {
     // create a cont_vector with integers 0, 1, ..., nthreads
-    cont_vector<double> test(contentious::plus);
-    unsigned nthreads = thread::hardware_concurrency();
-    for (unsigned i = 0; i < nthreads; ++i) {
+    cont_vector<double> test;
+    unsigned nthreads = hwconc;
+    for (unsigned i = 0; i < 4; ++i) {
         test.unprotected_push_back(i);
     }
 
@@ -513,7 +508,7 @@ int test_cvec()
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
-        curr.freeze(next, false, nthreads, contentious::identity);
+        curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus);
         for (unsigned i = 0; i < nthreads; ++i) {
             threads.push_back(
                     thread(my_accumulate,
@@ -533,9 +528,9 @@ int test_cvec()
         auto &curr = steps[t];
         auto &next = steps[t+1];
         curr.resolve(next);
-        if (next[locus] != test[locus] + 180 * (t+1)) {
+        if (next[locus] != test[locus] + 45 * hwconc * (t+1)) {
             cerr << "! test_cvec failed: got " << next[locus]
-                 << ", expected " << test[locus] + 180 * (t+1) << endl;
+                 << ", expected " << test[locus] + 45 * hwconc * (t+1) << endl;
             return 1;
         }
     }
@@ -620,7 +615,7 @@ int bp_vector_runner()
     //runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);
     runner.push_back(test_threadpool);
-    //runner.push_back(test_cvec);
+    runner.push_back(test_cvec);
 
     int num_tests = runner.size();
     for (int i = 0; i < num_tests; ++i) {

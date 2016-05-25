@@ -1,21 +1,21 @@
 #ifndef BP_VECTOR_H
 #define BP_VECTOR_H
 
-#include <cstdlib>
-#include <cstdint>
-#include <memory>
-#include <atomic>
-#include <array>
-#include <stack>
-#include <vector>
-#include <utility>
+#include "util.h"
+
+#include <cassert>
 #include <cmath>
+#include <cstdint>
+
+#include <stdexcept>
 #include <iostream>
+#include <utility>
+#include <array>
+#include <string>
+#include <atomic>
 
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
-
-#include "util.h"
 
 // TODO: namespace
 
@@ -121,7 +121,7 @@ public:
     inline size_t size() const          { return sz; }
     inline size_t capacity() const
     {
-        return pow(br_sz, calc_depth());
+        return std::pow(br_sz, calc_depth());
     }
     inline void reserve(size_t new_cap)
     {
@@ -142,7 +142,6 @@ public:
     contained_by(size_t a, size_t b) const
     {
         assert(a < b);
-        std::cout << a << " cb " << b << std::endl;
         return std::make_pair(a >> shift & br_mask, b >> shift & br_mask);
     }
 
@@ -264,7 +263,6 @@ public:
             // interior node iteration; != means fast overflow past end
             if (cur != end) {
                 ++cur;
-                //std::cout << cur << std::endl;
                 return *this;
             }
             // end of full trie
@@ -301,7 +299,6 @@ public:
             }
             auto ret = *this;
             // +ing within leaf
-            //std::cout << "e-c: " << ret.end - ret.cur << std::endl;
             if (ret.end - ret.cur >= (int64_t)n) {
                 ret.cur += n;
                 return ret;
@@ -317,7 +314,6 @@ public:
 
             bp_node<T> *node = ret.root;
             for (uint16_t s = ret.shift; s > 0; s -= BITPART_SZ) {
-                //std::cout << "ind at s " << s << " : " << (ret.i >> s & br_mask) << std::endl;
                 bp_node_ptr &next = node->branches[ret.i >> s & br_mask];
                 if (ret.id != next->id) {
                     next = new bp_node<T>(*next, ret.id);
@@ -327,7 +323,6 @@ public:
             ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
             ret.end = node->values.begin() + (br_sz-1);
             ret.i -= ret.i & br_mask;
-            //std::cout << "d: " << ret.i << ", " << ret.cur << std::endl;
             return ret;
         }
 
@@ -339,7 +334,6 @@ public:
         */
         T &operator*() const
         {
-            //std::cout << i << "/" << sz << ":" << shift << "|" << std::endl;
             return *cur;
         }
         const T *operator->() const { return cur; }

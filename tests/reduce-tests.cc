@@ -1,4 +1,8 @@
 
+#include "reduce-tests.h"
+#include "timing.h"
+#include "../bp_vector/cont_vector.h"
+
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -13,10 +17,6 @@
 
 #include <CL/cl.h>
 
-#include "../bp_vector/cont_vector.h"
-
-#include "reduce-tests.h"
-#include "timing.h"
 
 using namespace std;
 
@@ -206,7 +206,7 @@ int reduce_runner()
     */
 
     // make cont_vector with vals in it
-    cont_vector<double> test_cvec(contentious::plus);
+    cont_vector<double> test_cvec;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         test_cvec.unprotected_push_back(test_vec[i]);
     }

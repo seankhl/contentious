@@ -1,4 +1,3 @@
-
 #ifndef BP_VECTOR_TESTS_H
 #define BP_VECTOR_TESTS_H
 

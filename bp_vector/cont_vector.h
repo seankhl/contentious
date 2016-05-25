@@ -2,20 +2,26 @@
 #ifndef CONT_VECTOR_H
 #define CONT_VECTOR_H
 
+#include "bp_vector.h"
+#include "contentious.h"
+
+#include <cmath>
+
+#include <iostream>
+#include <memory>
+#include <functional>
+#include <algorithm>
+#include <iterator>
+#include <utility>
+#include <tuple>
 #include <vector>
 #include <map>
-#include <set>
 #include <unordered_map>
 #include <thread>
-#include <atomic>
 #include <mutex>
-#include <condition_variable>
-#include <chrono>
 
 #include <boost/thread/latch.hpp>
 
-#include "bp_vector.h"
-#include "contentious.h"
 
 template <typename T>
 class splt_vector;
@@ -33,7 +39,6 @@ using contentious::hwconc;
 //   * resolve (dep)
 //
 //   _data/_used
-//   splinters
 //   resolved
 //
 // TODO
@@ -61,12 +66,6 @@ class splt_vector
                     cont_vector<T> &, cont_vector<T> &,
                     const size_t, const size_t,
                     const std::reference_wrapper<cont_vector<T>> &);
-
-    friend void contentious::foreach_splt_off<T>(
-                    cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t,
-                    const std::reference_wrapper<cont_vector<T>> &,
-                    const int &);
 
     friend class cont_vector<T>;
 
@@ -110,12 +109,6 @@ class cont_vector
                     const size_t, const size_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
-    friend void contentious::foreach_splt_off<T>(
-                    cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t,
-                    const std::reference_wrapper<cont_vector<T>> &,
-                    const int &);
-
     friend class splt_vector<T>;
 
 private:
@@ -140,17 +133,16 @@ private:
     };
 
     tr_vector<T> _data;
-    std::mutex data_lock;
-    contentious::op<T> op;
+    std::mutex dlck;
 
     // forward tracking : dep_ptr -> tracker
     std::map<const cont_vector<T> *, dependency_tracker> tracker;
+    std::map<const cont_vector<T> *, std::vector<cont_vector<T> *>> frozen;
     // resolving onto (backward) :  uid -> latch
-    std::map<int32_t, std::unique_ptr<boost::latch>> resolve_latch;
+    std::map<int32_t, std::unique_ptr<boost::latch>> rlatches;
+    // splinter tracking : sid -> reattached?
     std::map<int32_t, bool> reattached;
-    volatile bool unsplintered = true;
-
-    //std::vector<cont_vector<T> *> dependents;
+    std::mutex rlck;
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
@@ -160,17 +152,12 @@ private:
 public:
     cont_vector()
     {   /* nothing to do here */ }
-    cont_vector(const contentious::op<T> _op)
-      : op(_op)
-    {   /* nothing to do here */ }
-
     cont_vector(const cont_vector<T> &other)
-      : _data(other._data.new_id()), op(other.op)
+      : _data(other._data.new_id())
     {   /* nothing to do here */ }
     cont_vector<T> &operator=(cont_vector<T> other)
     {
         _data = other._data.new_id();
-        std::swap(op, other.op);
         return *this;
     }
 
@@ -178,23 +165,18 @@ public:
     cont_vector(cont_vector<T> &&other)
       : _data(std::move(other._data)),
         _used(std::move(other._used)),
-        splinters(std::move(other.splinters)),
-        resolve_latch(0),
-        dependents(std::move(other.dependents)),
-        unsplintered(std::move(other.unsplintered)),
-        op(std::move(other.op))
+        rlatches(0),
     {   // locked (TODO: this is really a terrible idea)
         std::lock_guard<std::mutex> lock(other.data_lock);
 
         resolved = (std::move(other.resolved));
-        other.unsplintered = true;
         std::cout << "RPOBLESM" << std::endl;
     }
     */
 
     /*
     cont_vector(const std::vector<T> &other)
-      : _data(other), op(nullptr)
+      : _data(other),
     {   // nothing to do here
     }
     */
@@ -202,7 +184,7 @@ public:
     ~cont_vector()
     {
         // finish this round of resolutions to avoid segfaulting on ourselves
-        for (auto &rl : resolve_latch) {
+        for (auto &rl : rlatches) {
             rl.second->wait();
         }
         /*
@@ -246,11 +228,17 @@ public:
     }
 
     void freeze(cont_vector<T> &dep,
-                bool nocopy = false, uint16_t splinters = hwconc,
-                std::function<int(int)> imap = contentious::identity);
+                bool onto,
+                std::function<int(int)> imap,
+                contentious::op<T> op,
+                uint16_t ndetached = hwconc);
+    void freeze(cont_vector<T> &cont, cont_vector<T> &dep,
+                std::function<int(int)> imap);
     splt_vector<T> detach(cont_vector &dep);
-    void reattach(splt_vector<T> &splinter, cont_vector<T> &dep,
+
+    void reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                   size_t a, size_t b);
+
     void resolve(cont_vector<T> &dep);
 
     cont_vector<T> reduce(const contentious::op<T> op);
@@ -267,9 +255,6 @@ public:
         out << "cont_vector{" << std::endl;
         out << "  id: " << cont._data.get_id() << std::endl;
         out << "  data: " << cont._data << std::endl;
-        //out << "  used: " << cont._used << std::endl;
-        //out << "  splt: ";
-        //for (const auto &i : cont.splinters) { out << i << " "; }
         out << std::endl << "}/cont_vector" << std::endl;
         return out;
     }

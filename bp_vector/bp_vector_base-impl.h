@@ -1,12 +1,4 @@
 
-#include <iostream>
-#include <string>
-#include <stdexcept>
-
-#include <cmath>
-#include <cassert>
-
-
 template <typename T, template<typename> typename TDer>
 using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
 template <typename T>

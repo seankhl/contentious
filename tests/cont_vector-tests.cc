@@ -1,13 +1,12 @@
 
+#include "cont_vector-tests.h"
+#include "../bp_vector/cont_vector.h"
+
 #include <iostream>
 #include <random>
 
-#include "../bp_vector/cont_vector.h"
-
-#include "cont_vector-tests.h"
 
 using namespace std;
-
 
 /* old, but useful for testing ************************************************/
 
@@ -45,12 +44,12 @@ void cont_inc_reduce(cont_vector<double> &cont_ret,
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
     //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
     cont_vector<double> next = cont_vector<double>(cont_ret);
-    cont_ret.freeze(next);
+    cont_ret.freeze(next, true, contentious::identity, contentious::plus);
     cont_ret.reattach(splt_ret, next, 0, next.size());
 }
 double cont_reduce_manual(const vector<double> &test_vec)
 {
-    cont_vector<double> cont_ret(contentious::plus);
+    cont_vector<double> cont_ret;
     cont_ret.unprotected_push_back(0);
     vector<thread> cont_threads;
     int num_threads = thread::hardware_concurrency(); // * 16;
@@ -91,7 +90,7 @@ void cont_inc_foreach(cont_vector<double> &cont_ret,
 }
 double cont_foreach(const vector<double> &test_vec)
 {
-    cont_vector<double> cont_ret(test_vec, new Plus<double>());
+    cont_vector<double> cont_ret(test_vec);
     vector<thread> cont_threads;
     int num_threads = thread::hardware_concurrency(); // * 16;
     size_t chunk_sz = test_vec.size()/num_threads;
@@ -114,7 +113,7 @@ double cont_foreach(const vector<double> &test_vec)
 
 void cont_reduce(const vector<double> &test_vec)
 {
-    cont_vector<double> cont_inp(contentious::plus);
+    cont_vector<double> cont_inp;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
@@ -137,7 +136,7 @@ void stdv_foreach(const vector<double> &test_vec)
     for (size_t i = 0; i < inp.size(); ++i) {
         ret[i] = inp[i] * 2;
     }
-    
+
     /*
     std::cout << "[";
     for (int i = 0; i < ret.size(); ++i) {
@@ -145,7 +144,7 @@ void stdv_foreach(const vector<double> &test_vec)
     }
     std::cout << "]" << std::endl;
     */
-    
+
     vector<double> other;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         other.push_back(i);
@@ -154,12 +153,12 @@ void stdv_foreach(const vector<double> &test_vec)
     for (size_t i = 0; i < inp.size(); ++i) {
         ret2[i] = ret[i] * other[i];
     }
-    
+
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
     std::cout << "stdv_foreach_inner took: " << splt_dur.count() << " seconds "
               << std::endl;
-    
+
     for (size_t i = 0; i < test_vec.size(); ++i) {
         if (test_vec[i] * 2 * i != ret2[i]) {
             cout << "bad resolution at ret2[" << i << "]: "
@@ -173,27 +172,27 @@ void cont_foreach(const vector<double> &test_vec)
 {
     std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
     splt_start = std::chrono::system_clock::now();
-    
-    cont_vector<double> cont_inp(contentious::mult);
+
+    cont_vector<double> cont_inp;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
     auto cont_ret = cont_inp.foreach(contentious::mult, 2);
-    
-    cont_vector<double> cont_other(contentious::mult);
+
+    cont_vector<double> cont_other;
     for (size_t i = 0; i < test_vec.size(); ++i) {
-        cont_other.unprotected_push_back(i);
+        cont_other.unprotected_push_back(i+1);
     }
     auto cont_ret2 = cont_ret.foreach(contentious::mult, cont_other);
 
     cont_inp.resolve(cont_ret);
     cont_ret.resolve(cont_ret2);
-    
+
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
     std::cout << "cont_foreach_inner took: " << splt_dur.count() << " seconds "
               << std::endl;
-    
+
     /*
     for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (cont_inp[i] * 2 != cont_ret[i]) {
@@ -203,21 +202,21 @@ void cont_foreach(const vector<double> &test_vec)
     }
     */
     for (size_t i = 0; i < test_vec.size(); ++i) {
-        if (test_vec[i] * 2 * i != cont_ret2[i]) {
+        if (test_vec[i] * 2 * (i+1) != cont_ret2[i]) {
             cout << "bad resolution at cont_ret[" << i << "]: "
-                 << test_vec[i] * 2 * i << " "
+                 << test_vec[i] * 2 * (i+1) << " "
                  << cont_ret2[i] << endl;
         }
     }
 }
 
-void cont_stencil(const vector<double> &test_vec)
+int cont_stencil(const vector<double> &test_vec)
 {
-    cont_vector<double> cont_inp(contentious::mult);
-    for (size_t i = 0; i < 16 /*test_vec.size()*/; ++i) {
+    cont_vector<double> cont_inp;
+    for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    cout << "cont_inp: " << cont_inp << endl;
+    //cout << "cont_inp: " << cont_inp << endl;
     auto cont_ret = cont_inp.stencil({-1, 1}, {2, 3});
     for (size_t i = 0; i < cont_ret.size(); ++i) {
         double change = 1;
@@ -228,10 +227,12 @@ void cont_stencil(const vector<double> &test_vec)
             cout << "bad resolution at cont_ret[" << i << "]: "
                  << cont_inp[i] * change << " "
                  << cont_ret[i] << endl;
+            return 1;
         }
     }
     //cont_inp.resolve(cont_ret);
     //cout << "cont_ret: " << cont_ret << endl;
+    return 0;
 }
 
 
@@ -256,7 +257,7 @@ int cont_vector_runner()
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
-    //cont_reduce(test_vec);
+    cont_reduce(test_vec);
 
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
@@ -278,7 +279,7 @@ int cont_vector_runner()
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
 
-    //cont_stencil(test_vec);
+    cont_stencil(test_vec);
     cout << "DONE! " << test_sz << endl;
 
     return 0;

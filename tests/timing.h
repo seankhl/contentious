@@ -1,4 +1,5 @@
 
+#include <utility>
 #include <chrono>
 /*
 template<typename Sig, Sig &S>
@@ -24,7 +25,7 @@ double call_with_args(double F(ArgsArgs... args) {
 */
 
 template <typename T, typename ...Args>
-std::pair<T, std::chrono::duration<double>> 
+std::pair<T, std::chrono::duration<double>>
 timetest(T F(const Args &...), const Args &...args)
 {
     std::chrono::time_point<std::chrono::system_clock> start, end;

@@ -1,6 +1,4 @@
 
-#include <assert.h>
-
 // mutating versions
 
 template <typename T, template<typename> typename TDer>

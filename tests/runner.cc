@@ -1,9 +1,11 @@
 
-#include <iostream>
-
 #include "bp_vector-tests.h"
 #include "reduce-tests.h"
 #include "cont_vector-tests.h"
+
+#include "../bp_vector/cont_vector.h"
+
+#include <iostream>
 
 using namespace std;
 
@@ -18,8 +20,9 @@ int main()
     int ret = 0;
 
     ret += bp_vector_runner();
-    //ret += reduce_runner();
-    //ret += cont_vector_runner();
+    ret += reduce_runner();
+    ret += cont_vector_runner();
 
+    contentious::tp.stop();
     return ret;
 }
