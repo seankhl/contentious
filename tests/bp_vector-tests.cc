@@ -5,14 +5,13 @@
 #include <random>
 #include <memory>
 #include <limits>
+#include <queue>
 
 #include <cassert>
 #include <cmath>
 
-#include "boost/coroutine/symmetric_coroutine.hpp"
-#include "boost/coroutine/asymmetric_coroutine.hpp"
-#include "boost/variant.hpp"
-#include "boost/bind.hpp"
+#include <boost/coroutine2/coroutine.hpp>
+#include <boost/thread/latch.hpp>
 
 // redundant, but in case we reorganize testing...
 #include "../bp_vector/cont_vector.h"
@@ -345,6 +344,7 @@ int test_make()
     return 0;
 }
 
+/*
 int test_coroutine()
 {
     stringstream ss;
@@ -382,39 +382,101 @@ int test_coroutine()
     cerr << "+ test_coroutine passed" << endl;
     return 0;
 }
+*/
 
+template <typename T>
+using coro_t = boost::coroutines2::coroutine<T>;
 
-typedef boost::coroutines::symmetric_coroutine<std::vector<int>> coro_t;
+void thread_coro(cont_vector<double> &test, cont_vector<double> &next,
+                 size_t index)
+{
+    splt_vector<double> test_splinter = test.detach(next);
+    for (int i = 0; i < 10; ++i) {
+        test_splinter.mut_comp(index, i);
+    }
+    test.reattach(test_splinter, next, index, index+1);
+    //cont_vector<double> next = test.pull();
+    //cout << "next[1] is: " << next.at(1) << endl;
+}
+void test_coro_inc(boost::latch &latch, std::vector<int> &v, int a, int b, int c)
+{
+    for (int i = a; i < b; ++i) {
+        v[i] += c;
+    }
+    latch.count_down();
+}
+
 /*
-int test_coroutine_practical() {
-    std::vector<int> v(10);
-    coro_t::call_type coro(
-        [&](coro_t::yield_type &yield) {
-            for (;;) {
-                v[i] += 1;
-                yield();
+int test_coroutine_practical()
+{
+    std::vector<int> v{0,0,0,0};
+    coro_t<std::function<void(void)>>::push_type coro(
+        [&](coro_t<std::function<void(void)>>::pull_type &source) {
+            for (int i = 0; i < 4; ++i) {
+                auto f = source.get();
+                f();
+                source();
             }
         }
     );
 
     int counter = 0;
     while (coro) {
-        coro(v);
-        std::cout << "current status of v: ";
-        for (int i = 0; i < v.size(); ++i) {
-            std::cout << v[i] << " ";
-        }
-        std::cout << std::endl;
+        auto f = std::bind(test_coro_inc, std::ref(v), counter, counter+1, 1);
+        coro(f);
         ++counter;
     }
-    std::cout << "current status of v: ";
+
     for (int i = 0; i < v.size(); ++i) {
-        std::cout << v[i] << " ";
+        cout << v[i] << " ";
     }
-    std::cout << std::endl;
+    cout << endl;
+
     return 0;
 }
 */
+
+int test_threadpool()
+{
+    contentious::threadpool tp;
+
+    uint16_t nthreads = contentious::hwconc;
+    int T = 1000;
+    int off = 128;
+    std::vector<std::unique_ptr<boost::latch>> latches;
+    std::vector<int> v(nthreads * off);
+
+    for (int t = 0; t < T; ++t) {
+        latches.emplace_back(new boost::latch(nthreads));
+        // send data to the worker thread
+        for (int i = 0; i < nthreads; ++i) {
+            auto f = std::bind(test_coro_inc,
+                               std::ref(*latches[t]), std::ref(v),
+                               off*(i), off*(i+1), i+1);
+            tp.submit(f, i);
+        }
+    }
+    for (int t = 0; t < T; ++t) {
+        // wait for the worker
+        latches[t]->wait();
+    }
+
+    for (size_t i = 0; i < v.size()/2; ++i) {
+        if (v[i] != T*1) {
+            cerr << "! test_threadpool failed" << endl;
+            return 1;
+        }
+    }
+    for (size_t i = v.size()/2; i < v.size(); ++i) {
+        if (v[i] != T*2) {
+            cerr << "! test_threadpool failed" << endl;
+            return 1;
+        }
+    }
+    tp.stop();
+    cerr << "+ test_threadpool passed" << endl;
+    return 0;
+}
 
 void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
                    size_t index)
@@ -555,8 +617,9 @@ int bp_vector_runner()
     runner.push_back(test_iter);
     runner.push_back(test_trans);
     runner.push_back(test_make);
-    runner.push_back(test_coroutine);
+    //runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);
+    runner.push_back(test_threadpool);
     //runner.push_back(test_cvec);
 
     int num_tests = runner.size();

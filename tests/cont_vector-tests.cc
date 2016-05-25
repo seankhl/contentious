@@ -239,7 +239,7 @@ void cont_stencil(const vector<double> &test_vec)
 
 int cont_vector_runner()
 {
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,39);
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,42);
     cout << "foreach with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
 

@@ -86,7 +86,8 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     const int32_t uid = dep_tracker._used.get_id();
     T diff;
     if (found) {
-        if (true/*dep_tracker.indexmap == contentious::identity*/) {
+        if (contentious::getAddress(dep_tracker.indexmap) ==
+            contentious::getAddress(std::function<int(int)>(contentious::identity))) {
             std::lock_guard<std::mutex> lock(dep.data_lock);
             dep._data.mut_set(a, splt._data[a]);
             uint16_t br_a;
@@ -165,7 +166,7 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
     const auto dep_ptr = &dep;
     const int32_t uid = tracker[dep_ptr]._used.get_id();
     dep.resolve_latch[uid]->wait();
-    
+
     cont_vector<T> *curr = this;
     cont_vector<T> *next = &dep;
     //for (auto next : curr->dependents) {
@@ -236,7 +237,7 @@ cont_vector<T> cont_vector<T>::reduce(const contentious::op<T> op)
     dep.unprotected_push_back(op.identity);
 
     // no template parameters
-    freeze(dep, true);
+    freeze(dep, true, hwconc, contentious::onetoall);
     exec_par<>(contentious::reduce_splt<T>, dep);
 
     return dep;

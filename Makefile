@@ -45,7 +45,7 @@ INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
 LINK_FLAGS = $(OPENMP) -mavx -lpthread							\
 			 -Wl,-rpath=$(BOOST_PATH) -L$(BOOST_PATH)			\
-			 -lboost_thread -lboost_coroutine -lboost_system	\
+			 -lboost_thread -lboost_context -lboost_system	\
 			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
