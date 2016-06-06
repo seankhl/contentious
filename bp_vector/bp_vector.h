@@ -138,16 +138,124 @@ public:
     using bp_branch_iterator =
         typename std::array<boost::intrusive_ptr<bp_node<T>>, br_sz>::iterator;
 
+    constexpr inline int
+    round_to(int i, int m)
+    {
+        assert(m && ((m & (m-1)) == 0));
+        return (i + m-1) & ~(m-1);
+    }
+
+    inline uint16_t 
+    contained_at_shift(size_t a, size_t b) const
+    {
+        assert(a < b);
+        bp_node<T> *parent = this->root.get();
+        bp_node<T> *node_a = this->root.get();
+        bp_node<T> *node_b = this->root.get();
+        uint16_t s;
+        for (s = this->shift; s > 0; s -= BITPART_SZ) {
+            if (node_a != node_b) {
+                break;
+            }
+            parent = node_a;
+            node_a = parent->branches[a >> s & br_mask].get();
+            node_b = parent->branches[b >> s & br_mask].get();
+        }
+        return s;
+    }
+
     inline std::pair<uint16_t, uint16_t>
     contained_by(size_t a, size_t b) const
     {
         assert(a < b);
-        return std::make_pair(a >> shift & br_mask, b >> shift & br_mask);
+        bp_node<T> *parent = this->root.get();
+        bp_node<T> *node_a = this->root.get();
+        bp_node<T> *node_b = this->root.get();
+        uint16_t s;
+        for (s = this->shift; s > 0; s -= BITPART_SZ) {
+            if (node_a != node_b) {
+                break;
+            }
+            parent = node_a;
+            node_a = parent->branches[a >> s & br_mask].get();
+            node_b = parent->branches[b >> s & br_mask].get();
+        }
+        return std::make_pair(a >> shift & br_mask,
+                              b >> shift & br_mask);
     }
 
-    inline bp_branch_iterator branch_iterator() const
+    inline bp_branch_iterator branch_iterator(uint8_t depth, int64_t i) const
     {
-        return root->branches.begin();
+        bp_node<T> *node = root.get();
+        uint16_t s;
+        for (s = this->shift; s > 0; s -= BITPART_SZ) {
+            if (--depth == 0) {
+                break;
+            }
+            auto &next = node->branches[i >> s & br_mask];
+            if (node_copy(next->id)) {
+                next = new bp_node<T>(*next, id);
+            }
+            node = next.get();
+        }
+        assert(depth == 0);
+        return node->branches.begin() + (i >> s & br_mask);
+    }
+
+    // copy from other to *this from at to at+sz; vectors must have same size
+    void copy(TDer<T> other, int64_t a, int64_t b)
+    {
+        assert(a < b);
+        // if we're smaller than a branch, branch-copying won't work
+        if (b - a < br_sz) {
+            auto ot = other.cbegin() + a;
+            auto end = this->begin() + b;
+            for (auto it = this->begin() + a; it != end; ++it, ++ot) {
+                *it = *ot;
+            }
+            return;
+        }
+
+        uint16_t s = contained_at_shift(a, b);
+        uint16_t d = s / BITPART_SZ + 1;
+        int64_t interval = std::pow(br_sz, d);
+
+        int64_t ar = round_to(a, interval);
+        int64_t br = round_to(b, interval);
+        if (b != br) {
+            br -= interval;
+        }
+        
+        /*std::cout << a << " " << ar << " " << b << " " << br
+                  << " d: " << (uint16_t)calc_depth() << " " << d << std::endl;
+                  */
+
+        // 1. copy individual vals for partial leaf we originate in, if n b
+        // 2. travel upwards, copying branches at shallowest depth possible
+        auto it_step1 = other.cbegin() + a;
+        auto end1 = this->begin() + ar;
+        for (auto it = this->begin() + a; it != end1; ++it, ++it_step1) {
+            *it = *it_step1;
+        }
+
+        // 3. copy shallow branches until we're in the final val's branch
+        auto it_step2 = other.branch_iterator(calc_depth() - d, ar);
+        auto end2 = branch_iterator(calc_depth() - d, br);
+        for (auto it = branch_iterator(calc_depth() - d, ar);
+             it != end2;
+             ++it, ++it_step2) {
+            //std::cout << "swapped " << *it << " and " << *it_step2 << std::endl;
+            it->reset(it_step2->get());
+            //*it = *it_step2;
+        }
+
+        // 4. travel downwards, copying branches at [...]
+        // 5. copy individual vals for partial leaf we terminate in, if n e
+        auto it_step3 = other.cbegin() + br;
+        auto end3 = this->begin() + b;
+        for (auto it = this->begin() + br; it != end3; ++it, ++it_step3) {
+            *it = *it_step3;
+        }
     }
 
     inline int32_t get_id() const       { return id; }

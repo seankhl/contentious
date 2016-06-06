@@ -56,15 +56,15 @@ class splt_vector
 {
     friend void contentious::reduce_splt<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t);
+                    const uint16_t);
 
     friend void contentious::foreach_splt<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t, const T &);
+                    const uint16_t, const T &);
 
     friend void contentious::foreach_splt_cvec<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t,
+                    const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
     friend class cont_vector<T>;
@@ -98,15 +98,15 @@ class cont_vector
 {
     friend void contentious::reduce_splt<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t);
+                    const uint16_t);
 
     friend void contentious::foreach_splt<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t, const T &);
+                    const uint16_t, const T &);
 
     friend void contentious::foreach_splt_cvec<T>(
                     cont_vector<T> &, cont_vector<T> &,
-                    const size_t, const size_t,
+                    const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
     friend class splt_vector<T>;
@@ -146,7 +146,7 @@ private:
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
-                         const size_t, const size_t, const U &...),
+                         const uint16_t, const U &...),
                   cont_vector<T> &dep, const U &... args);
 
 public:
@@ -154,9 +154,12 @@ public:
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
       : _data(other._data.new_id())
-    {   /* nothing to do here */ }
+    {   /* nothing to do here */
+        //std::cout << "CONT VECTOR COPY!" << std::endl;
+    }
     cont_vector<T> &operator=(cont_vector<T> other)
     {
+        std::cout << "CONT VECTOR ASGN!" << std::endl;
         _data = other._data.new_id();
         return *this;
     }
@@ -209,7 +212,7 @@ public:
         // should be okay now
     }
 
-    inline size_t size() const  {  return _data.size(); }
+    inline size_t size() const  { return _data.size(); }
 
     // internal passthroughs
     inline const T &operator[](size_t i) const  { return _data[i]; }
@@ -237,9 +240,10 @@ public:
     splt_vector<T> detach(cont_vector &dep);
 
     void reattach(splt_vector<T> &splt, cont_vector<T> &dep,
-                  size_t a, size_t b);
+                  uint16_t p, size_t a, size_t b);
 
     void resolve(cont_vector<T> &dep);
+    void resolve2(cont_vector<T> &dep, const uint16_t p);
 
     cont_vector<T> reduce(const contentious::op<T> op);
     cont_vector<T> foreach(const contentious::op<T> op, const T &val);
@@ -247,7 +251,7 @@ public:
     cont_vector<T> stencil(const std::vector<int> &offs,
                            const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult,
-                           const contentious::op<T> op2 = contentious::mult);
+                           const contentious::op<T> op2 = contentious::plus);
 
     friend std::ostream &operator<<(std::ostream &out,
                                     const cont_vector<T> &cont)

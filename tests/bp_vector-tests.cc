@@ -385,6 +385,7 @@ int test_coroutine()
 template <typename T>
 using coro_t = boost::coroutines2::coroutine<T>;
 
+/*
 void thread_coro(cont_vector<double> &test, cont_vector<double> &next,
                  size_t index)
 {
@@ -396,6 +397,7 @@ void thread_coro(cont_vector<double> &test, cont_vector<double> &next,
     //cont_vector<double> next = test.pull();
     //cout << "next[1] is: " << next.at(1) << endl;
 }
+*/
 void test_coro_inc(boost::latch &latch, std::vector<int> &v, int a, int b, int c)
 {
     for (int i = a; i < b; ++i) {
@@ -445,7 +447,7 @@ int test_threadpool()
     for (int t = 0; t < T; ++t) {
         latches.emplace_back(new boost::latch(nthreads));
         // send data to the worker thread
-        for (int i = 0; i < nthreads; ++i) {
+        for (uint16_t i = 0; i < nthreads; ++i) {
             auto f = std::bind(test_coro_inc,
                                std::ref(*latches[t]), std::ref(v),
                                off*(i), off*(i+1), i+1);
@@ -474,13 +476,13 @@ int test_threadpool()
 }
 
 void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
-                   size_t index)
+                   size_t index, uint16_t p)
 {
     splt_vector<double> test_splinter = test.detach(next);
     for (int i = 0; i < 10; ++i) {
         test_splinter.mut_comp(index, i);
     }
-    test.reattach(test_splinter, next, index, index+1);
+    test.reattach(test_splinter, next, index, index+1, p);
     //cont_vector<double> next = test.pull();
     //cout << "next[1] is: " << next.at(1) << endl;
 }
@@ -488,7 +490,7 @@ int test_cvec()
 {
     // create a cont_vector with integers 0, 1, ..., nthreads
     cont_vector<double> test;
-    unsigned nthreads = hwconc;
+    uint16_t nthreads = hwconc;
     for (unsigned i = 0; i < 4; ++i) {
         test.unprotected_push_back(i);
     }
@@ -496,7 +498,7 @@ int test_cvec()
     // accumulate values on index comp_locus
     constexpr size_t locus = 3;
     assert(locus < test.size());
-    constexpr size_t T = 100;
+    constexpr size_t T = 4;
 
     // faux iteration
     array<cont_vector<double>, T+1> steps;
@@ -504,20 +506,22 @@ int test_cvec()
     vector<thread> threads;
     for (size_t t = 0; t < T; ++t) {
         // create a copy of test; next has a unique ID, as do all cont_vectors
+        cout << "before" << endl;
         steps[t+1] = steps[t];
+        cout << "after" << endl;
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
         curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus);
-        for (unsigned i = 0; i < nthreads; ++i) {
+        for (uint16_t p = 0; p < nthreads; ++p) {
             threads.push_back(
                     thread(my_accumulate,
-                           std::ref(curr), std::ref(next), locus)
+                           std::ref(curr), std::ref(next), locus, p)
             );
         }
         // detach threads; so, the threads run asynchronously and their scheduling
         // is determined by forces unknown (OS? std::thread?)
-        for (unsigned i = nthreads * t; i < nthreads * (t+1); ++i) {
+        for (uint16_t i = nthreads * t; i < nthreads * (t+1); ++i) {
             threads[i].detach();
         }
         std::this_thread::yield();
