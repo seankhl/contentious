@@ -20,8 +20,6 @@ class cont_vector;
 namespace contentious
 {
 
-static std::mutex glck;
-
 static constexpr uint16_t hwconc = 4;
 
 static constexpr std::pair<const size_t, const size_t>

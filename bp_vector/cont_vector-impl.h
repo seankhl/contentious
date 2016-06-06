@@ -202,7 +202,6 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
 template <typename T>
 void cont_vector<T>::resolve2(cont_vector<T> &dep, const uint16_t p)
 {
-    return;
     const int32_t uid = this->tracker[&dep]._used.get_id();
     dep.rlatches[uid]->wait();
 
