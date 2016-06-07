@@ -56,7 +56,12 @@ void cont_vector<T>::freeze(cont_vector<T> &cont, cont_vector<T> &dep,
 template <typename T>
 splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
 {
-    if (tracker.count(&dep) > 0) {
+    bool found = false;
+    {   // locked this->data
+        std::lock_guard<std::mutex> lock(dlck);
+        found = tracker.count(&dep) > 0;
+    }
+    if (found) {
         splt_vector<T> splt(tracker[&dep]._used, tracker[&dep].op);
         {   // locked dep.reattached
             std::lock_guard<std::mutex> lock(dep.rlck);
@@ -65,16 +70,28 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
         }
         return splt;
     } else {
-        std::cout << "DETACH ERROR: NO DEP IN TRACKER: &dep is "
-                  << &dep << std::endl;
-        return splt_vector<T>(tracker[&dep]._used, tracker[&dep].op);
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "DETACH ERROR: NO DEP IN "
+                  << this << " TRACKER (nofr): &dep is "
+                  << &dep
+                  << ", candidates are: ";
+        for (const auto &key : tracker) {
+            std::cout << key.first << " ";
+        }
+        std::cout << std::endl;
+        assert(false);
     }
 }
 
 template <typename T>
 splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
 {
-    if (tracker.count(&dep) > 0) {
+    bool found = false;
+    {   // locked this->data
+        std::lock_guard<std::mutex> lock(dlck);
+        found = tracker.count(&dep) > 0;
+    }
+    if (found) {
         {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
             tracker[&dep]._used.copy(this->_data, a, b);
@@ -87,16 +104,28 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
         }
         return splt;
     } else {
-        std::cout << "DETACH ERROR: NO DEP IN TRACKER: &dep is "
-                  << &dep << std::endl;
-        return splt_vector<T>(tracker[&dep]._used, tracker[&dep].op);
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "DETACH ERROR: NO DEP IN "
+                  << this << " TRACKER (fr): &dep is "
+                  << &dep
+                  << ", candidates are: ";
+        for (const auto &key : tracker) {
+            std::cout << key.first << " ";
+        }
+        std::cout << std::endl;
+        assert(false);
     }
 }
 
 template <typename T>
 void cont_vector<T>::refresh(cont_vector &dep, size_t a, size_t b)
 {
-    if (tracker.count(&dep) > 0) {
+    bool found = false;
+    {   // locked this->data
+        std::lock_guard<std::mutex> lock(dlck);
+        found = tracker.count(&dep) > 0;
+    }
+    if (found) {
         {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
             tracker[&dep]._used.copy(this->_data, a, b);
@@ -157,6 +186,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
             dep.reattached[sid] = true;
         }
     } else {
+        std::lock_guard<std::mutex> lock(contentious::plck);
         std::cout << "TROUBLE with " << sid
                   << "!!! splinters.size(): " << dep.reattached.size()
                   << std::endl;
@@ -166,7 +196,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         }
         std::cout << std::endl;
     }
-    
+
     contentious::closure resolution;
     if (p == 0) {
         if (contentious::is_monotonic(dep_tracker.indexmap)) {
@@ -212,6 +242,10 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
             target = dep_op.f(target, diff);
         }
     }
+    resolved = true;
+    if (abandoned) {
+        delete this;
+    }
 }
 
 /* used:
@@ -243,6 +277,8 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
     int64_t amap, o, adom, aran, bdom, bran;
     for (int pi = 0; pi < hwconc; ++pi) {
         std::tie(a, b) = contentious::partition(pi, this->size());
+        if (pi == 0) { ++a; }
+        if (pi == hwconc-1) { --b; }
         amap = dep_tracker.indexmap(a);
         o = a - amap;
         adom = a + o;
@@ -250,14 +286,14 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
         if (adom < 0) {
             aran += (0 - adom);
             adom += (0 - adom);
-            assert(adom == (int64_t)a);
+            //assert(adom == (int64_t)a);
         }
         bdom = b + o;
         bran = b;
         if (bdom >= (int64_t)this->size()) {
             bran -= (bdom - (int64_t)this->size());
             bdom -= (bdom - (int64_t)this->size());
-            assert(bdom == (int64_t)b);
+            //assert(bdom == (int64_t)b);
         }
         {   // locked this
             std::lock_guard<std::mutex> lock(rlck);
@@ -306,17 +342,16 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                 }
                 */
                 *it = dep_op.f(*it, diff);
-                for (int off = -1; off <= 1; ++off) {
-                    if (cmap + off >= 0 && cmap + off < (int64_t)dep._data.size()) {
-                        for (auto &d : tracker) {
-                            d.first->rlist.insert(cmap + off);
-                        }
-                    }
-                }
+                // since this changed, we may need to resolve it even if it's
+                // not one of the potentially-conflicted values
+                dep.rlist.insert(cmap);
             }
         }
     }
-
+    resolved = true;
+    if (abandoned) {
+        delete this;
+    }
 }
 
 
@@ -373,18 +408,39 @@ cont_vector<T> cont_vector<T>::foreach(const contentious::op<T> op,
     // gratuitous use of reference_wrapper
     freeze(dep, true, contentious::identity, op);
     other.freeze(*this, dep, contentious::identity);
-    exec_par< std::reference_wrapper<cont_vector<T>> >(
+    exec_par<std::reference_wrapper<cont_vector<T>>>(
             contentious::foreach_splt_cvec<T>, dep, std::ref(other));
 
     return dep;
 }
 
+template <int N>
+void modify(std::array<std::function<int(int)>, 2> &imaps,
+            const std::array<int, 2> &offs)
+{
+    std::cout << N << " " << offs[N] << std::endl;
+}
+struct modify_t
+{
+    typedef void result_type;
+    template <typename N>
+    void operator()(std::array<std::function<int(int)>, 2> &imaps,
+                    const std::array<int, 2> &offs,
+                    N)
+    {
+        modify<N::value>(imaps, offs);
+    }
+};
+
 template <typename T>
-cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
-                                       const std::vector<T> &coeffs,
+template <int... Offs>
+cont_vector<T> cont_vector<T>::stencil(const std::vector<T> &coeffs,
                                        const contentious::op<T> op1,
                                        const contentious::op<T> op2)
 {
+    constexpr size_t offs_sz = sizeof...(Offs);
+    std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
+    using cvec_ref = std::reference_wrapper<cont_vector<T>>;
     /*
      * part 1
      */
@@ -403,31 +459,29 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         );
         freeze(step1.at(coeffs_unique[i]), true, contentious::identity, op1);
         exec_par<T>(contentious::foreach_splt<T>,
-                    step1.at(coeffs_unique[i]),
-                    coeffs_unique[i]);
+                    step1.at(coeffs_unique[i]), coeffs_unique[i]);
     }
+    std::cout << "done with step 1" << std::endl;
     /*
      * part 2
      */
     // sum up the different parts of the stencil
-    // TODO: move inside for loop to correct semantics?
     std::vector<cont_vector<T>> step2;
-    step2.reserve(offs.size()*2 + 1);
+    step2.reserve(offs_sz*2 + 1);
     step2.emplace_back(*this);
-    for (size_t i = 0; i < offs.size(); ++i) {
+    for (size_t i = 0; i < offs_sz; ++i) {
         step2.emplace_back(step2[i]);
+        std::cout << "1..." << std::endl;
         step2[i].freeze(step2[i+1], true, contentious::identity, op2);
-        if (i == 0) {
-            step1.at(coeffs[i]).freeze(step2[i], step2[i+1], contentious::offset<-1>);
-        } else {
-            step1.at(coeffs[i]).freeze(step2[i], step2[i+1], contentious::offset<+1>);
-        }
-        step2[i].template exec_par<std::reference_wrapper<cont_vector<T>>>(
-                contentious::foreach_splt_cvec<T>,
-                step2[i+1], std::ref(step1.at(coeffs[i]))
-        );
+        std::cout << "2..." << std::endl;
+        step1.at(coeffs[i]).freeze(step2[i], step2[i+1], offs[i]);
+        std::cout << "3..." << std::endl;
+        step2[i].template exec_par<cvec_ref>(contentious::foreach_splt_cvec<T>,
+                                             step2[i+1], std::ref(step1.at(coeffs[i])));
+        std::cout << "4..." << std::endl;
     }
 
+    /*
     auto &thisthis = step2[step2.size()-1];
     std::map<T, cont_vector<T>> step11;
     for (size_t i = 0; i < coeffs_unique.size(); ++i) {
@@ -437,21 +491,14 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         );
         thisthis.freeze(step11.at(coeffs_unique[i]), true, contentious::identity, op1);
         thisthis.exec_par<T>(contentious::foreach_splt<T>,
-                             step11.at(coeffs_unique[i]),
-                             coeffs_unique[i]);
+                             step11.at(coeffs_unique[i]), coeffs_unique[i]);
     }
-    for (size_t i = offs.size(); i < offs.size()*2; ++i) {
+    for (size_t i = offs_sz; i < offs_sz*2; ++i) {
         step2.emplace_back(step2[i]);
         step2[i].freeze(step2[i+1], true, contentious::identity, op2);
-        if (i == offs.size()) {
-            step11.at(coeffs[0]).freeze(step2[i], step2[i+1], contentious::offset<-1>);
-        } else {
-            step11.at(coeffs[1]).freeze(step2[i], step2[i+1], contentious::offset<+1>);
-        }
-        step2[i].template exec_par<std::reference_wrapper<cont_vector<T>>>(
-                contentious::foreach_splt_cvec<T>,
-                step2[i+1], std::ref(step11.at(coeffs[i-offs.size()]))
-        );
+        step11.at(coeffs[1]).freeze(step2[i], step2[i+1], offs[i-offs_sz]);
+        step2[i].template exec_par<cvec_ref>(contentious::foreach_splt_cvec<T>,
+                                             step2[i+1], std::ref(step11.at(coeffs[i-offs_sz])));
     }
 
     contentious::tp.finish();
@@ -462,7 +509,7 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         //resolve(step1.at(coeffs_unique[i]));
         //std::cout << "coeff vec: " << step1.at(coeffs_unique[i]) << std::endl;
     }
-    for (size_t i = 0; i < offs.size(); ++i) {
+    for (size_t i = 0; i < offs_sz; ++i) {
         //step2[i].resolve(step2[i+1]);
         //std::cout << "step2: " << step2[i+1] << std::endl;
     }
@@ -471,10 +518,54 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<int> &offs,
         //thisthis.resolve(step11.at(coeffs_unique[i]));
         //std::cout << "coeff vec: " << step11.at(coeffs_unique[i]) << std::endl;
     }
-    for (size_t i = offs.size(); i < offs.size()*2; ++i) {
+    for (size_t i = offs_sz; i < offs_sz*2; ++i) {
         //step2[i].resolve(step2[i+1]);
         //std::cout << "step2: " << step2[i+1] << std::endl;
     }
+    */
     return step2[step2.size()-1];
+}
+
+template <typename T>
+template <int... Offs>
+cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
+                                         const contentious::op<T> op1,
+                                         const contentious::op<T> op2)
+{
+    constexpr size_t offs_sz = sizeof...(Offs);
+    std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
+    using cvec_ref = std::reference_wrapper<cont_vector<T>>;
+    
+    cont_vector<T> *coeff_vec_ptr;
+    std::array<cont_vector<T> *, offs_sz> coeff_vecs;
+    for (size_t i = 0; i < coeffs.size(); ++i) {
+        coeff_vec_ptr = new cont_vector<T>(*this);
+        freeze(*coeff_vec_ptr, true, contentious::identity, op1);
+        
+        exec_par<T>(contentious::foreach_splt<T>,
+                    *coeff_vec_ptr, coeffs[i]);
+        coeff_vecs[i] = coeff_vec_ptr;
+    }
+    
+    cont_vector<T> *curr_vec_ptr = new cont_vector<T>(*this);
+    cont_vector<T> *next_vec_ptr;
+    for (size_t i = 0; i < offs_sz; ++i) {
+        next_vec_ptr = new cont_vector<T>(*curr_vec_ptr);
+        curr_vec_ptr->freeze(*next_vec_ptr, true, contentious::identity, op2);
+        coeff_vecs[i]->freeze(*curr_vec_ptr, *next_vec_ptr, offs[i]);
+
+        curr_vec_ptr->template exec_par<cvec_ref>(
+                            contentious::foreach_splt_cvec<T>,
+                            *next_vec_ptr, std::ref(*coeff_vecs[i]));
+        //curr_vec_ptr->abandon();
+        curr_vec_ptr = next_vec_ptr;
+    }
+    /*for (auto &coeff_vec : coeff_vecs) {
+        coeff_vec.second->abandon();
+    }*/
+    contentious::tp.finish();
+    //std::cout << *next_vec_ptr << std::endl;
+
+    return next_vec_ptr;
 }
 

@@ -23,6 +23,10 @@
 #include <mutex>
 
 #include <boost/thread/latch.hpp>
+#include <boost/mpl/for_each.hpp>
+#include <boost/mpl/range_c.hpp>
+#include <boost/mpl/placeholders.hpp>
+#include <boost/bind.hpp>
 
 
 template <typename T>
@@ -142,10 +146,13 @@ private:
     std::map<const cont_vector<T> *, std::vector<cont_vector<T> *>> frozen;
     // resolving onto (backward) :  uid -> latch
     std::map<int32_t, std::shared_ptr<boost::latch>> rlatches;
-    std::set<int64_t> rlist;
     // splinter tracking : sid -> reattached?
     std::map<int32_t, bool> reattached;
     std::mutex rlck;
+    
+    std::set<int64_t> rlist;
+    bool abandoned = false;
+    bool resolved = false;
 
     template <typename... U>
     void exec_par(void f(cont_vector<T> &, cont_vector<T> &,
@@ -246,14 +253,24 @@ public:
 
     void resolve(cont_vector<T> &dep);
     void resolve_monotonic(cont_vector<T> &dep);
+    bool abandon() {
+        resolved = false;
+        abandoned = true;
+        return false;
+    }
 
     cont_vector<T> reduce(const contentious::op<T> op);
     cont_vector<T> foreach(const contentious::op<T> op, const T &val);
     cont_vector<T> foreach(const contentious::op<T> op, cont_vector<T> &other);
-    cont_vector<T> stencil(const std::vector<int> &offs,
-                           const std::vector<T> &coeffs,
-                           const contentious::op<T> op1 = contentious::mult,
-                           const contentious::op<T> op2 = contentious::plus);
+    
+    template <int... Offs>
+    cont_vector<T> stencil(const std::vector<T> &coeffs,
+                           const contentious::op<T> op1 = contentious::mult<T>,
+                           const contentious::op<T> op2 = contentious::plus<T>);
+    template <int... Offs>
+    cont_vector<T> *stencil2(const std::vector<T> &coeffs,
+                           const contentious::op<T> op1 = contentious::mult<T>,
+                           const contentious::op<T> op2 = contentious::plus<T>);
 
     friend std::ostream &operator<<(std::ostream &out,
                                     const cont_vector<T> &cont)

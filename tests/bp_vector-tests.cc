@@ -503,7 +503,7 @@ int test_cvec()
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
-        curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus);
+        curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus<double>);
         for (uint16_t p = 0; p < nthreads; ++p) {
             contentious::closure task = std::bind(
                     my_accumulate, std::ref(curr), std::ref(next), locus, p);

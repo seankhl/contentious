@@ -161,13 +161,8 @@ double vec_reduce(const vector<double> &test_vec)
 double cont_reduce_dup(const cont_vector<double> &cont_arg)
 {
     auto cont_inp(cont_arg);
-    chrono::time_point<chrono::system_clock> cont_piece_start, cont_piece_end;
-    cont_piece_start = chrono::system_clock::now();
-    auto cont_ret = cont_inp.reduce(contentious::plus);
+    auto cont_ret = cont_inp.reduce(contentious::plus<double>);
     contentious::tp.finish();
-    cont_piece_end = chrono::system_clock::now();
-    chrono::duration<double> cont_piece_dur = cont_piece_end - cont_piece_start;
-    cout << "cont took: " << cont_piece_dur.count() << " seconds; " << endl;
     return cont_ret[0];
 }
 

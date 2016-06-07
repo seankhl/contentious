@@ -60,9 +60,6 @@ public:
         for (int p = 0; p < hwconc; ++p) {
             threads[p].join();
         }
-        for (auto &q : resolutions) {
-            std::cout << "size of resolves: " << q.size() << std::endl;
-        }
     }
 
     void submit(const closure &task, int p) {
@@ -231,8 +228,10 @@ struct op
     std::function<T(T,T)> inv;
 };
 
-const op<double> plus { 0, std::plus<double>(), std::minus<double>() };
-const op<double> mult { 1, std::multiplies<double>(), std::divides<double>() };
+template <typename T>
+const op<T> plus { 0, std::plus<T>(), std::minus<T>() };
+template <typename T>
+const op<T> mult { 1, std::multiplies<T>(), std::divides<T>() };
 
 
 /* parallelism helpers ****************************************************/
@@ -273,9 +272,9 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    
+
     splt_vector<T> splt = cont.detach(dep, a, b);
-    
+
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
         *it = splt.op.f(*it, val);
@@ -301,6 +300,8 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
+    if (p == 0) { ++a; }
+    if (p == hwconc-1) { --b; }
 
     const auto &tracker = other.get().tracker[&dep];
 
@@ -312,14 +313,14 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     if (adom < 0) {
         aran += (0 - adom);
         adom += (0 - adom);
-        assert(adom == (int64_t)a);
+        //assert(adom == (int64_t)a);
     }
     int bdom = b + o;
     int bran = b;
     if (bdom >= (int64_t)cont.size()) {
         bran -= (bdom - (int64_t)cont.size());
         bdom -= (bdom - (int64_t)cont.size());
-        assert(bdom == (int64_t)b);
+        //assert(bdom == (int64_t)b);
     }
     assert(bran - aran == bdom - adom);
 

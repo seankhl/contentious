@@ -44,7 +44,7 @@ void cont_inc_reduce(cont_vector<double> &cont_ret, uint16_t p,
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
     //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
     cont_vector<double> next = cont_vector<double>(cont_ret);
-    cont_ret.freeze(next, true, contentious::identity, contentious::plus);
+    cont_ret.freeze(next, true, contentious::identity, contentious::plus<double>);
     cont_ret.reattach(splt_ret, next, p, 0, next.size());
 }
 double cont_reduce_manual(const vector<double> &test_vec)
@@ -117,7 +117,7 @@ void cont_reduce(const vector<double> &test_vec)
     for (size_t i = 0; i < test_vec.size(); ++i) {
         cont_inp.unprotected_push_back(test_vec[i]);
     }
-    auto cont_ret = cont_inp.reduce(contentious::plus);
+    auto cont_ret = cont_inp.reduce(contentious::plus<double>);
     contentious::tp.finish();
     cout << cont_ret[0] << endl;
 }
@@ -180,8 +180,8 @@ void cont_foreach(const vector<double> &test_vec)
     std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
     splt_start = std::chrono::system_clock::now();
 
-    auto cont_ret = cont_inp.foreach(contentious::mult, 2);
-    auto cont_ret2 = cont_ret.foreach(contentious::mult, cont_other);
+    auto cont_ret = cont_inp.foreach(contentious::mult<double>, 2);
+    auto cont_ret2 = cont_ret.foreach(contentious::mult<double>, cont_other);
     contentious::tp.finish();
 
     splt_end = std::chrono::system_clock::now();
@@ -218,14 +218,25 @@ void cont_foreach(const vector<double> &test_vec)
 int cont_stencil(const vector<double> &test_vec)
 {
     cont_vector<double> cont_inp;
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        cont_inp.unprotected_push_back(1/*test_vec[i]*/);
+
+    cont_inp.unprotected_push_back(10.0);
+    for (size_t i = 1; i < 256/*(test_vec.size()*/; ++i) {
+        cont_inp.unprotected_push_back(0/*test_vec[i]*/);
     }
     //cout << "cont_inp: " << cont_inp << endl;
-    auto cont_ret = cont_inp.stencil({-1, 1}, {0.5, 0.5});
-    auto cont_ret2 = cont_ret.stencil({-1, 1}, {0.5, 0.5});
-    auto cont_ret3 = cont_ret2.stencil({-1, 1}, {0.5, 0.5});
-    auto cont_ret4 = cont_ret3.stencil({-1, 1}, {0.5, 0.5});
+    auto cont_ret = cont_inp.stencil<-1, 1>({0.1, 0.1});
+    //auto cont_ret2 = cont_ret.stencil<-1, 1>({0.5, 0.5});
+    //auto cont_ret3 = cont_ret2.stencil<-1, 1>({0.5, 0.5});
+    //auto cont_ret4 = cont_ret3.stencil<-1, 1>({0.5, 0.5});
+    cont_vector<double> *curr = &cont_inp;
+    cont_vector<double> *next;
+    for (int t = 0; t < 10; ++t) {
+        next = curr->stencil2<-1, 0, 1>({0.1, -0.2, 0.1});
+        curr = next;
+    }
+    contentious::tp.finish();
+    std::cout << *next << std::endl;
+
     //std::cout << cont_ret << std::endl;
     //std::cout << cont_ret2 << std::endl;
     //std::cout << cont_ret3 << std::endl;
@@ -254,12 +265,49 @@ int cont_stencil(const vector<double> &test_vec)
     return 0;
 }
 
+constexpr double ipow(double base, int exp, double result = 1)
+{
+    return exp < 1 ? result : \
+               ipow(base*base, exp/2, (exp % 2) ? result*base : result);
+}
+void cont_heat() {
+    constexpr double dt = 0.00001;
+    constexpr double dy = 0.0001;
+    constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
+    constexpr double y_max = 40;
+    constexpr double t_max = 0.0001;
+    constexpr double V0 = 10;
+
+    constexpr double s = viscosity * dt/ipow(dy,2);
+    constexpr int64_t r = (t_max + dt) / dt;
+    constexpr int64_t c = (y_max + dy) / dy;
+    std::cout << s << std::endl;
+    
+    cont_vector<double> cont_inp;
+    cont_inp.unprotected_push_back(V0);
+    for (int64_t i = 1; i < c; ++i) {
+        cont_inp.unprotected_push_back(0.0);
+    }
+    cont_vector<double> *curr = &cont_inp;
+    cont_vector<double> *next;
+    for (int t = 0; t < r-1; ++t) {
+        next = curr->stencil2<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
+        curr = next;
+    }
+    contentious::tp.finish();
+    for (size_t i = 0; i < 32; ++i) {
+        std::cout << (*next)[i] << " ";
+    }
+    std::cout << std::endl;
+}
+
 
 /* runner *********************************************************************/
 
 int cont_vector_runner()
 {
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,41);
+    /*
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,42);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
 
@@ -288,7 +336,7 @@ int cont_vector_runner()
 
     chrono::time_point<chrono::system_clock> cont_start, cont_end;
     cont_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 10; ++i) {
+    for (size_t i = 0; i < 1; ++i) {
         cont_foreach(test_vec);
     }
     cont_end = chrono::system_clock::now();
@@ -297,10 +345,14 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
+    */
+    /*
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
-    cout << "DONE! " << test_sz << endl;
+    */
+    cont_heat();
+    //cout << "DONE! " << test_sz << endl;
 
     return 0;
 }
