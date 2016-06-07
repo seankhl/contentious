@@ -161,33 +161,20 @@ double vec_reduce(const vector<double> &test_vec)
 double cont_reduce_dup(const cont_vector<double> &cont_arg)
 {
     auto cont_inp(cont_arg);
-    //cont_vector<double> cont_inp(new Plus<double>());
-    //for (size_t i = 0; i < test_vec.size(); ++i) {
-    //    cont_inp.unprotected_push_back(test_vec[i]);
-    //}
-    //cout << cont_inp << endl;
     chrono::time_point<chrono::system_clock> cont_piece_start, cont_piece_end;
     cont_piece_start = chrono::system_clock::now();
     auto cont_ret = cont_inp.reduce(contentious::plus);
-    cont_inp.resolve(cont_ret);
+    contentious::tp.finish();
     cont_piece_end = chrono::system_clock::now();
     chrono::duration<double> cont_piece_dur = cont_piece_end - cont_piece_start;
     cout << "cont took: " << cont_piece_dur.count() << " seconds; " << endl;
-    //auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
-    //cout << cont_ret[0] << endl;
-    /*
-    for (size_t i = 0; i < cont_ret2.size(); ++i) {
-        cout << cont_ret2[i] << " ";
-    }
-    cout << endl;
-    */
     return cont_ret[0];
 }
 
 
 int reduce_runner()
 {
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,42);
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,40);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());

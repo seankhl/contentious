@@ -2,6 +2,9 @@
 
 namespace contentious {
 
+std::mutex plck;
+
 contentious::threadpool tp;
+
 
 }

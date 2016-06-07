@@ -15,8 +15,10 @@
 #include <utility>
 #include <tuple>
 #include <vector>
+#include <list>
 #include <map>
 #include <unordered_map>
+#include <set>
 #include <thread>
 #include <mutex>
 
@@ -126,7 +128,7 @@ private:
           : _used(_data), indexmap(imap), op(opin)
         {   /* nothing to do here! */ }
 
-        const tr_vector<T> _used;
+        tr_vector<T> _used;
         std::function<int(int)> indexmap;
         contentious::op<T> op;
 
@@ -136,10 +138,11 @@ private:
     std::mutex dlck;
 
     // forward tracking : dep_ptr -> tracker
-    std::map<const cont_vector<T> *, dependency_tracker> tracker;
+    std::map<cont_vector<T> *, dependency_tracker> tracker;
     std::map<const cont_vector<T> *, std::vector<cont_vector<T> *>> frozen;
     // resolving onto (backward) :  uid -> latch
-    std::map<int32_t, std::unique_ptr<boost::latch>> rlatches;
+    std::map<int32_t, std::shared_ptr<boost::latch>> rlatches;
+    std::set<int64_t> rlist;
     // splinter tracking : sid -> reattached?
     std::map<int32_t, bool> reattached;
     std::mutex rlck;
@@ -238,12 +241,14 @@ public:
     void freeze(cont_vector<T> &cont, cont_vector<T> &dep,
                 std::function<int(int)> imap);
     splt_vector<T> detach(cont_vector &dep);
+    splt_vector<T> detach(cont_vector &dep, size_t a, size_t b);
+    void refresh(cont_vector &dep, size_t a, size_t b);
 
     void reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                   uint16_t p, size_t a, size_t b);
 
     void resolve(cont_vector<T> &dep);
-    void resolve2(cont_vector<T> &dep, const uint16_t p);
+    void resolve_monotonic(cont_vector<T> &dep);
 
     cont_vector<T> reduce(const contentious::op<T> op);
     cont_vector<T> foreach(const contentious::op<T> op, const T &val);

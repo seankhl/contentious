@@ -119,8 +119,6 @@ void cont_reduce(const vector<double> &test_vec)
     }
     auto cont_ret = cont_inp.reduce(contentious::plus);
     contentious::tp.finish();
-    //cont_inp.resolve(cont_ret);
-    //auto cont_ret2 = cont_ret.foreach(new Plus<double>(), 2);
     cout << cont_ret[0] << endl;
 }
 
@@ -185,7 +183,7 @@ void cont_foreach(const vector<double> &test_vec)
     auto cont_ret = cont_inp.foreach(contentious::mult, 2);
     auto cont_ret2 = cont_ret.foreach(contentious::mult, cont_other);
     contentious::tp.finish();
-    
+
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
     std::cout << "cont_foreach_inner took: " << splt_dur.count() << " seconds "
@@ -201,7 +199,7 @@ void cont_foreach(const vector<double> &test_vec)
             ++bad;
         }
     }
-    
+
     for (size_t i = 0; i < test_vec.size(); ++i) {
         if (test_vec[i] * 2 * (i+1) != cont_ret2[i]) {
             ++bad;
@@ -211,7 +209,7 @@ void cont_foreach(const vector<double> &test_vec)
                  */
         }
     }
-    
+
     if (bad != 0) {
         std::cout << "bad resolutions for foreach: " << bad << std::endl;
     }
@@ -273,18 +271,16 @@ int cont_vector_runner()
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
 
-    /*
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
     cont_reduce(test_vec);
-    */
-    
+
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 10; ++i) {
+    for (size_t i = 0; i < 1; ++i) {
         stdv_foreach(test_vec);
     }
     stdv_end = chrono::system_clock::now();
@@ -301,7 +297,7 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    for (int i = 0; i < 0; ++i) {
+    for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
     cout << "DONE! " << test_sz << endl;

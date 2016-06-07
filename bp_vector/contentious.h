@@ -21,14 +21,17 @@ namespace contentious
 {
 
 static constexpr uint16_t hwconc = 4;
+extern std::mutex plck;
 
-static constexpr std::pair<const size_t, const size_t>
+constexpr std::pair<const size_t, const size_t>
 partition(const uint16_t p, const size_t sz)
 {
     size_t chunk_sz = std::ceil( ((double)sz)/hwconc );
     return std::make_pair(chunk_sz * (p),
                           std::min(chunk_sz * (p+1), sz));
 }
+
+
 
 /* threadpool *************************************************************/
 
@@ -181,12 +184,20 @@ private:
 
 extern contentious::threadpool tp;
 
+/* index mappings *********************************************************/
+
+constexpr inline int identity(const int i) { return i; }
+template <int o>
+constexpr inline int offset(const int i) { return i - o; }
+template <int i>
+constexpr inline int alltoone(const int) { return i; }
+
 
 /* comparing function *****************************************************/
 
 // from: http://stackoverflow.com/q/18039723
 template <typename T, typename... U>
-size_t getAddress(std::function<T(U...)> f)
+size_t getAddress(std::function<T(U...)> &f)
 {
     typedef T(fn_t)(U...);
     fn_t **fn_ptr = f.template target<fn_t *>();
@@ -208,14 +219,11 @@ inline bool same_indexmap(std::function<int(int)> &a,
     return getAddress(a) == getAddress(b);
 }
 
-
-/* index mappings *********************************************************/
-
-constexpr inline int identity(const int i) { return i; }
-template <int o>
-constexpr inline int offset(const int i) { return i - o; }
-template <int i>
-constexpr inline int alltoone(const int) { return i; }
+// TODO: fix obvious hack
+inline bool is_monotonic(const std::function<int(int)> &imap)
+{
+    return imap(1) > imap(0);
+}
 
 
 /* operators **************************************************************/
@@ -270,17 +278,22 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    splt_vector<T> splt = cont.detach(dep);
+    
+    splt_vector<T> splt = cont.detach(dep, a, b);
+    
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
         *it = splt.op.f(*it, val);
     }
+
     cont.reattach(splt, dep, p, a, b);
 
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
+    /*
     std::cout << "splt took: " << splt_dur.count() << " seconds "
               << "for values " << a << " to " << b << "; " << std::endl;
+              */
 }
 
 template <typename T>
@@ -291,30 +304,46 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
     splt_start = std::chrono::system_clock::now();
 
-    splt_vector<T> splt = cont.detach(dep);
-
     size_t a, b;
-    std::tie(a, b) = partition(p, splt._data.size());
+    std::tie(a, b) = partition(p, cont.size());
 
     const auto &tracker = other.get().tracker[&dep];
 
-    int amap = tracker.indexmap(a); int aoff = 0;
-    if (amap < 0) { aoff = -1 * amap; amap = 0; }
-    int bmap = tracker.indexmap(b);
-    if (bmap > (int64_t)splt._data.size()) { bmap = splt._data.size(); }
+    int o;
+    int amap = tracker.indexmap(a);// int aoff = 0;
+    o = a - amap;
+    int adom = a + o;
+    int aran = a;
+    if (adom < 0) {
+        aran += (0 - adom);
+        adom += (0 - adom);
+        assert(adom == (int64_t)a);
+    }
+    int bdom = b + o;
+    int bran = b;
+    if (bdom >= (int64_t)cont.size()) {
+        bran -= (bdom - (int64_t)cont.size());
+        bdom -= (bdom - (int64_t)cont.size());
+        assert(bdom == (int64_t)b);
+    }
+    assert(bran - aran == bdom - adom);
 
-    auto trck = tracker._used.cbegin() + a + aoff;
-    auto end = splt._data.begin() + bmap;
-    for (auto it = splt._data.begin() + amap; it != end; ++it, ++trck) {
+    splt_vector<T> splt = cont.detach(dep, a, b);
+    other.get().refresh(dep, adom, bdom);
+
+    auto trck = tracker._used.cbegin() + adom;
+    auto end = splt._data.begin() + bran;
+    for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
         *it = splt.op.f(*it, *trck);
     }
+    //assert(trck == tracker._used.cbegin() + bdom);
 
-    cont.reattach(splt, dep, p, amap, bmap);
+    cont.reattach(splt, dep, p, a, b);
 
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
-    std::cout << "splt took: " << splt_dur.count() << " seconds "
-              << "for values " << a << " to " << b << "; " << std::endl;
+    /*std::cout << "splt took: " << splt_dur.count() << " seconds "
+              << "for values " << a << " to " << b << "; " << std::endl;*/
 }
 
 }   // end namespace contentious

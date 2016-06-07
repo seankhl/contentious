@@ -139,7 +139,7 @@ public:
         typename std::array<boost::intrusive_ptr<bp_node<T>>, br_sz>::iterator;
 
     constexpr inline int
-    round_to(int i, int m)
+    round_to(int i, int m) const
     {
         assert(m && ((m & (m-1)) == 0));
         return (i + m-1) & ~(m-1);
@@ -183,9 +183,44 @@ public:
         return std::make_pair(a >> shift & br_mask,
                               b >> shift & br_mask);
     }
-
-    inline bp_branch_iterator branch_iterator(uint8_t depth, int64_t i) const
+    
+    inline size_t 
+    first_diff_id(TDer<T> other, size_t a) const
     {
+        assert(sz == other.sz);
+        bp_node<T> *node_t = this->root.get();
+        bp_node<T> *node_o = other.root.get();
+        if (node_t->id == node_o->id || a >= sz) {
+            return sz;
+        }
+        uint16_t s;
+        for (s = this->shift; s > 0; s -= BITPART_SZ) {
+            if (node_t->id != node_o->id) {
+                std::cout << "diff ids: " << node_t->id << " " << node_o->id << std::endl;
+                node_t = node_t->branches[a >> s & br_mask].get();
+                node_o = node_o->branches[a >> s & br_mask].get();
+            } else { 
+                break;
+            }
+        }
+        if (s == 0) {
+            std::cout << "diff all the way down" << std::endl;
+            return a;
+        }
+        else {
+            uint16_t d = s / BITPART_SZ + 1;
+            int64_t interval = std::pow(br_sz, d);
+            int64_t ar = round_to(a+1, interval);
+            std::cout << "ar: " << ar << std::endl;
+            return first_diff_id(other, ar);
+        }
+    }
+
+    inline bp_branch_iterator branch_iterator(uint8_t depth, int64_t i)
+    {
+        if (node_copy(root->id)) {
+            root = new bp_node<T>(*root, id);
+        }
         bp_node<T> *node = root.get();
         uint16_t s;
         for (s = this->shift; s > 0; s -= BITPART_SZ) {
@@ -227,17 +262,18 @@ public:
         }
         
         /*std::cout << a << " " << ar << " " << b << " " << br
-                  << " d: " << (uint16_t)calc_depth() << " " << d << std::endl;
-                  */
+                  << " d: " << (uint16_t)calc_depth() << " " << d << std::endl;*/
 
         // 1. copy individual vals for partial leaf we originate in, if n b
         // 2. travel upwards, copying branches at shallowest depth possible
-        auto it_step1 = other.cbegin() + a;
-        auto end1 = this->begin() + ar;
-        for (auto it = this->begin() + a; it != end1; ++it, ++it_step1) {
-            *it = *it_step1;
+        if (ar - a > 0) {
+            auto it_step1 = other.cbegin() + a;
+            auto end1 = this->begin() + ar;
+            for (auto it = this->begin() + a; it != end1; ++it, ++it_step1) {
+                *it = *it_step1;
+            }
         }
-
+        
         // 3. copy shallow branches until we're in the final val's branch
         auto it_step2 = other.branch_iterator(calc_depth() - d, ar);
         auto end2 = branch_iterator(calc_depth() - d, br);
@@ -245,16 +281,19 @@ public:
              it != end2;
              ++it, ++it_step2) {
             //std::cout << "swapped " << *it << " and " << *it_step2 << std::endl;
-            it->reset(it_step2->get());
+            *it = new bp_node<T>(*(it_step2->get()), other.id);
+            //std::cout << "new id: " << other.id << std::endl;
             //*it = *it_step2;
         }
-
+        
         // 4. travel downwards, copying branches at [...]
         // 5. copy individual vals for partial leaf we terminate in, if n e
-        auto it_step3 = other.cbegin() + br;
-        auto end3 = this->begin() + b;
-        for (auto it = this->begin() + br; it != end3; ++it, ++it_step3) {
-            *it = *it_step3;
+        if (b - br > 0) {
+            auto it_step3 = other.cbegin() + br;
+            auto end3 = this->begin() + b;
+            for (auto it = this->begin() + br; it != end3; ++it, ++it_step3) {
+                *it = *it_step3;
+            }
         }
     }
 
