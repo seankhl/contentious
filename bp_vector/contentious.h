@@ -93,11 +93,6 @@ public:
                 cv[p].notify_one();
             }
         }
-        /*
-        std::cout << "ntasksfin: " << ntasksfin
-                  << "; nresolfin: " << nresolfin
-                  << std::endl;
-                  */
     }
 
     void stop() {

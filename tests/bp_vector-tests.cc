@@ -478,7 +478,7 @@ void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
     for (int i = 0; i < 10; ++i) {
         splt.mut_comp(index, i);
     }
-    test.reattach(splt, next, index, index+1, p);
+    test.reattach(splt, next, p, index, index+1);
 }
 int test_cvec()
 {
@@ -492,32 +492,29 @@ int test_cvec()
     // accumulate values on index comp_locus
     constexpr size_t locus = 3;
     assert(locus < test.size());
-    constexpr size_t T = 1;
+    constexpr size_t T = 100;
 
     // faux iteration
     array<cont_vector<double>, T+1> steps;
     steps[0] = test;
     for (size_t t = 0; t < T; ++t) {
         // create a copy of test; next has a unique ID, as do all cont_vectors
-        cout << "before" << endl;
         steps[t+1] = steps[t];
-        cout << "after" << endl;
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
         curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus);
         for (uint16_t p = 0; p < nthreads; ++p) {
-            contentious::tp.submit(
-                    std::bind(my_accumulate,
-                              std::ref(curr), std::ref(next), locus, p),
-                    p);
+            contentious::closure task = std::bind(
+                    my_accumulate, std::ref(curr), std::ref(next), locus, p);
+            contentious::tp.submit(task, p);
         }
     }
-    contentious::tp.finish();
-    for (size_t t = 0; t < T; ++t) {
-        std::cout << steps[t] << std::endl;
-    }
+    /*for (size_t t = 0; t < T+1; ++t) {
+    std::cout << steps[t] << std::endl;
+    }*/
 
+    contentious::tp.finish();
     for (size_t t = 0; t < T; ++t) {
         auto &curr = steps[t];
         auto &next = steps[t+1];

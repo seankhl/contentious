@@ -157,12 +157,9 @@ public:
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
       : _data(other._data.new_id())
-    {   /* nothing to do here */
-        //std::cout << "CONT VECTOR COPY!" << std::endl;
-    }
+    {   /* nothing to do here */ }
     cont_vector<T> &operator=(cont_vector<T> other)
     {
-        std::cout << "CONT VECTOR ASGN!" << std::endl;
         _data = other._data.new_id();
         return *this;
     }
