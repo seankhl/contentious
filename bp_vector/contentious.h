@@ -20,7 +20,7 @@ class cont_vector;
 namespace contentious
 {
 
-static constexpr uint16_t hwconc = 4;
+static constexpr uint16_t hwconc = 8;
 extern std::mutex plck;
 
 constexpr std::pair<const size_t, const size_t>
@@ -254,12 +254,15 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
         target = splt.op.f(target, *it);
     }
 
+    cont.reattach(splt, dep, p, 0, 1);
+
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
-    //std::cout << "splt took: " << splt_dur.count() << " seconds "
-    //          << "for values " << a << " to " << b << "; " << std::endl;
-
-    cont.reattach(splt, dep, p, 0, 1);
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "splt took: " << splt_dur.count() << " seconds "
+        << "for values " << a << " to " << b << "; " << std::endl;
+    }*/
 
 }
 
@@ -284,10 +287,11 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
-    /*
-    std::cout << "splt took: " << splt_dur.count() << " seconds "
-              << "for values " << a << " to " << b << "; " << std::endl;
-              */
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "splt took: " << splt_dur.count() << " seconds "
+                  << "for values " << a << " to " << b << "; " << std::endl;
+    }*/
 }
 
 template <typename T>
@@ -302,7 +306,6 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     std::tie(a, b) = partition(p, cont.size());
     if (p == 0) { ++a; }
     if (p == hwconc-1) { --b; }
-
     const auto &tracker = other.get().tracker[&dep];
 
     int o;
@@ -338,8 +341,11 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
 
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
-    /*std::cout << "splt took: " << splt_dur.count() << " seconds "
-              << "for values " << a << " to " << b << "; " << std::endl;*/
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "splt took: " << splt_dur.count() << " seconds "
+                  << "for values " << a << " to " << b << "; " << std::endl;
+    }*/
 }
 
 }   // end namespace contentious

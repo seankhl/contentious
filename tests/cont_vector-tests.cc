@@ -231,11 +231,10 @@ int cont_stencil(const vector<double> &test_vec)
     cont_vector<double> *curr = &cont_inp;
     cont_vector<double> *next;
     for (int t = 0; t < 10; ++t) {
-        next = curr->stencil2<-1, 0, 1>({0.1, -0.2, 0.1});
+        next = curr->stencil2<-1, 1>({0.1, 0.1});
         curr = next;
     }
     contentious::tp.finish();
-    std::cout << *next << std::endl;
 
     //std::cout << cont_ret << std::endl;
     //std::cout << cont_ret2 << std::endl;
@@ -307,7 +306,7 @@ void cont_heat() {
 int cont_vector_runner()
 {
     /*
-    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,42);
+    int64_t test_sz = numeric_limits<int64_t>::max() / pow(2,40);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
 
@@ -328,7 +327,7 @@ int cont_vector_runner()
 
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 1; ++i) {
+    for (size_t i = 0; i < 8; ++i) {
         stdv_foreach(test_vec);
     }
     stdv_end = chrono::system_clock::now();
@@ -336,7 +335,7 @@ int cont_vector_runner()
 
     chrono::time_point<chrono::system_clock> cont_start, cont_end;
     cont_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 1; ++i) {
+    for (size_t i = 0; i < 8; ++i) {
         cont_foreach(test_vec);
     }
     cont_end = chrono::system_clock::now();
@@ -345,12 +344,17 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    */
-    /*
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
     */
+    cont_heat();
+    cont_heat();
+    cont_heat();
+    cont_heat();
+    cont_heat();
+    cont_heat();
+    cont_heat();
     cont_heat();
     //cout << "DONE! " << test_sz << endl;
 
