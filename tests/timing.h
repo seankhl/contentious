@@ -31,7 +31,7 @@ timetest(T F(const Args &...), const Args &...args)
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
     T ret = 0;
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 4; ++i) {
         ret = F(args...);
     }
     end = std::chrono::system_clock::now();

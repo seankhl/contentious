@@ -20,7 +20,7 @@
 // TODO: namespace
 
 
-constexpr uint8_t BITPART_SZ = 6;
+constexpr uint8_t BITPART_SZ = 10;
 // TODO: make these all caps
 constexpr uint16_t br_sz = 1 << BITPART_SZ;
 constexpr uint16_t br_mask = br_sz - 1;

@@ -37,7 +37,7 @@ BOOST_PATH = /home/sean/Documents/software/modular-boost/stage/lib
 # General compiler flags
 COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native $(OPENMP) -mavx
 # Additional release-specific flags
-RCOMPILE_FLAGS = -DRELEASE -O3
+RCOMPILE_FLAGS = -DRELEASE -O3 -DNDEBUG
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -DDEBUG $(CXX_OG) -g
 # Add additional include paths

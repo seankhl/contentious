@@ -79,7 +79,7 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
             std::cout << key.first << " ";
         }
         std::cout << std::endl;
-        assert(false);
+        std::exit(EXIT_FAILURE);
     }
 }
 
@@ -113,7 +113,7 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
             std::cout << key.first << " ";
         }
         std::cout << std::endl;
-        assert(false);
+        std::exit(EXIT_FAILURE);
     }
 }
 

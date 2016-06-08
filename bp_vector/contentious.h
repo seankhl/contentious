@@ -20,7 +20,7 @@ class cont_vector;
 namespace contentious
 {
 
-static constexpr uint16_t hwconc = 8;
+static constexpr uint16_t hwconc = 4;
 extern std::mutex plck;
 
 constexpr std::pair<const size_t, const size_t>
@@ -78,7 +78,7 @@ public:
         std::unique_lock<std::mutex> lk(mr);
         bool done = false;
         while (!done) {
-            done = cvr.wait_for(lk, std::chrono::milliseconds(10), [this] {
+            done = cvr.wait_for(lk, std::chrono::milliseconds(1), [this] {
                 bool ret = true;
                 for (int p = 0; p < hwconc; ++p) {
                     ret &= (tasks[p].size() == 0 &&
@@ -304,8 +304,8 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    if (p == 0) { ++a; }
-    if (p == hwconc-1) { --b; }
+    //if (p == 0) { ++a; }
+    //if (p == hwconc-1) { --b; }
     const auto &tracker = other.get().tracker[&dep];
 
     int o;
