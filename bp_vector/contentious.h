@@ -221,17 +221,29 @@ inline bool is_monotonic(const std::function<int(int)> &imap)
 /* operators **************************************************************/
 
 template <typename T>
+using binary_fp = T (*)(T,T);
+
+template <typename T>
 struct op
 {
-    T identity;
-    std::function<T(T,T)> f;
-    std::function<T(T,T)> inv;
+    const T identity;
+    const binary_fp<T> f;
+    const binary_fp<T> inv;
 };
 
 template <typename T>
-const op<T> plus { 0, std::plus<T>(), std::minus<T>() };
+constexpr inline T plus_fp(const T a, const T b) { return a + b; }
 template <typename T>
-const op<T> mult { 1, std::multiplies<T>(), std::divides<T>() };
+constexpr inline T minus_fp(const T a, const T b) { return a - b; }
+template <typename T>
+constexpr inline T multiplies_fp(const T a, const T b) { return a * b; }
+template <typename T>
+constexpr inline T divides_fp(const T a, const T b) { return a / b; }
+
+template <typename T>
+const op<T> plus { 0, plus_fp<T>, minus_fp<T> };
+template <typename T>
+const op<T> mult { 1, multiplies_fp<T>, divides_fp<T> };
 
 
 /* parallelism helpers ****************************************************/
@@ -249,10 +261,12 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     splt_start = std::chrono::system_clock::now();
 
     auto &target = *(splt._data.begin());
+    T temp = target;
     auto end = used.cbegin() + b;
     for (auto it = used.cbegin() + a; it != end; ++it) {
-        target = splt.op.f(target, *it);
+        temp = splt.op.f(temp, *it);
     }
+    target = temp;
 
     cont.reattach(splt, dep, p, 0, 1);
 

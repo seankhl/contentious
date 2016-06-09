@@ -220,7 +220,7 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
 {
     const int32_t uid = tracker[&dep]._used.get_id();
     dep.rlatches[uid]->wait();
-    
+
     for (auto &f : frozen[&dep]) {
         f->resolve(dep);
     }
@@ -258,7 +258,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
 {
     const int32_t uid = this->tracker[&dep]._used.get_id();
     dep.rlatches[uid]->wait();
-    
+
     if (this->frozen.count(&dep) > 0) {
         for (auto &f : this->frozen[&dep]) {
             f->resolve_monotonic(dep);
@@ -333,7 +333,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                 {
                     std::lock_guard<std::mutex> lock2(contentious::plck);
                     std::cout << this->_data.get_id() << "->" << dep._data.get_id()
-                              << " would have resolved " << *check 
+                              << " would have resolved " << *check
                               << " onto " << cmap
                               << " with curr, trck " << *curr << ", " << *trck
                               << " with diff " << diff
@@ -512,7 +512,7 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
     constexpr size_t offs_sz = sizeof...(Offs);
     std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
     using cvec_ref = std::reference_wrapper<cont_vector<T>>;
-    
+
     cont_vector<T> *coeff_vec_ptr;
     std::array<cont_vector<T> *, offs_sz> coeff_vecs;
     for (size_t i = 0; i < coeffs.size(); ++i) {

@@ -120,21 +120,20 @@ class cont_vector
 private:
     struct dependency_tracker
     {
+        // TODO: remove this evilness... maps need default constructors
         dependency_tracker()
-          : indexmap(contentious::identity)
+          : indexmap(contentious::identity), op(contentious::plus<T>)
         {   /* nothing to do here! */ }
-        dependency_tracker(const tr_vector<T> &_data)
-          : _used(_data), indexmap(contentious::identity)
-        {   /* nothing to do here! */ }
+
         dependency_tracker(const tr_vector<T> &_data,
-                           const std::function<int(int)> imap,
-                           const contentious::op<T> opin)
-          : _used(_data), indexmap(imap), op(opin)
+                           const std::function<int(int)> indexmap_in,
+                           const contentious::op<T> op_in)
+          : _used(_data), indexmap(indexmap_in), op(op_in)
         {   /* nothing to do here! */ }
 
         tr_vector<T> _used;
-        std::function<int(int)> indexmap;
-        contentious::op<T> op;
+        const std::function<int(int)> indexmap;
+        const contentious::op<T> op;
 
     };
 
