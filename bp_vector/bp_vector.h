@@ -145,7 +145,7 @@ public:
         return (i + m-1) & ~(m-1);
     }
 
-    inline uint16_t 
+    inline uint16_t
     contained_at_shift(size_t a, size_t b) const
     {
         assert(a < b);
@@ -183,8 +183,8 @@ public:
         return std::make_pair(a >> shift & br_mask,
                               b >> shift & br_mask);
     }
-    
-    inline size_t 
+
+    inline size_t
     first_diff_id(TDer<T> other, size_t a) const
     {
         assert(sz == other.sz);
@@ -199,15 +199,14 @@ public:
                 std::cout << "diff ids: " << node_t->id << " " << node_o->id << std::endl;
                 node_t = node_t->branches[a >> s & br_mask].get();
                 node_o = node_o->branches[a >> s & br_mask].get();
-            } else { 
+            } else {
                 break;
             }
         }
         if (s == 0) {
             std::cout << "diff all the way down" << std::endl;
             return a;
-        }
-        else {
+        } else {
             uint16_t d = s / BITPART_SZ + 1;
             int64_t interval = std::pow(br_sz, d);
             int64_t ar = round_to(a+1, interval);
@@ -234,6 +233,9 @@ public:
             node = next.get();
         }
         assert(depth == 0);
+        if (i == (int64_t)sz && (i >> s & br_mask) == 0) {
+            return node->branches.begin() + br_sz;
+        }
         return node->branches.begin() + (i >> s & br_mask);
     }
 
@@ -260,7 +262,7 @@ public:
         if (b != br) {
             br -= interval;
         }
-        
+
         /*std::cout << a << " " << ar << " " << b << " " << br
                   << " d: " << (uint16_t)calc_depth() << " " << d << std::endl;*/
 
@@ -273,7 +275,7 @@ public:
                 *it = *it_step1;
             }
         }
-        
+
         // 3. copy shallow branches until we're in the final val's branch
         auto it_step2 = other.branch_iterator(calc_depth() - d, ar);
         auto end2 = branch_iterator(calc_depth() - d, br);
@@ -285,7 +287,7 @@ public:
             //std::cout << "new id: " << other.id << std::endl;
             //*it = *it_step2;
         }
-        
+
         // 4. travel downwards, copying branches at [...]
         // 5. copy individual vals for partial leaf we terminate in, if n e
         if (b - br > 0) {
@@ -375,10 +377,10 @@ public:
                 if (id != next->id) {
                     next = new bp_node<T>(*next, id);
                 }
-                node = node->branches[i >> s & br_mask].get();
+                node = next.get();
             }
             cur = node->values.begin();
-            end = node->values.begin() + (br_sz-1);
+            end = node->values.end();
         }
 
         iterator(const iterator &other)
@@ -408,14 +410,12 @@ public:
         iterator &operator++()
         {
             // interior node iteration; != means fast overflow past end
-            if (cur != end) {
-                ++cur;
+            if (++cur != end) {
                 return *this;
             }
             // end of full trie
             i += br_sz;
             if (i == sz) {
-                ++cur;
                 return *this;
             }
 
@@ -425,10 +425,10 @@ public:
                 if (id != next->id) {
                     next = new bp_node<T>(*next, id);
                 }
-                node = node->branches[i >> s & br_mask].get();
+                node = next.get();
             }
             cur = node->values.begin();
-            end = node->values.begin() + (br_sz-1);
+            end = node->values.end();
             return *this;
         }
         /*
@@ -446,14 +446,14 @@ public:
             }
             auto ret = *this;
             // +ing within leaf
-            if (ret.end - ret.cur >= (int64_t)n) {
+            if (ret.end - ret.cur > (int64_t)n) {
                 ret.cur += n;
                 return ret;
             }
 
-            int plusplus = 0;
+            uint8_t plusplus = 0;
             // update i and add n to it
-            ret.i += br_sz - (ret.end - ret.cur + 1) + n;
+            ret.i += br_sz - (ret.end - ret.cur) + n;
             if (ret.i >= ret.sz) {
                 ret.i = ret.sz - 1;
                 plusplus = 1;
@@ -465,10 +465,10 @@ public:
                 if (ret.id != next->id) {
                     next = new bp_node<T>(*next, ret.id);
                 }
-                node = node->branches[ret.i >> s & br_mask].get();
+                node = next.get();
             }
             ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
-            ret.end = node->values.begin() + (br_sz-1);
+            ret.end = node->values.end();
             ret.i -= ret.i & br_mask;
             return ret;
         }
@@ -479,10 +479,7 @@ public:
         iterator operator-(size_type) const; //optional
         difference_type operator-(iterator) const; //optional
         */
-        T &operator*() const
-        {
-            return *cur;
-        }
+        T &operator*() const { return *cur; }
         const T *operator->() const { return cur; }
         /*
         const_reference operator[](size_type) const; //optional
@@ -520,7 +517,7 @@ public:
                 node = node->branches[i >> s & br_mask].get();
             }
             cur = node->values.begin() + (i & br_mask);
-            end = node->values.begin() + (br_sz-1);
+            end = node->values.end();
         }
 
         const_iterator(const const_iterator &other)
@@ -549,14 +546,12 @@ public:
         const_iterator &operator++()
         {
             // interior node iteration; != means fast overflow past end
-            if (cur != end) {
-                ++cur;
+            if (++cur != end) {
                 return *this;
             }
             // end of full trie
             i += br_sz;
             if (i == sz) {
-                ++cur;
                 return *this;
             }
 
@@ -564,9 +559,8 @@ public:
             for (uint16_t s = shift; s > 0; s -= BITPART_SZ) {
                 node = node->branches[i >> s & br_mask].get();
             }
-            cur = node->values.begin() + (i & br_mask);
-            end = node->values.begin() + (br_sz-1);
-            i -= i & br_mask;
+            cur = node->values.begin();
+            end = node->values.end();
             return *this;
         }
         /*
@@ -589,9 +583,9 @@ public:
                 return ret;
             }
 
-            int plusplus = 0;
+            uint8_t plusplus = 0;
             // update i and add n to it
-            ret.i += br_sz - (ret.end - ret.cur + 1) + n;
+            ret.i += br_sz - (ret.end - ret.cur) + n;
             if (ret.i >= ret.sz) {
                 ret.i = ret.sz - 1;
                 plusplus = 1;
@@ -602,7 +596,7 @@ public:
                 node = node->branches[ret.i >> s & br_mask].get();
             }
             ret.cur = node->values.begin() + (ret.i & br_mask) + plusplus;
-            ret.end = node->values.begin() + (br_sz-1);
+            ret.end = node->values.end();
             ret.i -= ret.i & br_mask;
             return ret;
         }
