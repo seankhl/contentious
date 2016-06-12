@@ -35,16 +35,23 @@ BOOST_PATH = /home/sean/Documents/software/modular-boost/stage/lib
 #BOOST_PATH = ./bp_vector/boost-deps/stage/lib
 
 # General compiler flags
-COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native $(OPENMP) -mavx
+COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native -mtune=generic	\
+				$(OPENMP) -mavx
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3 -DNDEBUG
 # Additional debug-specific flags
 DCOMPILE_FLAGS = -DDEBUG $(CXX_OG) -g
 # Add additional include paths
+NEUROTIC_COMPILE_FLAGS = -pedantic -Wcast-align -Wcast-qual				\
+	-Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Winit-self	\
+	-Wlogical-op -Wmissing-include-dirs -Wnoexcept -Woverloaded-virtual	\
+	-Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel		\
+	-Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused
+
 INCLUDES = -isystem /home/sean/Documents/software/modular-boost
 # General linker settings
-LINK_FLAGS = $(OPENMP) -mavx -lpthread							\
-			 -Wl,-rpath=$(BOOST_PATH) -L$(BOOST_PATH)			\
+LINK_FLAGS = $(OPENMP) -mavx -lpthread						\
+			 -Wl,-rpath=$(BOOST_PATH) -L$(BOOST_PATH)		\
 			 -lboost_thread -lboost_context -lboost_system	\
 			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
@@ -101,6 +108,15 @@ else
 	export LDFLAGS = $(LINK_FLAGS) $(RLINK_FLAGS)
 	export BUILD_PATH = build/release
 	export BIN_PATH = bin/release
+endif
+
+ifeq ($(TCMALLOC), 1)
+	CXXFLAGS += -fno-builtin-malloc -fno-builtin-calloc	\
+                -fno-builtin-realloc -fno-builtin-free
+	LDFLAGS += -ltcmalloc
+endif
+ifeq ($(PROFILE), 1)
+	LDFLAGS += -lprofiler
 endif
 
 # Build and output paths

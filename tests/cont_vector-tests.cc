@@ -219,27 +219,20 @@ int cont_stencil(const vector<double> &test_vec)
 {
     cont_vector<double> cont_inp;
 
-    cont_inp.unprotected_push_back(10.0);
-    for (size_t i = 1; i < 256/*(test_vec.size()*/; ++i) {
-        cont_inp.unprotected_push_back(0/*test_vec[i]*/);
+    for (size_t i = 0; i < 256/*(test_vec.size()*/; ++i) {
+        cont_inp.unprotected_push_back(/*test_vec[i]*/1);
     }
     //cout << "cont_inp: " << cont_inp << endl;
-    auto cont_ret = cont_inp.stencil<-1, 1>({0.1, 0.1});
-    //auto cont_ret2 = cont_ret.stencil<-1, 1>({0.5, 0.5});
-    //auto cont_ret3 = cont_ret2.stencil<-1, 1>({0.5, 0.5});
-    //auto cont_ret4 = cont_ret3.stencil<-1, 1>({0.5, 0.5});
-    cont_vector<double> *curr = &cont_inp;
-    cont_vector<double> *next;
-    for (int t = 0; t < 10; ++t) {
-        next = curr->stencil2<-1, 1>({0.1, 0.1});
-        curr = next;
-    }
+    auto cont_ret = cont_inp.stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret2 = cont_ret.stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret3 = cont_ret2.stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret4 = cont_ret3.stencil<-1, 1>({0.5, 0.5});
     contentious::tp.finish();
 
     //std::cout << cont_ret << std::endl;
     //std::cout << cont_ret2 << std::endl;
     //std::cout << cont_ret3 << std::endl;
-    //std::cout << cont_ret4 << std::endl;
+    std::cout << cont_ret4 << std::endl;
     int bad = 0;
     for (size_t i = 0; i < cont_ret.size(); ++i) {
         double change = 1;

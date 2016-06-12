@@ -9,3 +9,10 @@
 9. use impl headers instead of cc files X
 10. clean up or finish the raw versions ?
 
+11. use facebook synchronized queue for threadpool
+12. only one resolving queue
+13. let any thread do resolution, but make sure they are correctly ordered
+14. shallow copy should walk up and down the depth
+15. efficient deep copy (leaves)
+16. finish bp_vector_base members, including constructors
+17. fix hackish members

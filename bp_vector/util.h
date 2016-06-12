@@ -1,6 +1,8 @@
 #ifndef BP_VECTOR_UTIL
 #define BP_VECTOR_UTIL
 
+#include <cassert>
+
 /* debug printing */
 
 #ifdef DEBUG_EXTREME
@@ -31,10 +33,16 @@ template<class T> struct icast_identity
 // The use of identity creates a non-deduced form, so that the
 // explicit template argument must be supplied
 template <typename T>
-inline T implicit_cast (typename detail::icast_identity<T>::type x) {
+inline T implicit_cast(typename detail::icast_identity<T>::type x)
+{
     return x;
 }
 
+/* from http://stackoverflow.com/a/9194117 */
+constexpr inline int next_multiple(int i, int m)
+{
+    assert(m && ((m & (m-1)) == 0));
+    return (i + m-1) & ~(m-1);
+}
 
 #endif  // BP_VECTOR_UTIL
-

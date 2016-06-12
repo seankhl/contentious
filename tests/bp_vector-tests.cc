@@ -593,7 +593,7 @@ void vec_timing()
 int bp_vector_runner()
 {
     int ret = 0;
-    std::cout << "br_sz: " << (int)br_sz << std::endl;
+    std::cout << "BP_BITS: " << (int)BP_BITS << std::endl;
 
     vector<function<int()>> runner;
     runner.push_back(test_simple);

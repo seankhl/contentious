@@ -1,4 +1,3 @@
-
 template <typename T>
 void cont_vector<T>::freeze(cont_vector<T> &dep,
                             bool onto,
@@ -94,7 +93,7 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
     if (found) {
         {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
-            tracker[&dep]._used.copy(this->_data, a, b);
+            tracker[&dep]._used.assign(this->_data, a, b);
         }
         splt_vector<T> splt(tracker[&dep]._used, tracker[&dep].op);
         {   // locked dep.reattached
@@ -128,7 +127,7 @@ void cont_vector<T>::refresh(cont_vector &dep, size_t a, size_t b)
     if (found) {
         {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
-            tracker[&dep]._used.copy(this->_data, a, b);
+            tracker[&dep]._used.assign(this->_data, a, b);
         }
     }
 }
@@ -165,7 +164,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                 }
                 std::cout << std::endl;
             }*/
-            dep._data.copy(splt._data, a, b);
+            dep._data.assign(splt._data, a, b);
         } else {
             std::lock_guard<std::mutex> lock(dep.dlck);
             for (size_t i = a; i < b; ++i) {    // locked dep
@@ -419,9 +418,11 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<T> &coeffs,
                                        const contentious::op<T> op1,
                                        const contentious::op<T> op2)
 {
+    using cvec_ref = std::reference_wrapper<cont_vector<T>>;
+
     constexpr size_t offs_sz = sizeof...(Offs);
     std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
-    using cvec_ref = std::reference_wrapper<cont_vector<T>>;
+
     /*
      * part 1
      */
@@ -544,4 +545,3 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
 
     return next_vec_ptr;
 }
-
