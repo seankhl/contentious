@@ -11,18 +11,12 @@ class bp_vector_base;
 template <typename T>
 class bp_node;
 
-template <typename T>
-class bp_vector;
-template <typename T>
-class ps_vector;
-template <typename T>
-class tr_vector;
-
 template <typename T, template<typename> typename TDer>
 class bp_vector_iterator
 {
     using iterator = bp_vector_iterator;
     using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
+
 private:
     bp_node<T> *root;
     const uint16_t shift;
@@ -171,6 +165,7 @@ template <typename T, template<typename> typename TDer>
 class bp_vector_const_iterator
 {
     using const_iterator = bp_vector_const_iterator;
+
 private:
     const bp_node<T> *root;
     const uint16_t shift;

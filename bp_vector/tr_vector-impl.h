@@ -1,11 +1,3 @@
-
-// mutating versions
-
-template <typename T, template<typename> typename TDer>
-using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
-template <typename T>
-using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
-
 template <typename T>
 void tr_vector<T>::mut_set(const size_t i, const T &val)
 {

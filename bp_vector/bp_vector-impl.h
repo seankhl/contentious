@@ -1,18 +1,3 @@
-// mutating versions
-
-template <typename T, template<typename> typename TDer>
-using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
-template <typename T>
-using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
-
-
-template <typename T>
-tr_vector<T> bp_vector<T>::make_transient() const
-{
-    tr_vector<T> ret(*this);
-    return ret;
-}
-
 template <typename T>
 void bp_vector<T>::mut_set(const size_t i, const T &val)
 {
@@ -49,11 +34,7 @@ void bp_vector<T>::mut_push_back(const T &val)
     uint16_t s = this->shift;
     while (depth_ins > 0) {
         bp_node_ptr<T> &next = node->branches[this->sz >> s & BP_MASK];
-        if (!next) {
-            std::cout << "Constructing node where one should have already been"
-                      << std::endl;
-            next = new bp_node<T>();
-        }
+        assert(next);
         node = next.get();
         s -= BP_BITS;
         --depth_ins;

@@ -21,7 +21,6 @@
 
 // TODO: namespace
 
-
 template <typename T, template<typename> typename TDer>
 class bp_vector_base;
 template <typename T>
@@ -35,6 +34,11 @@ template <typename T, template<typename> typename Tder>
 class bp_vector_iterator;
 template <typename T, template<typename> typename Tder>
 class bp_vector_const_iterator;
+
+template <typename T, template<typename> typename TDer>
+using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
+template <typename T>
+using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
 template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
@@ -91,9 +95,13 @@ protected:
     int32_t id;
 
     // protected because we cannot create instances of base type
-    // TODO: remove...
     bp_vector_base()
       : sz(0), shift(0), root(new bp_node<T>(0)), id(0)
+    {   /* nothing to do here */ }
+    
+    // constructor that takes arbitrary id, for making transients
+    bp_vector_base(int32_t id_in)
+      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
     {   /* nothing to do here */ }
 
     // copy constructor is protected because it would allow us to create
@@ -109,11 +117,6 @@ protected:
     {
         for (int i = 0; i < other.size(); ++i) {
     */
-
-    // constructor that takes arbitrary id, for making transients
-    bp_vector_base(int32_t id_in)
-      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
-    {   /* nothing to do here */ }
 
     inline bool node_copy(const int32_t other_id) const
     {
@@ -160,14 +163,14 @@ public:
     typedef bp_vector_iterator<T, TDer> iterator;
     typedef bp_vector_const_iterator<T, TDer> const_iterator;
 
-    iterator begin()	{ return iterator(*this); }
+    iterator begin()    { return iterator(*this); }
     iterator end()		{ return iterator(*this) + sz; }
     const_iterator cbegin() const	{ return const_iterator(*this); }
     const_iterator cend() const     { return const_iterator(*this) + sz; }
 
     /* capacity */
-    inline bool empty() const           { return sz == 0; }
-    inline size_t size() const          { return sz; }
+    inline bool empty() const   { return sz == 0; }
+    inline size_t size() const  { return sz; }
     // max_size
     /*
     TODO: implement
@@ -200,7 +203,6 @@ public:
     TDer<T> set(const size_t i, const T &val) const;
 
     /* printers */
-    inline const std::string get_name() const { return "bp_vector_base"; }
     friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
     {
         std::string name = data.get_name();
@@ -230,7 +232,11 @@ public:
     void insert(const size_t i, const T &val);
     T remove(const size_t i);
 
-    tr_vector<T> make_transient() const;
+    tr_vector<T> make_transient() const
+    {
+        tr_vector<T> ret(*this);
+        return ret;
+    }
 
     //bp_vector<T> set(const size_t i, const T &val);
     //bp_vector<T> push_back(const T &val);
@@ -250,15 +256,25 @@ public:
     ps_vector() = default;
     ps_vector(const ps_vector<T> &other) = default;
 
+    ps_vector(const tr_vector<T> &other)
+      : bp_vector_base<T, ::ps_vector>(
+              static_cast<const bp_vector_base<T, tr_vector> &>(other))
+    {
+        /* I admit, this code is truly disturbing */
+        this->id = 0;
+    }
+
     ps_vector(const bp_vector_base<T, ::ps_vector> &other)
       : bp_vector_base<T, ::ps_vector>(other)
     {   /* nothing to do here */ }
 
-    ps_vector(const tr_vector<T> &other);
-
     inline bool node_copy_impl(const int32_t) const { return true; }
 
-    tr_vector<T> make_transient() const;
+    tr_vector<T> make_transient() const
+    {
+        tr_vector<T> ret(*this);
+        return ret;
+    }
 
     //ps_vector<T> set(const size_t i, const T &val);
     //ps_vector<T> push_back(const T &val);
@@ -284,8 +300,20 @@ public:
       : bp_vector_base<T, ::tr_vector>(other)
     {   /* nothing to do here */ }
 
-    tr_vector(const bp_vector<T> &other);
-    tr_vector(const ps_vector<T> &other);
+    tr_vector(const bp_vector<T> &other)
+      : bp_vector_base<T, ::tr_vector>(
+              static_cast<const bp_vector_base<T, bp_vector> &>(other))
+    {
+        /* I admit, this code is truly disturbing */
+        this->id = this->get_unique_id();
+    }
+    tr_vector(const ps_vector<T> &other)
+      : bp_vector_base<T, ::tr_vector>(
+              static_cast<const bp_vector_base<T, ps_vector> &>(other))
+    {
+        /* I admit, this code is truly disturbing */
+        this->id = this->get_unique_id();
+    }
 
     inline bool node_copy_impl(const int32_t other_id) const
     {
@@ -295,8 +323,16 @@ public:
     void mut_set(const size_t i, const T &val);
     void mut_push_back(const T &val);
 
-    ps_vector<T> make_persistent() const;
-    tr_vector<T> new_id() const;
+    ps_vector<T> make_persistent() const
+    {
+        return *this;
+    }
+    tr_vector<T> new_id() const
+    {
+        tr_vector<T> ret(*this);
+        ret.id = this->get_unique_id();
+        return ret;
+    }
 
     //tr_vector<T> set(const size_t i, const T &val);
     //tr_vector<T> push_back(const T &val);
@@ -309,7 +345,5 @@ public:
 #include "bp_vector_base-impl.h"
 #include "bp_vector-impl.h"
 #include "tr_vector-impl.h"
-#include "pt_vector-impl.h"
 
 #endif  // BP_VECTOR_H
-
