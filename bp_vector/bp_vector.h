@@ -43,6 +43,19 @@ using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
+private:
+    bp_node() = default;
+    bp_node(int32_t id_in)
+      : id(id_in)
+    {   /* nothing to do here*/ }
+    bp_node(const bp_node<T> &other, int32_t id_in)
+      : branches(other.branches), values(other.values), id(id_in)
+    {   /* nothing to do here*/ }
+
+    std::array<bp_node_ptr<T>, BP_WIDTH> branches;
+    std::array<T, BP_WIDTH> values;
+    int32_t id;
+
     template <typename U, template <typename> typename TDer>
     friend class bp_vector_base;
     template <typename U, template <typename> typename TDer>
@@ -54,28 +67,16 @@ class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
     friend class ps_vector<T>;
     friend class tr_vector<T>;
 
-private:
-    std::array<boost::intrusive_ptr<bp_node<T>>, BP_WIDTH> branches;
-    std::array<T, BP_WIDTH> values;
-    int32_t id;
-
-    bp_node() = default;
-    bp_node(int32_t id_in)
-      : id(id_in)
-    {   /* nothing to do here*/ }
-    bp_node(const bp_node<T> &other, int32_t id_in)
-      : branches(other.branches), values(other.values), id(id_in)
-    {   /* nothing to do here*/ }
 };
 
 
 class bp_vector_glob
 {
-private:
-    static std::atomic<int32_t> unique_id;
-
 protected:
     static inline int32_t get_unique_id() { return unique_id++; }
+
+private:
+    static std::atomic<int32_t> unique_id;
 
 };
 
@@ -83,66 +84,11 @@ protected:
 template <typename T, template<typename> typename TDer>
 class bp_vector_base : protected bp_vector_glob
 {
-    template <typename U, template <typename> typename TDerOther>
-    friend class bp_vector_base;
-    friend class bp_vector_iterator<T, TDer>;
-    friend class bp_vector_const_iterator<T, TDer>;
-
-protected:
-    size_t sz;
-    uint16_t shift;
-    boost::intrusive_ptr<bp_node<T>> root;
-    int32_t id;
-
-    // protected because we cannot create instances of base type
-    bp_vector_base()
-      : sz(0), shift(0), root(new bp_node<T>(0)), id(0)
-    {   /* nothing to do here */ }
-    
-    // constructor that takes arbitrary id, for making transients
-    bp_vector_base(int32_t id_in)
-      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
-    {   /* nothing to do here */ }
-
-    // copy constructor is protected because it would allow us to create
-    // transient vecs from persistent vecs without assigning a unique id
-    template <template <typename> typename TDerOther>
-    bp_vector_base(const bp_vector_base<T, TDerOther> &other)
-      : sz(other.sz), shift(other.shift), root(other.root), id(other.id)
-    {   /* nothing to do here */ }
-
-    /*
-    template <typename T>
-    bp_vector_base(const std::vector<T> &other)
-    {
-        for (int i = 0; i < other.size(); ++i) {
-    */
-
-    inline bool node_copy(const int32_t other_id) const
-    {
-        return static_cast<const TDer<T> *>(this)->node_copy_impl(other_id);
-    }
-
-    inline uint8_t calc_depth() const { return shift / BP_BITS + 1; }
-
-    // helper for assign
-    uint16_t contained_at_shift(size_t, size_t) const;
-
-    // returns an iterator over branches of an internal node
-    const std::array<boost::intrusive_ptr<bp_node<T>>, BP_WIDTH> &
-    get_branch(uint8_t depth, int64_t i) const;
-    std::array<boost::intrusive_ptr<bp_node<T>>, BP_WIDTH> &
-    get_branch(uint8_t depth, int64_t i);
-
 public:
-
-    inline int32_t get_id() const       { return id; }
-    inline uint8_t get_depth() const    { return calc_depth(); }
-
     /* element access */
     const T &at(size_t i) const;
     T &at(size_t i);
-    const T &operator[](size_t i) const
+    const inline T &operator[](size_t i) const
     {
         const bp_node<T> *node = root.get();
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
@@ -163,10 +109,10 @@ public:
     typedef bp_vector_iterator<T, TDer> iterator;
     typedef bp_vector_const_iterator<T, TDer> const_iterator;
 
-    iterator begin()    { return iterator(*this); }
-    iterator end()		{ return iterator(*this) + sz; }
-    const_iterator cbegin() const	{ return const_iterator(*this); }
-    const_iterator cend() const     { return const_iterator(*this) + sz; }
+    inline iterator begin() { return iterator(*this); }
+    inline iterator end()	{ return iterator(*this) + sz; }
+    inline const_iterator cbegin() const { return const_iterator(*this); }
+    inline const_iterator cend() const   { return const_iterator(*this) + sz; }
 
     /* capacity */
     inline bool empty() const   { return sz == 0; }
@@ -201,6 +147,10 @@ public:
     // resize
     // swap
     TDer<T> set(const size_t i, const T &val) const;
+    
+    /* not members of std::vector */
+    inline int32_t get_id() const       { return id; }
+    inline uint8_t get_depth() const    { return calc_depth(); }
 
     /* printers */
     friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
@@ -213,14 +163,64 @@ public:
         out << "}/" << name;
         return out;
     }
+
+protected:
+    // protected because we cannot create instances of base type
+    bp_vector_base()
+      : sz(0), shift(0), root(new bp_node<T>(0)), id(0)
+    {   /* nothing to do here */ }
+
+    // constructor that takes arbitrary id, for making transients
+    bp_vector_base(int32_t id_in)
+      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
+    {   /* nothing to do here */ }
+
+    // copy constructor is protected because it would allow us to create
+    // transient vecs from persistent vecs without assigning a unique id
+    template <template <typename> typename TDerOther>
+    bp_vector_base(const bp_vector_base<T, TDerOther> &other)
+      : sz(other.sz), shift(other.shift), root(other.root), id(other.id)
+    {   /* nothing to do here */ }
+
+    /*
+    template <typename T>
+    bp_vector_base(const std::vector<T> &other)
+    {
+        for (int i = 0; i < other.size(); ++i) {
+    */
+
+    inline bool node_copy(const int32_t other_id) const
+    {
+        return static_cast<const TDer<T> *>(this)->node_copy_impl(other_id);
+    }
+
+    inline uint8_t calc_depth() const { return shift / BP_BITS + 1; }
+
+    // helper for assign
+    uint16_t contained_at_shift(size_t, size_t) const;
+
+    // returns an iterator over branches of an internal node
+    const std::array<bp_node_ptr<T>, BP_WIDTH> &get_branch(
+                                                uint8_t depth, int64_t i) const;
+    std::array<bp_node_ptr<T>, BP_WIDTH> &get_branch(
+                                                uint8_t depth, int64_t i);
+
+    size_t sz;
+    uint16_t shift;
+    bp_node_ptr<T> root;
+    int32_t id;
+
+    template <typename U, template <typename> typename TDerOther>
+    friend class bp_vector_base;
+    friend class bp_vector_iterator<T, TDer>;
+    friend class bp_vector_const_iterator<T, TDer>;
+
 };
 
 
 template <typename T>
 class bp_vector : public bp_vector_base<T, bp_vector>
 {
-private:
-
 public:
     bp_vector() = default;
     bp_vector(const bp_vector<T> &other) = default;
@@ -250,8 +250,6 @@ public:
 template <typename T>
 class ps_vector : public bp_vector_base<T, ps_vector>
 {
-private:
-
 public:
     ps_vector() = default;
     ps_vector(const ps_vector<T> &other) = default;
@@ -288,12 +286,11 @@ public:
 template <typename T>
 class tr_vector : public bp_vector_base<T, tr_vector>
 {
-private:
-
 public:
     tr_vector()
       : bp_vector_base<T, ::tr_vector>(this->get_unique_id())
     {   /* nothing to do here */ }
+    
     tr_vector(const tr_vector<T> &other) = default;
 
     tr_vector(const bp_vector_base<T, ::tr_vector> &other)

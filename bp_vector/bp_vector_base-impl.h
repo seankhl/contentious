@@ -1,15 +1,4 @@
 template <typename T, template<typename> typename TDer>
-using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
-template <typename T>
-using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
-template <typename T>
-using bp_branch_iterator =
-    typename std::array<boost::intrusive_ptr<bp_node<T>>, BP_WIDTH>::iterator;
-template <typename T>
-using bp_value_iterator =
-    typename std::array<T, BP_WIDTH>::iterator;
-
-template <typename T, template<typename> typename TDer>
 const T &bp_vector_base<T, TDer>::at(size_t i) const
 {
     if (i >= sz) {  // presumably, throw an exception...
@@ -18,7 +7,6 @@ const T &bp_vector_base<T, TDer>::at(size_t i) const
     }
     return this->operator[](i);
 }
-
 template <typename T, template<typename> typename TDer>
 T &bp_vector_base<T, TDer>::at(size_t i)
 {
