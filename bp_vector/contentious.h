@@ -12,6 +12,8 @@
 #include <condition_variable>
 #include <atomic>
 
+#include <boost/function.hpp>
+
 template <typename T>
 class splt_vector;
 template <typename T>
@@ -35,7 +37,7 @@ partition(const uint16_t p, const size_t sz)
 
 /* threadpool *************************************************************/
 
-using closure = std::function<void(void)>;
+using closure = std::function<void (void)>;
 
 class threadpool
 {
@@ -178,11 +180,16 @@ extern contentious::threadpool tp;
 
 /* index mappings *********************************************************/
 
-constexpr inline int identity(const int i) { return i; }
-template <int o>
-constexpr inline int offset(const int i) { return i - o; }
-template <int i>
-constexpr inline int alltoone(const int) { return i; }
+using imap_fp = std::function<int64_t (int64_t)>;/*int64_t (*)(int64_t);*/
+
+constexpr inline int64_t identity(const int64_t i) { return i; }
+template <int64_t o>
+constexpr inline int64_t offset(const int64_t i) { return i - o; }
+template <int64_t i>
+constexpr inline int64_t alltoone(const int64_t) { return i; }
+
+std::pair<int64_t, int64_t> safe_mapping(const imap_fp &imap, size_t i,
+                                         int64_t lo, int64_t hi);
 
 
 /* comparing function *****************************************************/
@@ -221,7 +228,7 @@ inline bool is_monotonic(const std::function<int(int)> &imap)
 /* operators **************************************************************/
 
 template <typename T>
-using binary_fp = /*T (*)(T, T);*/std::function<T (T, T)>;
+using binary_fp = /*T (*)(T, T);*/boost::function<T (T, T)>;
 
 template <typename T>
 struct op
@@ -322,24 +329,10 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     std::tie(a, b) = partition(p, cont.size());
     const auto &tracker = other.get().tracker[&dep];
 
-    int o;
-    int amap = tracker.imaps[0](a);// int aoff = 0;
-    o = a - amap;
-    int adom = a + o;
-    int aran = a;
-    if (adom < 0) {
-        aran += (0 - adom);
-        adom += (0 - adom);
-        //assert(adom == (int64_t)a);
-    }
-    int bdom = b + o;
-    int bran = b;
-    if (bdom >= (int64_t)cont.size()) {
-        bran -= (bdom - (int64_t)cont.size());
-        bdom -= (bdom - (int64_t)cont.size());
-        //assert(bdom == (int64_t)b);
-    }
-    assert(bran - aran == bdom - adom);
+    int64_t adom, aran;
+    std::tie(adom, aran) = safe_mapping(tracker.imaps[0], a, 0, cont.size());
+    int64_t bdom, bran;
+    std::tie(bdom, bran) = safe_mapping(tracker.imaps[0], b, 0, cont.size());
 
     splt_vector<T> splt = cont.detach(dep, p);
     auto trck = other.get()._data.cbegin() + adom;
@@ -368,12 +361,10 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     splt_start = std::chrono::system_clock::now();
 
     constexpr size_t offs_sz = sizeof...(Offs);
-    std::array<std::function<int(int)>, offs_sz> offs{offset<Offs>...};
+    std::array<std::function<int (int)>, offs_sz> offs{offset<Offs>...};
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    //if (p == 0) { ++a; }
-    //if (p == hwconc-1) { --b; }
 
     splt_vector<T> splt = cont.detach(dep, p);
     /*{
@@ -381,34 +372,28 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
         std::cout << "splt for " << p << " is: " << splt._data << std::endl;
         std::cout << "used for " << p << " is: " << cont.tracker[&dep]._used[p] << std::endl;
     }*/
+    int64_t adom, aran, bdom, bran;
     const auto &used = cont.tracker[&dep]._used[p];
     for (size_t i = 0; i < offs_sz; ++i) {
         const auto op = cont.tracker[&dep].ops[i+1];
-        int amap = offs[i](a);
-        int o = a - amap;
-        int adom = a + o;
-        int aran = a;
-        if (adom < 0) {
-            aran += (0 - adom);
-            adom += (0 - adom);
-            //assert(adom == (int64_t)a);
-        }
-        int bdom = b + o;
-        int bran = b;
-        if (bdom >= (int64_t)cont.size()) {
-            bran -= (bdom - (int64_t)cont.size());
-            bdom -= (bdom - (int64_t)cont.size());
-            //assert(bdom == (int64_t)b);
-        }
+        std::tie(adom, aran) = safe_mapping(offs[i], a, 0, cont.size());
+        std::tie(bdom, bran) = safe_mapping(offs[i], b, 0, cont.size());
         assert(bran - aran == bdom - adom);
-
         auto trck = used.cbegin() + adom;
         auto end = splt._data.begin() + bran;
         for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
-            *it = op.f(*it, *trck);/*op2.f(*it, op1.f(*trck, coeff))*/;
+            *it = op.f(*it, *trck);
         }
         //assert(trck == cont.tracker[&dep]._used.cbegin() + bdom);
     }
+    /*if (a == 0) { ap = 1; }
+    if (b == used.size()) { bp = used.size() - 1; }
+    auto trck = used.cbegin() + a;
+    auto end = splt._data.begin() + bran;
+    for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
+        ///it = op.f(*it, *trck);//op2.f(*it, op1.f(*trck, coeff))//;
+        *it += *trck * c;
+    }*/
 
     cont.reattach(splt, dep, p, a, b);
 

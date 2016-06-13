@@ -268,35 +268,30 @@ void cont_heat()
     constexpr double dt = 0.00001;
     constexpr double dy = 0.0001;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
-    constexpr double y_max = 4000;
+    constexpr double y_max = 40;
     constexpr double t_max = 0.0001;
     constexpr double V0 = 10;
 
     constexpr double s = viscosity * dt/ipow(dy,2);
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr int64_t c = (y_max + dy) / dy;
-    std::cout << s << std::endl;
+    cout << s << endl;
 
     cont_vector<double> cont_inp;
     cont_inp.unprotected_push_back(V0);
     for (int64_t i = 1; i < c; ++i) {
         cont_inp.unprotected_push_back(0.0);
     }
-    /*
-    cont_vector<double> *curr = &cont_inp;
-    cont_vector<double> *next;
-    */
-    std::array<std::shared_ptr<cont_vector<double>>, r> grid;
+    array<shared_ptr<cont_vector<double>>, r> grid;
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
-        //std::cout << "whut" << std::endl;
         grid[t] = grid[t-1]->stencil3<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
     }
     contentious::tp.finish();
     for (size_t i = 0; i < 32; ++i) {
-        std::cout << (*grid[r-1])[i] << " ";
+        cout << (*grid[r-1])[i] << " ";
     }
-    std::cout << std::endl;
+    cout << endl;
 }
 
 
@@ -304,7 +299,6 @@ void cont_heat()
 
 int cont_vector_runner()
 {
-    /*
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
@@ -316,9 +310,7 @@ int cont_vector_runner()
     auto gen = std::bind(dist, mersenne_engine);
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
-    */
 
-    /*
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
@@ -348,7 +340,6 @@ int cont_vector_runner()
     for (int i = 0; i < 8; ++i) {
         cont_stencil(test_vec);
     }
-    */
 
     for (int i = 0; i < 1; ++i) {
         cont_heat();

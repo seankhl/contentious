@@ -236,36 +236,17 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
     }
 
     size_t a, b;
-    int64_t amap, bmap, o, adom, aran, bdom, bran;
+    int64_t adom, aran, bdom, bran;
     for (size_t i = 0; i < dep_tracker.imaps.size(); ++i) {
         const auto &dep_op = dep_tracker.ops[i];
         auto &imap = dep_tracker.imaps[i];
         auto &iconflicts = dep_tracker.iconflicts[i];
         for (int p = 0; p < hwconc; ++p) {
             std::tie(a, b) = contentious::partition(p, this->size());
-            /*
-            if (pi == 0) { ++a; }
-            if (pi == hwconc-1) { --b; }
-            */
             //std::cout << "size of imaps: " << dep_tracker.imaps.size() << std::endl;
-            amap = imap(a);
-            bmap = imap(b);
-            if (amap == bmap) { continue; }
-            o = a - amap;
-            adom = a + o;
-            aran = a;
-            if (adom < 0) {
-                aran += (0 - adom);
-                adom += (0 - adom);
-                //assert(adom == (int64_t)a);
-            }
-            bdom = b + o;
-            bran = b;
-            if (bdom >= (int64_t)this->size()) {
-                bran -= (bdom - (int64_t)this->size());
-                bdom -= (bdom - (int64_t)this->size());
-                //assert(bdom == (int64_t)b);
-            }
+            std::tie(adom, aran) = contentious::safe_mapping(imap, a, 0, this->size());
+            std::tie(bdom, bran) = contentious::safe_mapping(imap, b, 0, this->size());
+            if (aran == bran) { continue; }
             {   // locked this
                 std::lock_guard<std::mutex> lock(rlck);
                 for (int64_t c = adom; c < aran; c += 1) {
@@ -314,7 +295,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                 auto trck = dep_tracker._used[p].cbegin() + c;
                 T diff = dep_op.inv(*curr, *trck);
                 if (diff != dep_op.identity) {
-                    {
+                    /*{
                         std::lock_guard<std::mutex> lock2(contentious::plck);
                         std::cout << this->_data.get_id() << "->" << dep._data.get_id()
                                   << " would have resolved " << c
@@ -322,7 +303,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                                   << " with curr, trck " << *curr << ", " << *trck
                                   << " with diff " << diff << " and p " << p
                                   << " to produce " << *it << std::endl;
-                    }
+                    }*/
                     *it = dep_op.f(*it, diff);
                     // since this changed, we may need to resolve it even if it's
                     // not one of the potentially-conflicted values
@@ -346,7 +327,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                 auto trck = dep_tracker._used[p].cbegin() + c;
                 T diff = dep_op.inv(*curr, *trck);
                 if (diff != dep_op.identity) {
-                    {
+                    /*{
                         std::lock_guard<std::mutex> lock2(contentious::plck);
                         std::cout << this->_data.get_id() << "->" << dep._data.get_id()
                                   << " would have resolved " << c
@@ -354,7 +335,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                                   << " with curr, trck " << *curr << ", " << *trck
                                   << " with diff " << diff
                                   << " to produce " << *it << std::endl;
-                    }
+                    }*/
                     *it = dep_op.f(*it, diff);
                     // since this changed, we may need to resolve it even if it's
                     // not one of the potentially-conflicted values
@@ -580,10 +561,11 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(const std::vector<T> &c
     auto dep = std::make_shared<cont_vector<T>>(cont_vector<T>(*this));
     freeze(*dep, true, contentious::identity, op2);
     for (size_t i = 0; i < coeffs.size(); ++i) {
-        using namespace std::placeholders;
+        //using namespace std::placeholders;
         contentious::op<T> fullop = {
             0,
-            std::bind(contentious::multplus_fp<double>, _1, _2, coeffs[i]),
+            boost::bind<double>(
+                    contentious::multplus_fp<double>, _1, _2, coeffs[i]),
             contentious::minus_fp<double>
         };
         freeze(*this, *dep, offs[i], fullop);

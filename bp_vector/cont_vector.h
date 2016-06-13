@@ -23,6 +23,7 @@
 #include <mutex>
 
 #include <boost/thread/latch.hpp>
+#include <boost/bind.hpp>
 
 template <typename T>
 class splt_vector;
