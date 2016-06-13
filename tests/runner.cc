@@ -19,8 +19,8 @@ int main()
 #endif
     int ret = 0;
 
-    //ret += bp_vector_runner();
-    //ret += reduce_runner();
+    ret += bp_vector_runner();
+    ret += reduce_runner();
     ret += cont_vector_runner();
 
     contentious::tp.stop();

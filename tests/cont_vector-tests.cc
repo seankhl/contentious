@@ -216,9 +216,11 @@ int cont_stencil(const vector<double> &test_vec)
 {
     cont_vector<double> cont_inp;
 
-    for (size_t i = 0; i < 64/*(test_vec.size()*/; ++i) {
+    cont_inp.unprotected_push_back(/*test_vec[i]*/0);
+    for (size_t i = 1; i < 63/*(test_vec.size()*/; ++i) {
         cont_inp.unprotected_push_back(/*test_vec[i]*/1);
     }
+    cont_inp.unprotected_push_back(/*test_vec[i]*/0);
     //cout << "cont_inp: " << cont_inp << endl;
     auto cont_ret = cont_inp.stencil3<-1, 1>({0.5, 0.5});
     auto cont_ret2 = cont_ret->stencil3<-1, 1>({0.5, 0.5});
@@ -232,8 +234,8 @@ int cont_stencil(const vector<double> &test_vec)
     //std::cout << cont_ret4 << std::endl;
     contentious::tp.finish();
 
-    std::cout << *cont_ret << std::endl;
-    std::cout << *cont_ret2 << std::endl;
+    //std::cout << *cont_ret << std::endl;
+    //std::cout << *cont_ret2 << std::endl;
     std::cout << *cont_ret3 << std::endl;
     std::cout << *cont_ret9 << std::endl;
     /*int bad = 0;
@@ -286,6 +288,9 @@ void cont_heat()
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
         grid[t] = grid[t-1]->stencil3<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
+        if (t % 5 == 0) {
+            contentious::tp.finish();
+        }
     }
     contentious::tp.finish();
     for (size_t i = 0; i < 32; ++i) {
@@ -311,16 +316,18 @@ int cont_vector_runner()
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
 
+    /*
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
     cont_reduce(test_vec);
+    */
 
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < 2; ++i) {
         stdv_foreach(test_vec);
     }
     stdv_end = chrono::system_clock::now();
@@ -328,7 +335,7 @@ int cont_vector_runner()
 
     chrono::time_point<chrono::system_clock> cont_start, cont_end;
     cont_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 8; ++i) {
+    for (size_t i = 0; i < 2; ++i) {
         cont_foreach(test_vec);
     }
     cont_end = chrono::system_clock::now();
@@ -337,7 +344,8 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    for (int i = 0; i < 8; ++i) {
+
+    for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
 

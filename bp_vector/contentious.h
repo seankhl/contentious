@@ -239,16 +239,19 @@ struct op
 };
 
 template <typename T>
-constexpr inline T plus_fp(const T a, const T b) { return a + b; }
+constexpr inline T plus_fp(const T a, const T b)        { return a + b; }
 template <typename T>
-constexpr inline T minus_fp(const T a, const T b) { return a - b; }
+constexpr inline T minus_fp(const T a, const T b)       { return a - b; }
 template <typename T>
-constexpr inline T multiplies_fp(const T a, const T b) { return a * b; }
+constexpr inline T multiplies_fp(const T a, const T b)  { return a * b; }
 template <typename T>
-constexpr inline T divides_fp(const T a, const T b) { return a / b; }
+constexpr inline T divides_fp(const T a, const T b)     { return a / b; }
 
 template <typename T>
-constexpr inline T multplus_fp(const T a, const T b, const T c) { return a + c*b; }
+constexpr inline T multplus_fp(const T a, const T b, const T c)
+{
+    return a + c*b;
+}
 
 template <typename T>
 const op<T> plus { 0, plus_fp<T>, minus_fp<T> };
@@ -269,11 +272,13 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
     splt_start = std::chrono::system_clock::now();
 
+    const binary_fp<T> fp = splt.ops[0].f;
     auto &target = *(splt._data.begin());
     T temp = target;
     auto end = used.cbegin() + b;
     for (auto it = used.cbegin() + a; it != end; ++it) {
-        temp = splt.ops[0].f(temp, *it);
+        temp = fp(temp, *it);
+        //temp += *it;
     }
     target = temp;
 
@@ -301,9 +306,10 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 
     splt_vector<T> splt = cont.detach(dep, p);
 
+    const binary_fp<T> fp = splt.ops[0].f;
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
-        *it = splt.ops[0].f(*it, val);
+        *it = fp(*it, val);
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -335,12 +341,13 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     std::tie(bdom, bran) = safe_mapping(tracker.imaps[0], b, 0, cont.size());
 
     splt_vector<T> splt = cont.detach(dep, p);
+
+    const binary_fp<T> fp = splt.ops[0].f;
     auto trck = other.get()._data.cbegin() + adom;
     auto end = splt._data.begin() + bran;
     for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
-        *it = splt.ops[0].f(*it, *trck);
+        *it = fp(*it, *trck);
     }
-    //assert(trck == tracker._used.cbegin() + bdom);
 
     cont.reattach(splt, dep, p, a, b);
 
@@ -367,33 +374,30 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     std::tie(a, b) = partition(p, cont.size());
 
     splt_vector<T> splt = cont.detach(dep, p);
-    /*{
-        std::lock_guard<std::mutex> lock(contentious::plck);
-        std::cout << "splt for " << p << " is: " << splt._data << std::endl;
-        std::cout << "used for " << p << " is: " << cont.tracker[&dep]._used[p] << std::endl;
-    }*/
-    int64_t adom, aran, bdom, bran;
+
+    std::array<int64_t, offs_sz> adom, aran, bdom, bran, os, ioffs;
+    const auto ops = cont.tracker[&dep].ops;
+    std::array<binary_fp<T>, offs_sz> fs;
     const auto &used = cont.tracker[&dep]._used[p];
     for (size_t i = 0; i < offs_sz; ++i) {
         const auto op = cont.tracker[&dep].ops[i+1];
-        std::tie(adom, aran) = safe_mapping(offs[i], a, 0, cont.size());
-        std::tie(bdom, bran) = safe_mapping(offs[i], b, 0, cont.size());
-        assert(bran - aran == bdom - adom);
-        auto trck = used.cbegin() + adom;
-        auto end = splt._data.begin() + bran;
-        for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
-            *it = op.f(*it, *trck);
-        }
-        //assert(trck == cont.tracker[&dep]._used.cbegin() + bdom);
+        std::tie(adom[i], aran[i]) = safe_mapping(offs[i], a, 0, cont.size());
+        std::tie(bdom[i], bran[i]) = safe_mapping(offs[i], b, 0, cont.size());
+        os[i] = a - offs[i](a);
+        ioffs[i] = os[i] - os[0];
+        fs[i] = ops[i+1].f;
     }
-    /*if (a == 0) { ap = 1; }
-    if (b == used.size()) { bp = used.size() - 1; }
-    auto trck = used.cbegin() + a;
-    auto end = splt._data.begin() + bran;
+
+    int64_t ap = *std::max_element(aran.begin(), aran.end());
+    int64_t bp = *std::min_element(bran.begin(), bran.end());
+    auto trck = used.cbegin() + (ap+os[0]);
+    auto end = splt._data.begin() + bp;
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
-        ///it = op.f(*it, *trck);//op2.f(*it, op1.f(*trck, coeff))//;
-        *it += *trck * c;
-    }*/
+        T &target = *it;
+        for (size_t i = 0; i < offs_sz; ++i) {
+            target = fs[i](target, *(trck + ioffs[i]));
+        }
+    }
 
     cont.reattach(splt, dep, p, a, b);
 

@@ -243,10 +243,10 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
         auto &iconflicts = dep_tracker.iconflicts[i];
         for (int p = 0; p < hwconc; ++p) {
             std::tie(a, b) = contentious::partition(p, this->size());
+            if (imap(a) == imap(b)) { continue; }
             //std::cout << "size of imaps: " << dep_tracker.imaps.size() << std::endl;
             std::tie(adom, aran) = contentious::safe_mapping(imap, a, 0, this->size());
             std::tie(bdom, bran) = contentious::safe_mapping(imap, b, 0, this->size());
-            if (aran == bran) { continue; }
             {   // locked this
                 std::lock_guard<std::mutex> lock(rlck);
                 for (int64_t c = adom; c < aran; c += 1) {
