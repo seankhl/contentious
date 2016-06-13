@@ -375,22 +375,21 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 
     splt_vector<T> splt = cont.detach(dep, p);
 
+    // get all the info for each part of the stencil
     std::array<int64_t, offs_sz> adom, aran, bdom, bran, os, ioffs;
-    const auto ops = cont.tracker[&dep].ops;
     std::array<binary_fp<T>, offs_sz> fs;
-    const auto &used = cont.tracker[&dep]._used[p];
     for (size_t i = 0; i < offs_sz; ++i) {
-        const auto op = cont.tracker[&dep].ops[i+1];
         std::tie(adom[i], aran[i]) = safe_mapping(offs[i], a, 0, cont.size());
         std::tie(bdom[i], bran[i]) = safe_mapping(offs[i], b, 0, cont.size());
         os[i] = a - offs[i](a);
         ioffs[i] = os[i] - os[0];
-        fs[i] = ops[i+1].f;
+        fs[i] = cont.tracker[&dep].ops[i+1].f;
     }
-
+    // we can only iterate over the narrowest valid range
     int64_t ap = *std::max_element(aran.begin(), aran.end());
     int64_t bp = *std::min_element(bran.begin(), bran.end());
-    auto trck = used.cbegin() + (ap+os[0]);
+    // iterate!
+    auto trck = cont.tracker[&dep]._used[p].cbegin() + (ap+os[0]);
     auto end = splt._data.begin() + bp;
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
         T &target = *it;
