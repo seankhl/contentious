@@ -4,6 +4,8 @@
 #include "bp_vector_constants.h"
 #include "bp_vector.h"
 
+#include <iostream>
+
 #include <boost/intrusive_ptr.hpp>
 
 template <typename T, template<typename> typename TDer>
@@ -60,8 +62,8 @@ public:
 
     bp_vector_iterator(const iterator &other)
     : root(other.root), shift(other.shift), i(other.i), sz(other.sz),
-    id(other.id),
-    cur(other.cur), end(other.end)
+      id(other.id),
+      cur(other.cur), end(other.end)
     {   /* nothing to do here */ }
 
     //iterator(const iterator&);
@@ -193,8 +195,8 @@ public:
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
             node = node->branches[i >> s & BP_MASK].get();
         }
-        cur = node->values.begin() + (i & BP_MASK);
-        end = node->values.end();
+        cur = node->values.cbegin() + (i & BP_MASK);
+        end = node->values.cend();
     }
 
     bp_vector_const_iterator(const const_iterator &other)
@@ -236,8 +238,8 @@ public:
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
             node = node->branches[i >> s & BP_MASK].get();
         }
-        cur = node->values.begin();
-        end = node->values.end();
+        cur = node->values.cbegin();
+        end = node->values.cend();
         return *this;
     }
     /*
@@ -255,7 +257,7 @@ public:
         }
         auto ret = *this;
         // +ing within leaf
-        if (ret.end - ret.cur >= (int64_t)n) {
+        if (ret.end - ret.cur > (int64_t)n) {
             ret.cur += n;
             return ret;
         }
@@ -272,8 +274,8 @@ public:
         for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
             node = node->branches[ret.i >> s & BP_MASK].get();
         }
-        ret.cur = node->values.begin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->values.end();
+        ret.cur = node->values.cbegin() + (ret.i & BP_MASK) + plusplus;
+        ret.end = node->values.cend();
         ret.i -= ret.i & BP_MASK;
         return ret;
     }

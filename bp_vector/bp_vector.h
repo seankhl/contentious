@@ -156,7 +156,7 @@ public:
     friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
     {
         std::string name = data.get_name();
-        out << name << "{ ";
+        out << name << "{" << data.id << "}{";
         for (size_t i = 0; i < data.size(); ++i) {
             out << data.at(i) << " ";
         }

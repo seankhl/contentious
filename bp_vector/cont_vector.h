@@ -23,11 +23,6 @@
 #include <mutex>
 
 #include <boost/thread/latch.hpp>
-#include <boost/mpl/for_each.hpp>
-#include <boost/mpl/range_c.hpp>
-#include <boost/mpl/placeholders.hpp>
-#include <boost/bind.hpp>
-
 
 template <typename T>
 class splt_vector;
@@ -73,28 +68,34 @@ class splt_vector
                     const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
+    template <typename U, int... Offs>
+    friend void contentious::stencil_splt(
+                    cont_vector<U> &, cont_vector<U> &,
+                    const uint16_t);
+
     friend class cont_vector<T>;
 
 private:
     tr_vector<T> _data;
-    const contentious::op<T> op;
+    std::vector<contentious::op<T>> ops;
 
 public:
     splt_vector() = delete;
 
-    splt_vector(const tr_vector<T> &_used, const contentious::op<T> &_op)
-      : _data(_used.new_id()), op(_op)
+    splt_vector(const tr_vector<T> &_used,
+                std::vector<contentious::op<T>> &_ops)
+      : _data(_used.new_id()), ops(_ops)
     {   /* nothing to do here */ }
 
     inline splt_vector<T> comp(const size_t i, const T &val)
     {
-        _data = _data.set(i, op.f(_data.at(i), val));
+        _data = _data.set(i, ops[0].f(_data.at(i), val));
         return *this;
     }
 
     inline void mut_comp(const size_t i, const T &val)
     {
-        _data.mut_set(i, op.f(_data[i], val));
+        _data.mut_set(i, ops[0].f(_data[i], val));
     }
 
 };
@@ -115,6 +116,11 @@ class cont_vector
                     const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
+    template <typename U, int... Offs>
+    friend void contentious::stencil_splt(
+                    cont_vector<U> &, cont_vector<U> &,
+                    const uint16_t);
+
     friend class splt_vector<T>;
 
 private:
@@ -122,34 +128,37 @@ private:
     {
         // TODO: remove this evilness... maps need default constructors
         dependency_tracker()
-          : indexmap(contentious::identity), op(contentious::plus<T>)
+          : ops{contentious::plus<T>},
+            imaps{contentious::identity}, iconflicts(1)
         {   /* nothing to do here! */ }
 
-        dependency_tracker(const tr_vector<T> &_data,
-                           const std::function<int(int)> indexmap_in,
+        dependency_tracker(const std::function<int(int)> imap_in,
                            const contentious::op<T> op_in)
-          : _used(_data), indexmap(indexmap_in), op(op_in)
+          : ops{op_in},
+            imaps{imap_in}, iconflicts(1)
         {   /* nothing to do here! */ }
 
-        tr_vector<T> _used;
-        const std::function<int(int)> indexmap;
-        const contentious::op<T> op;
+        std::array<tr_vector<T>, hwconc> _used;
+        
+        std::vector<contentious::op<T>> ops;
+        std::vector<std::function<int(int)>> imaps;
+        std::vector<std::set<int64_t>> iconflicts;
 
+        std::vector<cont_vector<T> *> frozen;
     };
 
     tr_vector<T> _data;
     std::mutex dlck;
 
     // forward tracking : dep_ptr -> tracker
-    std::map<cont_vector<T> *, dependency_tracker> tracker;
-    std::map<const cont_vector<T> *, std::vector<cont_vector<T> *>> frozen;
+    std::unordered_map<const cont_vector<T> *, dependency_tracker> tracker;
     // resolving onto (backward) :  uid -> latch
-    std::map<int32_t, std::shared_ptr<boost::latch>> rlatches;
+    std::unordered_map<const cont_vector<T> *, std::unique_ptr<boost::latch>> rlatches;
     // splinter tracking : sid -> reattached?
-    std::map<int32_t, bool> reattached;
+    std::unordered_map<int32_t, bool> reattached;
+    std::set<int64_t> rconflicts;
     std::mutex rlck;
-    
-    std::set<int64_t> rlist;
+
     bool abandoned = false;
     bool resolved = false;
 
@@ -163,25 +172,22 @@ public:
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
       : _data(other._data.new_id())
-    {   /* nothing to do here */ }
+    {   /* nothing to do here */ 
+        //std::cout << "COPY CVEC" << std::endl;
+    }
     cont_vector<T> &operator=(cont_vector<T> other)
     {
         _data = other._data.new_id();
+        //std::cout << "assign CVEC" << std::endl;
         return *this;
     }
 
+    //cont_vector(cont_vector<T> &&other) = delete;
     /*
-    cont_vector(cont_vector<T> &&other)
-      : _data(std::move(other._data)),
-        _used(std::move(other._used)),
-        rlatches(0),
+      : _data(std::move(other._data))
     {   // locked (TODO: this is really a terrible idea)
-        std::lock_guard<std::mutex> lock(other.data_lock);
-
-        resolved = (std::move(other.resolved));
         std::cout << "RPOBLESM" << std::endl;
-    }
-    */
+    }*/
 
     /*
     cont_vector(const std::vector<T> &other)
@@ -242,10 +248,9 @@ public:
                 contentious::op<T> op,
                 uint16_t ndetached = hwconc);
     void freeze(cont_vector<T> &cont, cont_vector<T> &dep,
-                std::function<int(int)> imap);
-    splt_vector<T> detach(cont_vector &dep);
-    splt_vector<T> detach(cont_vector &dep, size_t a, size_t b);
-    void refresh(cont_vector &dep, size_t a, size_t b);
+                std::function<int(int)> imap, contentious::op<T> op);
+    splt_vector<T> detach(cont_vector &dep, uint16_t p);
+    void refresh(cont_vector &dep, uint16_t p, size_t a, size_t b);
 
     void reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                   uint16_t p, size_t a, size_t b);
@@ -261,13 +266,17 @@ public:
     cont_vector<T> reduce(const contentious::op<T> op);
     cont_vector<T> foreach(const contentious::op<T> op, const T &val);
     cont_vector<T> foreach(const contentious::op<T> op, cont_vector<T> &other);
-    
+
     template <int... Offs>
     cont_vector<T> stencil(const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult<T>,
                            const contentious::op<T> op2 = contentious::plus<T>);
     template <int... Offs>
     cont_vector<T> *stencil2(const std::vector<T> &coeffs,
+                           const contentious::op<T> op1 = contentious::mult<T>,
+                           const contentious::op<T> op2 = contentious::plus<T>);
+    template <int... Offs>
+    std::shared_ptr<cont_vector<T>> stencil3(const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult<T>,
                            const contentious::op<T> op2 = contentious::plus<T>);
 

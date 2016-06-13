@@ -169,7 +169,7 @@ double cont_reduce_dup(const cont_vector<double> &cont_arg)
 
 int reduce_runner()
 {
-    int64_t test_sz = pow(2,26);
+    int64_t test_sz = pow(2,23);
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());

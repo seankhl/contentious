@@ -20,7 +20,7 @@ class cont_vector;
 namespace contentious
 {
 
-static constexpr uint16_t hwconc = 1;
+static constexpr uint16_t hwconc = 4;
 extern std::mutex plck;
 
 constexpr std::pair<const size_t, const size_t>
@@ -193,7 +193,7 @@ size_t getAddress(std::function<T(U...)> &f)
 {
     typedef T(fn_t)(U...);
     fn_t **fn_ptr = f.template target<fn_t *>();
-    return (size_t) *fn_ptr;
+    return (size_t)*fn_ptr;
 }
 template <typename Clazz, typename Ret, typename ...Args>
 size_t getMemberAddress(std::function<Ret (Clazz::*)(Args...)> &executor)
@@ -201,12 +201,12 @@ size_t getMemberAddress(std::function<Ret (Clazz::*)(Args...)> &executor)
     typedef Ret (Clazz::*fn_t)(Args...);
     fn_t **fn_ptr = executor.template target<fn_t *>();
     if (fn_ptr != nullptr) {
-        return (size_t) *fn_ptr;
+        return (size_t)*fn_ptr;
     }
     return 0;
 }
-inline bool same_indexmap(std::function<int(int)> &a,
-                          std::function<int(int)> &b)
+inline bool same_imap(std::function<int(int)> &a,
+                      std::function<int(int)> &b)
 {
     return getAddress(a) == getAddress(b);
 }
@@ -221,7 +221,7 @@ inline bool is_monotonic(const std::function<int(int)> &imap)
 /* operators **************************************************************/
 
 template <typename T>
-using binary_fp = T (*)(T,T);
+using binary_fp = /*T (*)(T, T);*/std::function<T (T, T)>;
 
 template <typename T>
 struct op
@@ -241,10 +241,12 @@ template <typename T>
 constexpr inline T divides_fp(const T a, const T b) { return a / b; }
 
 template <typename T>
+constexpr inline T multplus_fp(const T a, const T b, const T c) { return a + c*b; }
+
+template <typename T>
 const op<T> plus { 0, plus_fp<T>, minus_fp<T> };
 template <typename T>
 const op<T> mult { 1, multiplies_fp<T>, divides_fp<T> };
-
 
 /* parallelism helpers ****************************************************/
 
@@ -254,8 +256,8 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 {
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    splt_vector<T> splt = cont.detach(dep);
-    const auto &used = cont.tracker[&dep]._used;
+    splt_vector<T> splt = cont.detach(dep, p);
+    const auto &used = cont.tracker[&dep]._used[p];
 
     std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
     splt_start = std::chrono::system_clock::now();
@@ -264,7 +266,7 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     T temp = target;
     auto end = used.cbegin() + b;
     for (auto it = used.cbegin() + a; it != end; ++it) {
-        temp = splt.op.f(temp, *it);
+        temp = splt.ops[0].f(temp, *it);
     }
     target = temp;
 
@@ -290,11 +292,11 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
 
-    splt_vector<T> splt = cont.detach(dep, a, b);
+    splt_vector<T> splt = cont.detach(dep, p);
 
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
-        *it = splt.op.f(*it, val);
+        *it = splt.ops[0].f(*it, val);
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -318,12 +320,10 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
 
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-    //if (p == 0) { ++a; }
-    //if (p == hwconc-1) { --b; }
     const auto &tracker = other.get().tracker[&dep];
 
     int o;
-    int amap = tracker.indexmap(a);// int aoff = 0;
+    int amap = tracker.imaps[0](a);// int aoff = 0;
     o = a - amap;
     int adom = a + o;
     int aran = a;
@@ -341,15 +341,74 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     }
     assert(bran - aran == bdom - adom);
 
-    splt_vector<T> splt = cont.detach(dep, a, b);
-    other.get().refresh(dep, adom, bdom);
-
-    auto trck = tracker._used.cbegin() + adom;
+    splt_vector<T> splt = cont.detach(dep, p);
+    auto trck = other.get()._data.cbegin() + adom;
     auto end = splt._data.begin() + bran;
     for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
-        *it = splt.op.f(*it, *trck);
+        *it = splt.ops[0].f(*it, *trck);
     }
     //assert(trck == tracker._used.cbegin() + bdom);
+
+    cont.reattach(splt, dep, p, a, b);
+
+    splt_end = std::chrono::system_clock::now();
+    std::chrono::duration<double> splt_dur = splt_end - splt_start;
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "splt took: " << splt_dur.count() << " seconds "
+                  << "for values " << a << " to " << b << "; " << std::endl;
+    }*/
+}
+
+template <typename T, int... Offs>
+void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
+                  const uint16_t p)
+{
+    std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
+    splt_start = std::chrono::system_clock::now();
+
+    constexpr size_t offs_sz = sizeof...(Offs);
+    std::array<std::function<int(int)>, offs_sz> offs{offset<Offs>...};
+
+    size_t a, b;
+    std::tie(a, b) = partition(p, cont.size());
+    //if (p == 0) { ++a; }
+    //if (p == hwconc-1) { --b; }
+
+    splt_vector<T> splt = cont.detach(dep, p);
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "splt for " << p << " is: " << splt._data << std::endl;
+        std::cout << "used for " << p << " is: " << cont.tracker[&dep]._used[p] << std::endl;
+    }*/
+    const auto &used = cont.tracker[&dep]._used[p];
+    for (size_t i = 0; i < offs_sz; ++i) {
+        const auto op = cont.tracker[&dep].ops[i+1];
+        int amap = offs[i](a);
+        int o = a - amap;
+        int adom = a + o;
+        int aran = a;
+        if (adom < 0) {
+            aran += (0 - adom);
+            adom += (0 - adom);
+            //assert(adom == (int64_t)a);
+        }
+        int bdom = b + o;
+        int bran = b;
+        if (bdom >= (int64_t)cont.size()) {
+            bran -= (bdom - (int64_t)cont.size());
+            bdom -= (bdom - (int64_t)cont.size());
+            //assert(bdom == (int64_t)b);
+        }
+        assert(bran - aran == bdom - adom);
+
+        auto trck = used.cbegin() + adom;
+        auto end = splt._data.begin() + bran;
+        for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
+            *it = op.f(*it, *trck);/*op2.f(*it, op1.f(*trck, coeff))*/;
+        }
+        //assert(trck == cont.tracker[&dep]._used.cbegin() + bdom);
+    }
 
     cont.reattach(splt, dep, p, a, b);
 

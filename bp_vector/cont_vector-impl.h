@@ -12,48 +12,47 @@ void cont_vector<T>::freeze(cont_vector<T> &dep,
             std::lock_guard<std::mutex> lock2(dep.dlck);
             dep._data = _data.new_id();
         }
-        // create _used, which has the old id of _data
         tracker.emplace(std::piecewise_construct,
                         std::forward_as_tuple(&dep),
-                        std::forward_as_tuple(dependency_tracker(_data, imap, op))
+                        std::forward_as_tuple(dependency_tracker(imap, op))
         );
-        // modifications to data cannot affect _used
-        _data = _data.new_id();
-        frozen[&dep] = {};
     }
     // make a latch for reattaching splinters
     dep.rlatches.emplace(std::piecewise_construct,
-                         std::forward_as_tuple(tracker[&dep]._used.get_id()),
+                         std::forward_as_tuple(&dep),
                          std::forward_as_tuple(new boost::latch(ndetached))
     );
 }
 
 template <typename T>
 void cont_vector<T>::freeze(cont_vector<T> &cont, cont_vector<T> &dep,
-                            std::function<int(int)> imap)
+                            std::function<int(int)> imap, contentious::op<T> op)
 {
-    const auto &op = cont.tracker[&dep].op;
+    //const auto &op = cont.tracker[&dep].op;
     {   // locked _data (all 3 actions must happen atomically)
         std::lock_guard<std::mutex> lock(dlck);
         // create _used, which has the old id of _data
-        tracker.emplace(std::piecewise_construct,
+        auto ret = tracker.emplace(std::piecewise_construct,
                         std::forward_as_tuple(&dep),
-                        std::forward_as_tuple(dependency_tracker(_data, imap, op))
+                        std::forward_as_tuple(dependency_tracker(imap, op))
         );
-        // modifications to data cannot affect _used
-        _data = _data.new_id();
-        cont.frozen[&dep].push_back(this);
+        if (!ret.second) {
+            (ret.first->second).imaps.emplace_back(imap);
+            (ret.first->second).iconflicts.emplace_back();
+            (ret.first->second).ops.emplace_back(op);
+        } else {
+            cont.tracker[&dep].frozen.emplace_back(this);
+        }
     }
     // make a latch for reattaching splinters
     dep.rlatches.emplace(std::piecewise_construct,
-                         std::forward_as_tuple(tracker[&dep]._used.get_id()),
+                         std::forward_as_tuple(&dep),
                          std::forward_as_tuple(new boost::latch(0))
     );
 }
 
-
 template <typename T>
-splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
+splt_vector<T> cont_vector<T>::detach(cont_vector &dep, uint16_t p)
 {
     bool found = false;
     {   // locked this->data
@@ -61,41 +60,12 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep)
         found = tracker.count(&dep) > 0;
     }
     if (found) {
-        splt_vector<T> splt(tracker[&dep]._used, tracker[&dep].op);
         {   // locked dep.reattached
-            std::lock_guard<std::mutex> lock(dep.rlck);
-            dep.reattached.emplace(std::make_pair(splt._data.get_id(),
-                                                  false));
-        }
-        return splt;
-    } else {
-        std::lock_guard<std::mutex> lock(contentious::plck);
-        std::cout << "DETACH ERROR: NO DEP IN "
-                  << this << " TRACKER (nofr): &dep is "
-                  << &dep
-                  << ", candidates are: ";
-        for (const auto &key : tracker) {
-            std::cout << key.first << " ";
-        }
-        std::cout << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-}
-
-template <typename T>
-splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
-{
-    bool found = false;
-    {   // locked this->data
-        std::lock_guard<std::mutex> lock(dlck);
-        found = tracker.count(&dep) > 0;
-    }
-    if (found) {
-        {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
-            tracker[&dep]._used.assign(this->_data, a, b);
+            tracker[&dep]._used[p] = this->_data;
+            this->_data = this->_data.new_id();
         }
-        splt_vector<T> splt(tracker[&dep]._used, tracker[&dep].op);
+        splt_vector<T> splt(tracker[&dep]._used[p], tracker[&dep].ops);
         {   // locked dep.reattached
             std::lock_guard<std::mutex> lock(dep.rlck);
             dep.reattached.emplace(std::make_pair(splt._data.get_id(),
@@ -117,7 +87,7 @@ splt_vector<T> cont_vector<T>::detach(cont_vector &dep, size_t a, size_t b)
 }
 
 template <typename T>
-void cont_vector<T>::refresh(cont_vector &dep, size_t a, size_t b)
+void cont_vector<T>::refresh(cont_vector &dep, uint16_t p, size_t a, size_t b)
 {
     bool found = false;
     {   // locked this->data
@@ -127,7 +97,7 @@ void cont_vector<T>::refresh(cont_vector &dep, size_t a, size_t b)
     if (found) {
         {   // locked this->data
             std::lock_guard<std::mutex> lock(dlck);
-            tracker[&dep]._used.assign(this->_data, a, b);
+            tracker[&dep]._used[p].assign(this->_data, a, b);
         }
     }
 }
@@ -148,11 +118,11 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     }
 
     auto &dep_tracker = tracker[&dep];
-    const int32_t uid = dep_tracker._used.get_id();
+    //const int32_t uid = dep_tracker._used[0].get_id();
     T diff;
     if (found) {
-        const auto &dep_op = dep_tracker.op;
-        if (contentious::is_monotonic(dep_tracker.indexmap)) {
+        const auto &dep_op = dep_tracker.ops[0];
+        if (contentious::is_monotonic(dep_tracker.imaps[0])) {
             std::lock_guard<std::mutex> lock(dep.dlck);
             /*{
                 std::lock_guard<std::mutex> lock2(contentious::plck);
@@ -168,7 +138,7 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
         } else {
             std::lock_guard<std::mutex> lock(dep.dlck);
             for (size_t i = a; i < b; ++i) {    // locked dep
-                diff = dep_op.inv(splt._data[i], dep_tracker._used[i]);
+                diff = dep_op.inv(splt._data[i], dep_tracker._used[p][i]);
                 if (diff != dep_op.identity) {
                     dep._data.mut_set(i, dep_op.f(dep[i], diff));
                     /*std::cout << "sid " << sid
@@ -178,7 +148,6 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
                               << std::endl;*/
                 }
             }
-
         }
         {   // locked dep
             std::lock_guard<std::mutex> lock(dep.rlck);
@@ -205,11 +174,11 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
 
     // TODO: erase splinters?
     //splinters.erase(sid);
-    if (dep.rlatches.count(uid) > 0) {
-        dep.rlatches[uid]->count_down();
+    if (dep.rlatches.count(&dep) > 0) {
+        dep.rlatches[&dep]->count_down();
     } else {
         std::cout << "didn't find latch" << std::endl;
-        assert(false);
+        std::exit(EXIT_FAILURE);
     }
 }
 
@@ -217,18 +186,17 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
 template <typename T>
 void cont_vector<T>::resolve(cont_vector<T> &dep)
 {
-    const int32_t uid = tracker[&dep]._used.get_id();
-    dep.rlatches[uid]->wait();
+    dep.rlatches[&dep]->wait();
 
-    for (auto &f : frozen[&dep]) {
+    for (auto &f : tracker[&dep].frozen[&dep]) {
         f->resolve(dep);
     }
 
     auto &dep_tracker = this->tracker[&dep];
-    const auto &dep_op = dep_tracker.op;
+    const auto &dep_op = dep_tracker.ops[0];
 
-    T &target = *(dep._data.begin() + dep_tracker.indexmap(0));
-    auto trck = dep_tracker._used.cbegin();
+    T &target = *(dep._data.begin() + dep_tracker.imaps[0](0));
+    auto trck = dep_tracker._used[0].cbegin();
     auto end = this->_data.cend();
     for (auto curr = this->_data.cbegin(); curr != end; ++curr, ++trck) {
         T diff = dep_op.inv(*curr, *trck);
@@ -255,94 +223,143 @@ void cont_vector<T>::resolve(cont_vector<T> &dep)
 template <typename T>
 void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
 {
-    const int32_t uid = this->tracker[&dep]._used.get_id();
-    dep.rlatches[uid]->wait();
+    auto &dep_tracker = this->tracker[&dep];
 
-    if (this->frozen.count(&dep) > 0) {
-        for (auto &f : this->frozen[&dep]) {
-            f->resolve_monotonic(dep);
-        }
+    //const int32_t uid = dep_tracker._used[0].get_id();
+    dep.rlatches[&dep]->wait();
+
+    auto f = dep_tracker.frozen.begin();
+    while (dep_tracker.frozen.size() > 0) {
+        auto ff = *f;
+        f = dep_tracker.frozen.erase(f);
+        ff->resolve_monotonic(dep);
     }
-
-    const auto &dep_tracker = this->tracker[&dep];
-    const auto &dep_op = dep_tracker.op;
 
     size_t a, b;
     int64_t amap, bmap, o, adom, aran, bdom, bran;
-    for (int pi = 0; pi < hwconc; ++pi) {
-        std::tie(a, b) = contentious::partition(pi, this->size());
-        /*
-        if (pi == 0) { ++a; }
-        if (pi == hwconc-1) { --b; }
-        */
-        amap = dep_tracker.indexmap(a);
-        bmap = dep_tracker.indexmap(b);
-        if (amap == bmap) { continue; }
-        o = a - amap;
-        adom = a + o;
-        aran = a;
-        if (adom < 0) {
-            aran += (0 - adom);
-            adom += (0 - adom);
-            //assert(adom == (int64_t)a);
-        }
-        bdom = b + o;
-        bran = b;
-        if (bdom >= (int64_t)this->size()) {
-            bran -= (bdom - (int64_t)this->size());
-            bdom -= (bdom - (int64_t)this->size());
-            //assert(bdom == (int64_t)b);
-        }
-        {   // locked this
-            std::lock_guard<std::mutex> lock(rlck);
-            for (int64_t check = adom; check < aran; check += 1) {
-                rlist.insert(check);
+    for (size_t i = 0; i < dep_tracker.imaps.size(); ++i) {
+        const auto &dep_op = dep_tracker.ops[i];
+        auto &imap = dep_tracker.imaps[i];
+        auto &iconflicts = dep_tracker.iconflicts[i];
+        for (int p = 0; p < hwconc; ++p) {
+            std::tie(a, b) = contentious::partition(p, this->size());
+            /*
+            if (pi == 0) { ++a; }
+            if (pi == hwconc-1) { --b; }
+            */
+            //std::cout << "size of imaps: " << dep_tracker.imaps.size() << std::endl;
+            amap = imap(a);
+            bmap = imap(b);
+            if (amap == bmap) { continue; }
+            o = a - amap;
+            adom = a + o;
+            aran = a;
+            if (adom < 0) {
+                aran += (0 - adom);
+                adom += (0 - adom);
+                //assert(adom == (int64_t)a);
             }
-            for (int64_t check = bran; check < bdom; check += 1) {
-                rlist.insert(check);
+            bdom = b + o;
+            bran = b;
+            if (bdom >= (int64_t)this->size()) {
+                bran -= (bdom - (int64_t)this->size());
+                bdom -= (bdom - (int64_t)this->size());
+                //assert(bdom == (int64_t)b);
             }
-        }
-    }
-    /*
-    {   // locked this
-        std::lock_guard<std::mutex> lock(rlck);
-        std::cout << "rlist for "
-                  << this->_data.get_id() << " -> " << dep._data.get_id()
-                  << " with o " << o << ": ";
-        for (auto it = rlist.begin(); it != rlist.end(); ++it) {
-            std::cout << *it << " ";
-        }
-        std::cout << std::endl;
-    }
-    */
-    {   // locked dep
-        std::lock_guard<std::mutex> lock(dep.dlck);
-
-        for (auto check = rlist.cbegin(); check != rlist.cend(); ++check) {
-            int64_t cmap = dep_tracker.indexmap(*check);
-            if (cmap < 0 || cmap > (int64_t)dep._data.size()) {
-                continue;
-            }
-            auto it = dep._data.begin() + cmap;
-            auto curr = this->_data.cbegin() + *check;
-            auto trck = dep_tracker._used.cbegin() + *check;
-            T diff = dep_op.inv(*curr, *trck);
-            if (diff != dep_op.identity) {
-                /*
-                {
-                    std::lock_guard<std::mutex> lock2(contentious::plck);
-                    std::cout << this->_data.get_id() << "->" << dep._data.get_id()
-                              << " would have resolved " << *check
-                              << " onto " << cmap
-                              << " with curr, trck " << *curr << ", " << *trck
-                              << " with diff " << diff
-                              << " to produce " << *it << std::endl;
+            {   // locked this
+                std::lock_guard<std::mutex> lock(rlck);
+                for (int64_t c = adom; c < aran; c += 1) {
+                    iconflicts.insert(c);
                 }
-                */
-                *it = dep_op.f(*it, diff);
-                // since this changed, we may need to resolve it even if it's
-                // not one of the potentially-conflicted values
-                dep.rlist.insert(cmap);
+                for (int64_t c = bran; c < bdom; c += 1) {
+                    iconflicts.insert(c);
+                }
+            }
+        }
+        /*{
+            std::lock_guard<std::mutex> lock(contentious::plck);
+            std::cout << "data: " << this->_data << std::endl;
+            std::cout << "used[0]: " << dep_tracker._used[0] << std::endl;
+            std::cout << "used[1]: " << dep_tracker._used[1] << std::endl;
+            std::cout << "used[2]: " << dep_tracker._used[2] << std::endl;
+            std::cout << "used[3]: " << dep_tracker._used[3] << std::endl;
+            std::cout << "dep (before): " << dep._data << std::endl;
+            std::cout << "iconflicts for "
+                      << this->_data.get_id() << " -> " << dep._data.get_id()
+                      << " with o " << o << ": ";
+            for (auto it = iconflicts.begin(); it != iconflicts.end(); ++it) {
+                std::cout << *it << " ";
+            }
+            std::cout << std::endl;
+        }*/
+        {   // locked dep
+            std::lock_guard<std::mutex> lock(dep.dlck);
+
+            uint16_t p = hwconc;
+            for (auto &c : iconflicts) {
+                p = hwconc;
+                int64_t cmap = imap(c);
+                if (cmap < 0 || cmap > (int64_t)dep._data.size()) {
+                    continue;
+                }
+                for (uint16_t pi = 0; pi < hwconc; ++pi) {
+                    std::tie(a, b) = contentious::partition(pi, this->size());
+                    if (cmap >= (int64_t)a && cmap < (int64_t)b) {
+                        p = pi;
+                    }
+                }
+                assert(p != hwconc);
+                auto it = dep._data.begin() + cmap;
+                auto curr = this->_data.cbegin() + c;
+                auto trck = dep_tracker._used[p].cbegin() + c;
+                T diff = dep_op.inv(*curr, *trck);
+                if (diff != dep_op.identity) {
+                    {
+                        std::lock_guard<std::mutex> lock2(contentious::plck);
+                        std::cout << this->_data.get_id() << "->" << dep._data.get_id()
+                                  << " would have resolved " << c
+                                  << " onto " << cmap
+                                  << " with curr, trck " << *curr << ", " << *trck
+                                  << " with diff " << diff << " and p " << p
+                                  << " to produce " << *it << std::endl;
+                    }
+                    *it = dep_op.f(*it, diff);
+                    // since this changed, we may need to resolve it even if it's
+                    // not one of the potentially-conflicted values
+                    dep.rconflicts.insert(cmap);
+                }
+            }
+            for (auto &c : rconflicts) {
+                int64_t cmap = imap(c);
+                if (cmap < 0 || cmap > (int64_t)dep._data.size()) {
+                    continue;
+                }
+                if (iconflicts.count(c) > 0) { continue; }
+                for (uint16_t pi = 0; pi < hwconc; ++pi) {
+                    std::tie(a, b) = contentious::partition(pi, this->size());
+                    if (cmap >= (int64_t)a && cmap < (int64_t)b) {
+                        p = pi;
+                    }
+                }
+                auto it = dep._data.begin() + cmap;
+                auto curr = this->_data.cbegin() + c;
+                auto trck = dep_tracker._used[p].cbegin() + c;
+                T diff = dep_op.inv(*curr, *trck);
+                if (diff != dep_op.identity) {
+                    {
+                        std::lock_guard<std::mutex> lock2(contentious::plck);
+                        std::cout << this->_data.get_id() << "->" << dep._data.get_id()
+                                  << " would have resolved " << c
+                                  << " onto " << cmap
+                                  << " with curr, trck " << *curr << ", " << *trck
+                                  << " with diff " << diff
+                                  << " to produce " << *it << std::endl;
+                    }
+                    *it = dep_op.f(*it, diff);
+                    // since this changed, we may need to resolve it even if it's
+                    // not one of the potentially-conflicted values
+                    dep.rconflicts.insert(cmap);
+                }
             }
         }
     }
@@ -350,6 +367,10 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
     if (abandoned) {
         delete this;
     }
+    /*{
+        std::lock_guard<std::mutex> lock(contentious::plck);
+        std::cout << "dep (after): " << dep._data << std::endl;
+    }*/
 }
 
 
@@ -362,7 +383,7 @@ void cont_vector<T>::exec_par(void f(cont_vector<T> &, cont_vector<T> &,
                                      const uint16_t, const U &...),
                               cont_vector<T> &dep, const U &... args)
 {
-    for (int p = 0; p < hwconc; ++p) {
+    for (uint16_t p = 0; p < hwconc; ++p) {
         auto task = std::bind(f, std::ref(*this), std::ref(dep),
                               p, args...);
         contentious::tp.submit(task, p);
@@ -405,7 +426,7 @@ cont_vector<T> cont_vector<T>::foreach(const contentious::op<T> op,
 
     // gratuitous use of reference_wrapper
     freeze(dep, true, contentious::identity, op);
-    other.freeze(*this, dep, contentious::identity);
+    other.freeze(*this, dep, contentious::identity, op);
     exec_par<std::reference_wrapper<cont_vector<T>>>(
             contentious::foreach_splt_cvec<T>, dep, std::ref(other));
 
@@ -453,7 +474,7 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<T> &coeffs,
     for (size_t i = 0; i < offs_sz; ++i) {
         step2.emplace_back(step2[i]);
         step2[i].freeze(step2[i+1], true, contentious::identity, op2);
-        step1.at(coeffs[i]).freeze(step2[i], step2[i+1], offs[i]);
+        step1.at(coeffs[i]).freeze(step2[i], step2[i+1], offs[i], op2);
         step2[i].template exec_par<cvec_ref>(contentious::foreach_splt_cvec<T>,
                                              step2[i+1], std::ref(step1.at(coeffs[i])));
     }
@@ -519,18 +540,18 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
     for (size_t i = 0; i < coeffs.size(); ++i) {
         coeff_vec_ptr = new cont_vector<T>(*this);
         freeze(*coeff_vec_ptr, true, contentious::identity, op1);
-        
+
         exec_par<T>(contentious::foreach_splt<T>,
                     *coeff_vec_ptr, coeffs[i]);
         coeff_vecs[i] = coeff_vec_ptr;
     }
-    
+
     cont_vector<T> *curr_vec_ptr = new cont_vector<T>(*this);
     cont_vector<T> *next_vec_ptr;
     for (size_t i = 0; i < offs_sz; ++i) {
         next_vec_ptr = new cont_vector<T>(*curr_vec_ptr);
         curr_vec_ptr->freeze(*next_vec_ptr, true, contentious::identity, op2);
-        coeff_vecs[i]->freeze(*curr_vec_ptr, *next_vec_ptr, offs[i]);
+        coeff_vecs[i]->freeze(*curr_vec_ptr, *next_vec_ptr, offs[i], op2);
 
         curr_vec_ptr->template exec_par<cvec_ref>(
                             contentious::foreach_splt_cvec<T>,
@@ -543,5 +564,40 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
     }*/
     //std::cout << *next_vec_ptr << std::endl;
 
+    //contentious::tp.finish();
     return next_vec_ptr;
+}
+
+template <typename T>
+template <int... Offs>
+std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(const std::vector<T> &coeffs,
+                                        const contentious::op<T> op1,
+                                        const contentious::op<T> op2)
+{
+    constexpr size_t offs_sz = sizeof...(Offs);
+    std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
+
+    auto dep = std::make_shared<cont_vector<T>>(cont_vector<T>(*this));
+    freeze(*dep, true, contentious::identity, op2);
+    for (size_t i = 0; i < coeffs.size(); ++i) {
+        using namespace std::placeholders;
+        contentious::op<T> fullop = {
+            0,
+            std::bind(contentious::multplus_fp<double>, _1, _2, coeffs[i]),
+            contentious::minus_fp<double>
+        };
+        freeze(*this, *dep, offs[i], fullop);
+    }
+
+    for (int p = 0; p < hwconc; ++p) {
+        auto task = std::bind(contentious::stencil_splt<T, Offs...>,
+                              std::ref(*this), std::ref(*dep), p);
+        contentious::tp.submit(task, p);
+    }
+    //curr_vec_ptr->abandon();
+    /*for (auto &coeff_vec : coeff_vecs) {
+        coeff_vec.second->abandon();
+    }*/
+    //contentious::tp.finish();
+    return dep;
 }

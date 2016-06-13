@@ -214,6 +214,7 @@ void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
     ar_off = (ar_off == 0 && ar == this->sz) ? BP_WIDTH : ar_off;
     uint16_t br_off = br >> (s + BP_BITS) & BP_MASK;
     br_off = (br_off == 0 && br == this->sz) ? BP_WIDTH : br_off;
+    //std::cout << ar_off << " " << br_off << std::endl;
     std::copy(other.get_branch(d, ar).cbegin() + ar_off,
               other.get_branch(d, br).cbegin() + br_off,
               this->get_branch(d, ar).begin() + ar_off);

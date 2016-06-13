@@ -196,18 +196,18 @@ int test_pers_alternate()
 int test_iter()
 {
     tr_vector<double> pers;
-    int index;
+    size_t index;
 
     // testing ++
-    for (int i = 0; i < 514; ++i) {
+    for (size_t i = 0; i < 514; ++i) {
         pers = tr_vector<double>();
-        for (int j = 0; j < i; ++j) {
+        for (size_t j = 0; j < i; ++j) {
             pers = pers.push_back(i);
         }
         //cout << "let's iterate! ";
         index = 0;
         for (auto it = pers.begin(); it != pers.end(); ++it) {
-            //cout << *it << " ";
+            //cout << index << ":" << *it << " ";
             if (*it != pers[index]) {
                 cerr << "! test_iter failed: at index " << index
                      << " of " << i
@@ -230,7 +230,7 @@ int test_iter()
     default_random_engine e_val(r());
     uniform_int_distribution<int> dist_int(0, 513);
     auto rand_val = std::bind(dist_int, e_val);
-    for (int i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < 10000; ++i) {
         index = rand_val();
         //cout << index << endl;
         auto it_st = pers.cbegin() + index;
@@ -474,7 +474,7 @@ int test_threadpool()
 void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
                    size_t index, uint16_t p)
 {
-    splt_vector<double> splt = test.detach(next);
+    splt_vector<double> splt = test.detach(next, p);
     for (int i = 0; i < 10; ++i) {
         splt.mut_comp(index, i);
     }

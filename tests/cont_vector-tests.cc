@@ -16,7 +16,7 @@ void cont_inc_reduce(cont_vector<double> &cont_ret, uint16_t p,
 {
     //chrono::time_point<chrono::system_clock> splt_start, splt_end;
     //splt_start = chrono::system_clock::now();
-    splt_vector<double> splt_ret = cont_ret.detach(cont_ret);
+    splt_vector<double> splt_ret = cont_ret.detach(cont_ret, p);
     double temp(0);
     for (auto it = a; it != b; ++it) {
         temp += *it;
@@ -188,25 +188,22 @@ void cont_foreach(const vector<double> &test_vec)
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
     std::cout << "cont_foreach_inner took: " << splt_dur.count() << " seconds "
               << std::endl;
-
+    
     size_t bad = 0;
     for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (cont_inp[i] * 2 != cont_ret[i]) {
-            /*
-            cout << "bad resolution at cont_ret[" << i << "]: "
-                 << cont_inp[i] * 2 << " " << cont_ret[i] << endl;
-                 */
+            /*cout << "bad resolution at cont_ret[" << i << "]: "
+                 << cont_inp[i] * 2 << " " << cont_ret[i] << endl;*/
             ++bad;
         }
     }
 
-    for (size_t i = 0; i < test_vec.size(); ++i) {
+    for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (test_vec[i] * 2 * (i+1) != cont_ret2[i]) {
             ++bad;
-            /*cout << "bad resolution at cont_ret[" << i << "]: "
+            /*cout << "bad resolution at cont_ret2[" << i << "]: "
                  << test_vec[i] * 2 * (i+1) << " "
-                 << cont_ret2[i] << endl;
-                 */
+                 << cont_ret2[i] << endl;*/
         }
     }
 
@@ -219,39 +216,43 @@ int cont_stencil(const vector<double> &test_vec)
 {
     cont_vector<double> cont_inp;
 
-    for (size_t i = 0; i < 256/*(test_vec.size()*/; ++i) {
+    for (size_t i = 0; i < 64/*(test_vec.size()*/; ++i) {
         cont_inp.unprotected_push_back(/*test_vec[i]*/1);
     }
     //cout << "cont_inp: " << cont_inp << endl;
-    auto cont_ret = cont_inp.stencil<-1, 1>({0.5, 0.5});
-    auto cont_ret2 = cont_ret.stencil<-1, 1>({0.5, 0.5});
-    auto cont_ret3 = cont_ret2.stencil<-1, 1>({0.5, 0.5});
-    auto cont_ret4 = cont_ret3.stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret = cont_inp.stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret2 = cont_ret->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret3 = cont_ret2->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret4 = cont_ret3->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret5 = cont_ret4->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret6 = cont_ret5->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret7 = cont_ret6->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret8 = cont_ret7->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret9 = cont_ret8->stencil3<-1, 1>({0.5, 0.5});
+    //std::cout << cont_ret4 << std::endl;
     contentious::tp.finish();
 
-    //std::cout << cont_ret << std::endl;
-    //std::cout << cont_ret2 << std::endl;
-    //std::cout << cont_ret3 << std::endl;
-    std::cout << cont_ret4 << std::endl;
-    int bad = 0;
+    std::cout << *cont_ret << std::endl;
+    std::cout << *cont_ret2 << std::endl;
+    std::cout << *cont_ret3 << std::endl;
+    std::cout << *cont_ret9 << std::endl;
+    /*int bad = 0;
     for (size_t i = 0; i < cont_ret.size(); ++i) {
         double change = 1;
         if (i > 0) { change += cont_inp[i-1]*0.5; }
         if (i < cont_ret.size()-1) { change += cont_inp[i+1]*0.5; }
         // o the humanity
-        if (std::abs(cont_inp[i] + change - cont_ret[i]) > 0.00000001) {
+        if (std::abs(cont_inp[i] + change - (cont_ret)[i]) > 0.00000001) {
             ++bad;
-            /*
             cout << "bad resolution at cont_ret[" << i << "]: "
                  << cont_inp[i] * change << " "
                  << cont_ret[i] << endl;
             return 1;
-            */
         }
     }
     if (bad != 0) {
-        //std::cout << "bad resolutions for stencil: " << bad << std::endl;
-    }
+        std::cout << "bad resolutions for stencil: " << bad << std::endl;
+    }*/
     //cont_inp.resolve(cont_ret);
     //cout << "cont_ret: " << cont_ret << endl;
     return 0;
@@ -262,11 +263,12 @@ constexpr double ipow(double base, int exp, double result = 1)
     return exp < 1 ? result : \
                ipow(base*base, exp/2, (exp % 2) ? result*base : result);
 }
-void cont_heat() {
+void cont_heat()
+{
     constexpr double dt = 0.00001;
     constexpr double dy = 0.0001;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
-    constexpr double y_max = 40;
+    constexpr double y_max = 4000;
     constexpr double t_max = 0.0001;
     constexpr double V0 = 10;
 
@@ -274,21 +276,25 @@ void cont_heat() {
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr int64_t c = (y_max + dy) / dy;
     std::cout << s << std::endl;
-    
+
     cont_vector<double> cont_inp;
     cont_inp.unprotected_push_back(V0);
     for (int64_t i = 1; i < c; ++i) {
         cont_inp.unprotected_push_back(0.0);
     }
+    /*
     cont_vector<double> *curr = &cont_inp;
     cont_vector<double> *next;
-    for (int t = 0; t < r-1; ++t) {
-        next = curr->stencil2<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
-        curr = next;
+    */
+    std::array<std::shared_ptr<cont_vector<double>>, r> grid;
+    grid[0] = make_shared<cont_vector<double>>(cont_inp);
+    for (int t = 1; t < r; ++t) {
+        //std::cout << "whut" << std::endl;
+        grid[t] = grid[t-1]->stencil3<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
     }
     contentious::tp.finish();
     for (size_t i = 0; i < 32; ++i) {
-        std::cout << (*next)[i] << " ";
+        std::cout << (*grid[r-1])[i] << " ";
     }
     std::cout << std::endl;
 }
@@ -298,6 +304,7 @@ void cont_heat() {
 
 int cont_vector_runner()
 {
+    /*
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
@@ -309,7 +316,9 @@ int cont_vector_runner()
     auto gen = std::bind(dist, mersenne_engine);
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
+    */
 
+    /*
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
@@ -336,19 +345,15 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 8; ++i) {
         cont_stencil(test_vec);
     }
-    /*
-    cont_heat();
-    cont_heat();
-    cont_heat();
-    cont_heat();
-    cont_heat();
-    cont_heat();
-    cont_heat();
-    cont_heat();
     */
+
+    for (int i = 0; i < 1; ++i) {
+        cont_heat();
+    }
+    
     //cout << "DONE! " << test_sz << endl;
 
     return 0;

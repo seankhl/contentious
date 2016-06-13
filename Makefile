@@ -40,7 +40,7 @@ COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native -mtune=generic	\
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3 -DNDEBUG
 # Additional debug-specific flags
-DCOMPILE_FLAGS = -DDEBUG $(CXX_OG) -g
+DCOMPILE_FLAGS = -DDEBUG $(CXX_OG) -g -Wno-fatal-errors
 # Add additional include paths
 NEUROTIC_COMPILE_FLAGS = -pedantic -Wcast-align -Wcast-qual				\
 	-Wctor-dtor-privacy -Wdisabled-optimization -Wformat=2 -Winit-self	\
