@@ -16,3 +16,4 @@
 15. efficient deep copy (leaves)
 16. finish bp_vector_base members, including constructors
 17. fix hackish members
+18. fancy kernel calling syntactic sugar

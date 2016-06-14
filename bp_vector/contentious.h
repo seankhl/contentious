@@ -309,7 +309,9 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     const binary_fp<T> fp = splt.ops[0].f;
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
-        *it = fp(*it, val);
+        T &target = *it;
+        target = fp(target, val);
+        //target *= val;
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -346,7 +348,9 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     auto trck = other.get()._data.cbegin() + adom;
     auto end = splt._data.begin() + bran;
     for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
-        *it = fp(*it, *trck);
+        T &target = *it;
+        target = fp(target, *trck);
+        //target *= *trck;
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -396,6 +400,7 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
         for (size_t i = 0; i < offs_sz; ++i) {
             target = fs[i](target, *(trck + ioffs[i]));
         }
+        //target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
     }
 
     cont.reattach(splt, dep, p, a, b);

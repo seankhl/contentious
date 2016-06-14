@@ -180,46 +180,109 @@ template <typename T, template<typename> typename TDer>
 void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
 {
     assert(a < b);
-    uint16_t s = contained_at_shift(a, b);
-    uint16_t d = s / BP_BITS + 1;
-    int64_t interval = std::pow(BP_WIDTH, d);
-    size_t ar = next_multiple(a, interval);
-    size_t br = next_multiple(b, interval);
-    if (b != br) { br -= interval; }
-    //std::cout << a << " " << ar << " " << b << " " << br << std::endl;
-
+    //size_t copy_count = 0;
     // if we're smaller than a branch, branch-copying won't work
     if (b - a < BP_WIDTH) {
         size_t split = std::min((size_t)next_multiple(a, BP_WIDTH), b);
         std::copy(other.cbegin() + a, other.cbegin() + split,
                   this->begin() + a);
         std::copy(other.cbegin() + split, other.cbegin() + b,
-                  this->begin() + ar);
+                  this->begin() + split);
         return;
     }
 
+    int64_t interval = BP_WIDTH;
+    size_t ar = next_multiple(a, interval);
+    size_t br = next_multiple(b, interval);
+    if (b != br) { br -= interval; }
+    //std::cout << a << " " << ar << " " << br << " " << b << std::endl;
+
     // 1. copy individual vals for partial leaf we originate in, if n b
-    // 2. travel upwards, copying branches at shallowest depth possible
     if (ar - a > 0) {
         auto it_step1 = other.cbegin() + a;
         auto end1 = this->begin() + ar;
         for (auto it = this->begin() + a; it != end1; ++it, ++it_step1) {
             *it = *it_step1;
         }
+        //copy_count += (ar - a);
+    }
+
+    size_t ai, bi;
+    uint16_t ai_off, ar_off, bi_off, br_off, s, d;
+    uint16_t last_s = contained_at_shift(a, b) + BP_BITS;
+    uint16_t last_d = last_s / BP_BITS;
+    int64_t last_interval = std::pow(BP_WIDTH, last_d);
+
+    // 2. travel upwards, copying branches at shallowest depth possible
+    // this is where we'll be when we do the shallowest branch copy
+    s = 0;
+    while (interval != last_interval) {
+        // get next set of branches to copy at decreased depth
+        interval *= BP_WIDTH;
+        ai = ar;
+        ar = next_multiple(ai, interval);
+        s += BP_BITS;
+        d = s / BP_BITS;
+        if (ai == ar) { continue; }
+
+        d = calc_depth() - d;
+        ai_off = ai >> s & BP_MASK;
+        assert(ai_off != 0);
+        ar_off = ar >> s & BP_MASK;
+        assert(ar_off == 0);
+        ar_off = BP_WIDTH;
+        /*std::cout << "(" << ai << ", " << ai_off
+                  << "; " << ar << ", " << ar_off << ") "
+                  << interval << " / " << last_interval << std::endl;*/
+        std::copy(other.get_branch(d, ai).cbegin() + ai_off,
+                  other.get_branch(d, ar-1).cbegin() + ar_off,
+                  this->get_branch(d, ai).begin() + ai_off);
+        //copy_count += (ar_off - ai_off);
     }
 
     // 3. copy shallow branches until we're in the final val's branch
-    d = calc_depth() - d;
-    uint16_t ar_off = ar >> (s + BP_BITS) & BP_MASK;
-    ar_off = (ar_off == 0 && ar == this->sz) ? BP_WIDTH : ar_off;
-    uint16_t br_off = br >> (s + BP_BITS) & BP_MASK;
-    br_off = (br_off == 0 && br == this->sz) ? BP_WIDTH : br_off;
-    //std::cout << ar_off << " " << br_off << std::endl;
-    std::copy(other.get_branch(d, ar).cbegin() + ar_off,
-              other.get_branch(d, br).cbegin() + br_off,
-              this->get_branch(d, ar).begin() + ar_off);
+    last_d = calc_depth() - last_d;
+    ar = next_multiple(a, last_interval);
+    br = next_multiple(b, last_interval);
+    if (br != b) { br -= interval; }
+    if (ar != br) {
+        ar_off = ar >> last_s & BP_MASK;
+        ar_off = (ar_off == 0 && ar == this->sz) ? BP_WIDTH : ar_off;
+        br_off = br >> last_s & BP_MASK;
+        br_off = (br_off == 0 && br == this->sz) ? BP_WIDTH : br_off;
+        //std::cout << "PHASE 3: " << ar << " " << br << std::endl;
+        std::copy(other.get_branch(last_d, ar).cbegin() + ar_off,
+                  other.get_branch(last_d, br).cbegin() + br_off,
+                  this->get_branch(last_d, ar).begin() + ar_off);
+        //copy_count += (br_off - ar_off);
+    }
 
     // 4. travel downwards, copying branches at [...]
+    s = last_s;
+    while (interval != BP_WIDTH) {
+        // get next set of branches to copy at decreased depth
+        interval /= BP_WIDTH;
+        bi = br;
+        br = next_multiple(b, interval);
+        s -= BP_BITS;
+        d = s / BP_BITS;
+
+        if (b != br) { br -= interval; }
+        if (bi == br) { continue; }
+        d = calc_depth() - d;
+        bi_off = bi >> s & BP_MASK;
+        br_off = br >> s & BP_MASK;
+        br_off = (br_off == 0 && bi != br) ? BP_WIDTH : br_off;
+        /*std::cout << "(" << bi << ", " << bi_off
+                  << "; " << br << ", " << br_off << ") "
+                  << interval << " / " << last_interval << std::endl;*/
+        assert(bi_off == 0);
+        std::copy(other.get_branch(d, bi).cbegin() + bi_off,
+                  other.get_branch(d, br-1).cbegin() + br_off,
+                  this->get_branch(d, bi).begin() + bi_off);
+        //copy_count += (br_off - bi_off);
+    }
+
     // 5. copy individual vals for partial leaf we terminate in, if n e
     if (b - br > 0) {
         auto it_step3 = other.cbegin() + br;
@@ -227,5 +290,10 @@ void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
         for (auto it = this->begin() + br; it != end3; ++it, ++it_step3) {
             *it = *it_step3;
         }
+        //copy_count += (b - br);
     }
+    /*std::cout << "copy count in assign (depth: " << (uint16_t)calc_depth()
+              << ", BP_WIDTH: " << BP_WIDTH
+              << ", [a,b): [" << a << "," << b << ")): "
+              << copy_count << std::endl;*/
 }

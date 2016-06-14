@@ -188,7 +188,7 @@ void cont_foreach(const vector<double> &test_vec)
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
     std::cout << "cont_foreach_inner took: " << splt_dur.count() << " seconds "
               << std::endl;
-    
+
     size_t bad = 0;
     for (size_t i = 0; i < cont_inp.size(); ++i) {
         if (cont_inp[i] * 2 != cont_ret[i]) {
@@ -270,7 +270,7 @@ void cont_heat()
     constexpr double dt = 0.00001;
     constexpr double dy = 0.0001;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
-    constexpr double y_max = 40;
+    constexpr double y_max = 400;
     constexpr double t_max = 0.0001;
     constexpr double V0 = 10;
 
@@ -288,7 +288,7 @@ void cont_heat()
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
         grid[t] = grid[t-1]->stencil3<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
-        if (t % 5 == 0) {
+        if (t % 8 == 0) {
             contentious::tp.finish();
         }
     }
@@ -304,10 +304,13 @@ void cont_heat()
 
 int cont_vector_runner()
 {
+    /*
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
+    */
 
+    /*
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
     uniform_real_distribution<double> dist(-32.768, 32.768);
@@ -315,6 +318,7 @@ int cont_vector_runner()
     auto gen = std::bind(dist, mersenne_engine);
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
+    */
 
     /*
     double answer_new = 0;
@@ -325,6 +329,7 @@ int cont_vector_runner()
     cont_reduce(test_vec);
     */
 
+    /*
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
     for (size_t i = 0; i < 2; ++i) {
@@ -344,15 +349,18 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
+    */
 
+    /*
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
+    */
 
     for (int i = 0; i < 1; ++i) {
         cont_heat();
     }
-    
+
     //cout << "DONE! " << test_sz << endl;
 
     return 0;
