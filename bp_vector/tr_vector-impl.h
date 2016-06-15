@@ -18,22 +18,21 @@ void tr_vector<T>::mut_set(const size_t i, const T &val)
 template <typename T>
 void tr_vector<T>::mut_push_back(const T &val)
 {
-    if (this->sz % BP_WIDTH != 0) {
+    if (this->sz & BP_MASK) {
         mut_set(this->sz++, val);
         return;
     }
 
-    if (this->sz == 0) {
-        this->root = new bp_node<T>(bp_node_t::leaves, this->id);
+    if (this->sz < BP_WIDTH) {
         this->root->as_leaves()[this->sz++] = val;
         return;
     }
 
     size_t depth_cap = this->capacity();
     int16_t depth_ins = -1;
-    while (this->sz % depth_cap != 0) {
+    while (this->sz & (depth_cap-1)) {
         ++depth_ins;
-        depth_cap /= BP_WIDTH;
+        depth_cap >>= BP_BITS;
     }
 
     if (this->id != this->root->id) {
@@ -61,20 +60,18 @@ void tr_vector<T>::mut_push_back(const T &val)
     }
     assert(s <= this->shift && s >= 0);
 
-    while (s > BP_BITS) {
-        bp_node_ptr<T> &next = node->as_branches()[this->sz >> s & BP_MASK];
-        next = new bp_node<T>(bp_node_t::branches, this->id);
-        node = next.get();
-        s -= BP_BITS;
-    }
-    if (s == BP_BITS) {
+    if (s > 0) {
+        while (s > BP_BITS) {
+            bp_node_ptr<T> &next = node->as_branches()[this->sz >> s & BP_MASK];
+            next = new bp_node<T>(bp_node_t::branches, this->id);
+            node = next.get();
+            s -= BP_BITS;
+        }
         bp_node_ptr<T> &next = node->as_branches()[this->sz >> s & BP_MASK];
         next = new bp_node<T>(bp_node_t::leaves, this->id);
         node = next.get();
-        s -= BP_BITS;
     }
 
     // add value
-    node->as_leaves()[this->sz & BP_MASK] = val;
-    ++this->sz;
+    node->as_leaves()[this->sz++ & BP_MASK] = val;
 }

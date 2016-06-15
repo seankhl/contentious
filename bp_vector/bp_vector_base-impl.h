@@ -7,6 +7,7 @@ const T &bp_vector_base<T, TDer>::at(size_t i) const
     }
     return this->operator[](i);
 }
+/*
 template <typename T, template<typename> typename TDer>
 T &bp_vector_base<T, TDer>::at(size_t i)
 {
@@ -14,7 +15,7 @@ T &bp_vector_base<T, TDer>::at(size_t i)
     return const_cast<T &>(
       implicit_cast<const bp_vector_base<T, TDer> *>(this)->at(i));
 }
-
+*/
 // undefined behavior if i >= sz
 template <typename T, template<typename> typename TDer>
 TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
@@ -42,7 +43,7 @@ template <typename T, template<typename> typename TDer>
 TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
 {
     // just a set; only 1/BP_WIDTH times do we even have to construct nodes
-    if (this->sz % BP_WIDTH != 0) {
+    if (this->sz & BP_MASK) {
         TDer<T> ret(this->set(this->sz, val));
         ++(ret.sz);
         return ret;
@@ -57,9 +58,9 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     // depth at which to insert new node
     int16_t depth_ins = -1;
     // figure out how deep we must travel to branch
-    while (sz % depth_cap != 0) {
+    while (sz & (depth_cap-1)) {
         ++depth_ins;
-        depth_cap /= BP_WIDTH;
+        depth_cap >>= BP_BITS;
     }
 
     if (node_copy(ret.root->id)) {
@@ -93,17 +94,16 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
     assert(s <= ret.shift && s >= 0);
 
     // keep going, but this time, construct new nodes as necessary
-    while (s > BP_BITS) {
-        bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
-        next = new bp_node<T>(bp_node_t::branches, id);
-        node = next.get();
-        s -= BP_BITS;
-    }
     if (s > 0) {
+        while (s > BP_BITS) {
+            bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
+            next = new bp_node<T>(bp_node_t::branches, id);
+            node = next.get();
+            s -= BP_BITS;
+        }
         bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
         next = new bp_node<T>(bp_node_t::leaves, id);
         node = next.get();
-        s -= BP_BITS;
     }
 
     // add value
@@ -214,13 +214,12 @@ void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
     s = 0;
     while (interval != last_interval) {
         // get next set of branches to copy at decreased depth
-        interval *= BP_WIDTH;
+        interval <<= BP_BITS;
         ai = ar;
         ar = next_multiple(ai, interval);
         s += BP_BITS;
         d = s / BP_BITS;
         if (ai == ar) { continue; }
-
         d = calc_depth() - d;
         ai_off = ai >> s & BP_MASK;
         assert(ai_off != 0);
@@ -257,12 +256,11 @@ void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
     s = last_s;
     while (interval != BP_WIDTH) {
         // get next set of branches to copy at decreased depth
-        interval /= BP_WIDTH;
+        interval >>= BP_BITS;
         bi = br;
         br = next_multiple(b, interval);
         s -= BP_BITS;
         d = s / BP_BITS;
-
         if (b != br) { br -= interval; }
         if (bi == br) { continue; }
         d = calc_depth() - d;

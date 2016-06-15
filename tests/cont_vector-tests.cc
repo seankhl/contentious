@@ -304,7 +304,7 @@ void cont_heat()
 
 int cont_vector_runner()
 {
-    /*
+
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
@@ -347,7 +347,7 @@ int cont_vector_runner()
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
-    */
+
     for (int i = 0; i < 1; ++i) {
         cont_heat();
     }

@@ -229,10 +229,10 @@ public:
 
     // internal passthroughs
     inline const T &operator[](size_t i) const  { return _data[i]; }
-    inline T &operator[](size_t i)              { return _data[i]; }
+    //inline T &operator[](size_t i)              { return _data[i]; }
 
     inline const T &at(size_t i) const  { return _data.at(i); }
-    inline T &at(size_t i)              { return _data.at(i); }
+    //inline T &at(size_t i)              { return _data.at(i); }
 
     inline void unprotected_set(const size_t i, const T &val)
     {

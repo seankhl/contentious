@@ -34,7 +34,7 @@ int test_simple()
         }
     }
     for (int i = 0; i < test_sz; ++i) {
-        test.at(i) = 1000 + i;
+        test.mut_set(i, 1000 + i);
     }
     for (int i = 0; i < test_sz; ++i) {
         if ((1000 + i) != test[i]) {

@@ -397,11 +397,10 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     auto end = splt._data.begin() + bp;
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
         T &target = *it;
-        /*
         for (size_t i = 0; i < offs_sz; ++i) {
             target = fs[i](target, *(trck + ioffs[i]));
-        }*/
-        target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
+        }
+        //target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
     }
 
     cont.reattach(splt, dep, p, a, b);

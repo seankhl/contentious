@@ -38,7 +38,6 @@ public:
     typedef T * pointer;
     typedef std::output_iterator_tag iterator_category;
 
-
     bp_vector_iterator() = delete;
 
     bp_vector_iterator(bp_vector_base<T, TDer> &toit)
@@ -109,11 +108,11 @@ public:
         return *this;
     }
     /*
-       iterator operator++(int); //optional
-       iterator& operator--(); //optional
-       iterator operator--(int); //optional
-       iterator& operator+=(size_type); //optional
-       */
+    iterator operator++(int); //optional
+    iterator& operator--(); //optional
+    iterator operator--(int); //optional
+    iterator& operator+=(size_type); //optional
+    */
 
     iterator operator+(size_t n) const
     {
@@ -151,16 +150,16 @@ public:
     }
 
     /*
-       friend iterator operator+(size_t n, const iterator &it); //optional
-       iterator& operator-=(size_type); //optional
-       iterator operator-(size_type) const; //optional
-       difference_type operator-(iterator) const; //optional
-       */
-    T &operator*() const { return *cur; }
-    const T *operator->() const { return cur; }
+    friend iterator operator+(size_t n, const iterator &it); //optional
+    iterator& operator-=(size_type); //optional
+    iterator operator-(size_type) const; //optional
+    difference_type operator-(iterator) const; //optional
+    */
+    inline T &operator*() const { return *cur; }
+    inline T *operator->() const { return cur; }
     /*
-       const_reference operator[](size_type) const; //optional
-       */
+    const_reference operator[](size_type) const; //optional
+    */
 };
 
 template <typename T, template<typename> typename TDer>
@@ -243,11 +242,11 @@ public:
         return *this;
     }
     /*
-       const_iterator operator++(int); //optional
-       const_iterator& operator--(); //optional
-       const_iterator operator--(int); //optional
-       const_iterator& operator+=(size_type); //optional
-       */
+    const_iterator operator++(int); //optional
+    const_iterator& operator--(); //optional
+    const_iterator operator--(int); //optional
+    const_iterator& operator+=(size_type); //optional
+    */
 
     const_iterator operator+(size_t n) const
     {
@@ -281,16 +280,16 @@ public:
     }
 
     /*
-       friend const_iterator operator+(size_t n, const const_iterator &it); //optional
-       const_iterator& operator-=(size_type); //optional
-       const_iterator operator-(size_type) const; //optional
-       difference_type operator-(const_iterator) const; //optional
-       */
-    const T &operator*() const  { return *cur; }
-    const T *operator->() const { return cur; }
+    friend const_iterator operator+(size_t n, const const_iterator &it); //optional
+    const_iterator& operator-=(size_type); //optional
+    const_iterator operator-(size_type) const; //optional
+    difference_type operator-(const_iterator) const; //optional
+    */
+    inline const T &operator*() const  { return *cur; }
+    inline const T *operator->() const { return cur; }
     /*
-       const_reference operator[](size_type) const; //optional
-       */
+    const_reference operator[](size_type) const; //optional
+    */
 };
 
 #endif

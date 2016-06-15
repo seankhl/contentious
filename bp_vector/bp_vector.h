@@ -154,7 +154,7 @@ class bp_vector_base : protected bp_vector_glob
 public:
     /* element access */
     const T &at(size_t i) const;
-    T &at(size_t i);
+    //T &at(size_t i);
     const inline T &operator[](size_t i) const
     {
         const bp_node<T> *node = root.get();
@@ -163,12 +163,12 @@ public:
         }
         return node->as_leaves()[i & BP_MASK];
     }
-    inline T &operator[](size_t i)
+    /*inline T &operator[](size_t i)
     {
         // boilerplate implementation in terms of const version
         return const_cast<T &>(
           implicit_cast<const bp_vector_base<T, TDer> *>(this)->operator[](i));
-    }
+    }*/
     // fast copy from a to b
     void assign(const TDer<T> &other, size_t a, size_t b);
 
