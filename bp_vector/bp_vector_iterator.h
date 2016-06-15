@@ -18,6 +18,8 @@ class bp_vector_iterator
 {
     using iterator = bp_vector_iterator;
     using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
+    using bp_branches = std::array<bp_node_ptr, BP_WIDTH>;
+    using bp_leaves = std::array<T, BP_WIDTH>;
 
 private:
     bp_node<T> *root;
@@ -38,7 +40,6 @@ public:
     typedef T * pointer;
     typedef std::output_iterator_tag iterator_category;
 
-
     bp_vector_iterator() = delete;
 
     bp_vector_iterator(bp_vector_base<T, TDer> &toit)
@@ -50,14 +51,15 @@ public:
         root = toit.root.get();
         bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[i >> s & BP_MASK];
+            bp_node_ptr &next = node->branches.template
+                                get<bp_branches>()[i >> s & BP_MASK];
             if (id != next->id) {
                 next = new bp_node<T>(*next, id);
             }
             node = next.get();
         }
-        cur = node->values.begin();
-        end = node->values.end();
+        cur = node->branches.template get<bp_leaves>().begin();
+        end = node->branches.template get<bp_leaves>().end();
     }
 
     bp_vector_iterator(const iterator &other)
@@ -98,14 +100,14 @@ public:
 
         bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[i >> s & BP_MASK];
+            bp_node_ptr &next = node->branches.template get<bp_branches>()[i >> s & BP_MASK];
             if (id != next->id) {
                 next = new bp_node<T>(*next, id);
             }
             node = next.get();
         }
-        cur = node->values.begin();
-        end = node->values.end();
+        cur = node->branches.template get<bp_leaves>().begin();
+        end = node->branches.template get<bp_leaves>().end();
         return *this;
     }
     /*
@@ -138,14 +140,14 @@ public:
 
         bp_node<T> *node = ret.root;
         for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[ret.i >> s & BP_MASK];
+            bp_node_ptr &next = node->branches.template get<bp_branches>()[ret.i >> s & BP_MASK];
             if (ret.id != next->id) {
                 next = new bp_node<T>(*next, ret.id);
             }
             node = next.get();
         }
-        ret.cur = node->values.begin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->values.end();
+        ret.cur = node->branches.template get<bp_leaves>().begin() + (ret.i & BP_MASK) + plusplus;
+        ret.end = node->branches.template get<bp_leaves>().end();
         ret.i -= ret.i & BP_MASK;
         return ret;
     }
@@ -167,6 +169,9 @@ template <typename T, template<typename> typename TDer>
 class bp_vector_const_iterator
 {
     using const_iterator = bp_vector_const_iterator;
+    using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
+    using bp_branches = std::array<bp_node_ptr, BP_WIDTH>;
+    using bp_leaves = std::array<T, BP_WIDTH>;
 
 private:
     const bp_node<T> *root;
@@ -193,10 +198,10 @@ public:
     {
         const bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->branches.template get<bp_branches>()[i >> s & BP_MASK].get();
         }
-        cur = node->values.cbegin() + (i & BP_MASK);
-        end = node->values.cend();
+        cur = node->branches.template get<bp_leaves>().cbegin() + (i & BP_MASK);
+        end = node->branches.template get<bp_leaves>().cend();
     }
 
     bp_vector_const_iterator(const const_iterator &other)
@@ -236,10 +241,10 @@ public:
 
         const bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->branches.template get<bp_branches>()[i >> s & BP_MASK].get();
         }
-        cur = node->values.cbegin();
-        end = node->values.cend();
+        cur = node->branches.template get<bp_leaves>().cbegin();
+        end = node->branches.template get<bp_leaves>().cend();
         return *this;
     }
     /*
@@ -272,10 +277,10 @@ public:
 
         const bp_node<T> *node = ret.root;
         for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
-            node = node->branches[ret.i >> s & BP_MASK].get();
+            node = node->branches.template get<bp_branches>()[ret.i >> s & BP_MASK].get();
         }
-        ret.cur = node->values.cbegin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->values.cend();
+        ret.cur = node->branches.template get<bp_leaves>().cbegin() + (ret.i & BP_MASK) + plusplus;
+        ret.end = node->branches.template get<bp_leaves>().cend();
         ret.i -= ret.i & BP_MASK;
         return ret;
     }

@@ -19,6 +19,8 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/smart_ptr/intrusive_ref_counter.hpp>
 
+#include "../static_any/any.hpp"
+
 // TODO: namespace
 
 template <typename T, template<typename> typename TDer>
@@ -41,19 +43,48 @@ template <typename T>
 using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
 template <typename T>
+using bp_branches = std::array<bp_node_ptr<T>, BP_WIDTH>;
+template <typename T>
+using bp_leaves = std::array<T, BP_WIDTH>;
+
+template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
 private:
-    bp_node() = default;
-    bp_node(int32_t id_in)
-      : id(id_in)
+    bp_node() = delete;
+
+    bp_node(const bp_node<T> &other)
+      : branches(other.branches)
     {   /* nothing to do here*/ }
-    bp_node(const bp_node<T> &other, int32_t id_in)
-      : branches(other.branches), values(other.values), id(id_in)
+    bp_node(const bp_branches<T> &&branches_in)
+      : branches(branches_in)
+    {   /* nothing to do here*/ }
+    bp_node(const bp_leaves<T> &&leaves_in)
+      : branches(leaves_in)
     {   /* nothing to do here*/ }
 
-    std::array<bp_node_ptr<T>, BP_WIDTH> branches;
-    std::array<T, BP_WIDTH> values;
+    bp_node(const bp_node<T> &other, int32_t id_in)
+      : branches(other.branches), id(id_in)
+    {   /* nothing to do here*/
+        /*if (other.branches.template has<bp_leaves<T>>()) {
+            std::cout << "copy constructing leaf with id" << std::endl;
+        }*/
+    }
+    bp_node(const bp_branches<T> &&branches_in, int32_t id_in)
+      : branches(branches_in), id(id_in)
+    {   /* nothing to do here*/ }
+    bp_node(const bp_leaves<T> &&leaves_in, int32_t id_in)
+      : branches(leaves_in), id(id_in)
+    {
+        /* nothing to do here*/
+        //std::cout << "constructing leaf with id" << std::endl;
+    }
+
+    alignas(std::max(alignof(std::array<T, BP_WIDTH>),
+                     alignof(std::array<bp_node_ptr<T>, BP_WIDTH>)))
+    static_any<std::max(sizeof(T), sizeof(bp_node_ptr<T>)) * BP_WIDTH> branches;
+    //std::array<bp_node_ptr<T>, BP_WIDTH> branches;
+    //std::array<T, BP_WIDTH> values;
     int32_t id;
 
     template <typename U, template <typename> typename TDer>
@@ -92,9 +123,10 @@ public:
     {
         const bp_node<T> *node = root.get();
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->branches.template
+                   get<bp_branches<T>>()[i >> s & BP_MASK].get();
         }
-        return node->values[i & BP_MASK];
+        return node->branches.template get<bp_leaves<T>>()[i & BP_MASK];
     }
     inline T &operator[](size_t i)
     {
@@ -147,7 +179,7 @@ public:
     // resize
     // swap
     TDer<T> set(const size_t i, const T &val) const;
-    
+
     /* not members of std::vector */
     inline int32_t get_id() const       { return id; }
     inline uint8_t get_depth() const    { return calc_depth(); }
@@ -167,12 +199,12 @@ public:
 protected:
     // protected because we cannot create instances of base type
     bp_vector_base()
-      : sz(0), shift(0), root(new bp_node<T>(0)), id(0)
+      : sz(0), shift(0), root(new bp_node<T>(bp_leaves<T>(), 0)), id(0)
     {   /* nothing to do here */ }
 
     // constructor that takes arbitrary id, for making transients
     bp_vector_base(int32_t id_in)
-      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
+      : sz(0), shift(0), root(new bp_node<T>(bp_leaves<T>(), id_in)), id(id_in)
     {   /* nothing to do here */ }
 
     // copy constructor is protected because it would allow us to create
@@ -290,7 +322,7 @@ public:
     tr_vector()
       : bp_vector_base<T, ::tr_vector>(this->get_unique_id())
     {   /* nothing to do here */ }
-    
+
     tr_vector(const tr_vector<T> &other) = default;
 
     tr_vector(const bp_vector_base<T, ::tr_vector> &other)

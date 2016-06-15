@@ -84,9 +84,9 @@ int test_pers()
 {
     vector<ps_vector<double>> test;
     int test_sz = 1025;
-    test.push_back(ps_vector<double>());
+    test.emplace_back(ps_vector<double>());
     for (int i = 1; i < test_sz; ++i) {
-        test.push_back(test[i-1].push_back(1000 + test_sz - i));
+        test.emplace_back(test[i-1].push_back(1000 + test_sz - i));
         //cout << i << "- " << test[i-1] << endl;
         //cout << i << "  " << test[i] << endl;
     }
@@ -552,6 +552,7 @@ void vec_timing()
     }
     bp_end = chrono::system_clock::now();
 
+    /*
     chrono::time_point<chrono::system_clock> ps_start, ps_end;
     ps_start = chrono::system_clock::now();
     ps_vector<double> ps_test;
@@ -559,7 +560,7 @@ void vec_timing()
         ps_test = ps_test.push_back(i);
     }
     ps_end = chrono::system_clock::now();
-
+    */
     chrono::time_point<chrono::system_clock> tr_start, tr_end;
     tr_start = chrono::system_clock::now();
     tr_vector<double> tr_test;
@@ -571,12 +572,12 @@ void vec_timing()
 
     chrono::duration<double> st_dur = st_end - st_start;
     chrono::duration<double> bp_dur = bp_end - bp_start;
-    chrono::duration<double> ps_dur = ps_end - ps_start;
+    //chrono::duration<double> ps_dur = ps_end - ps_start;
     chrono::duration<double> tr_dur = tr_end - tr_start;
 
     cout << "st took " << st_dur.count()/test_sz * 1000000000 << " ns" << endl;
     cout << "bp took " << bp_dur.count()/test_sz * 1000000000 << " ns" << endl;
-    cout << "ps took " << ps_dur.count()/test_sz * 1000000000 << " ns" << endl;
+    //cout << "ps took " << ps_dur.count()/test_sz * 1000000000 << " ns" << endl;
     cout << "tr took " << tr_dur.count()/test_sz * 1000000000 << " ns" << endl;
 
     /*
@@ -598,10 +599,10 @@ int bp_vector_runner()
     vector<function<int()>> runner;
     runner.push_back(test_simple);
     runner.push_back(test_insert);
-    runner.push_back(test_pers);
-    runner.push_back(test_pers_alternate);
+    //runner.push_back(test_pers);
+    //runner.push_back(test_pers_alternate);
     runner.push_back(test_iter);
-    runner.push_back(test_trans);
+    //runner.push_back(test_trans);
     runner.push_back(test_make);
     //runner.push_back(test_coroutine);
     //runner.push_back(test_coroutine_practical);

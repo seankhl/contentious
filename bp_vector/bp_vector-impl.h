@@ -3,9 +3,10 @@ void bp_vector<T>::mut_set(const size_t i, const T &val)
 {
     bp_node<T> *node = this->root.get();
     for (uint16_t s = this->shift; s > 0; s -= BP_BITS) {
-        node = node->branches[i >> s & BP_MASK].get();
+        node = node->branches.template
+               get<bp_branches<T>>()[i >> s & BP_MASK].get();
     }
-    node->values[i & BP_MASK] = val;
+    node->branches.template get<bp_leaves<T>>()[i & BP_MASK] = val;
 }
 
 template <typename T>
@@ -25,15 +26,16 @@ void bp_vector<T>::mut_push_back(const T &val)
 
     if (depth_ins == -1) {
         this->shift += BP_BITS;
-        bp_node_ptr<T> temp = new bp_node<T>();
+        bp_node_ptr<T> temp = new bp_node<T>(bp_branches<T>());
         this->root.swap(temp);
-        this->root->branches[0] = std::move(temp);
+        this->root->branches.template get<bp_branches<T>>()[0] = std::move(temp);
     }
 
     bp_node<T> *node = this->root.get();
     uint16_t s = this->shift;
     while (depth_ins > 0) {
-        bp_node_ptr<T> &next = node->branches[this->sz >> s & BP_MASK];
+        bp_node_ptr<T> &next = node->branches.template
+                               get<bp_branches<T>>()[this->sz >> s & BP_MASK];
         assert(next);
         node = next.get();
         s -= BP_BITS;
@@ -42,19 +44,21 @@ void bp_vector<T>::mut_push_back(const T &val)
     assert(s <= this->shift && s >= 0);
 
     while (s > BP_BITS) {
-        bp_node_ptr<T> &next = node->branches[this->sz >> s & BP_MASK];
-        next = new bp_node<T>();
+        bp_node_ptr<T> &next = node->branches.template
+                               get<bp_branches<T>>()[this->sz >> s & BP_MASK];
+        next = new bp_node<T>(bp_branches<T>());
         node = next.get();
         s -= BP_BITS;
     }
     if (s == BP_BITS) {
-        bp_node_ptr<T> &next = node->branches[this->sz >> s & BP_MASK];
-        next = new bp_node<T>();
+        bp_node_ptr<T> &next = node->branches.template
+                               get<bp_branches<T>>()[this->sz >> s & BP_MASK];
+        next = new bp_node<T>(bp_leaves<T>());
         node = next.get();
         s -= BP_BITS;
     }
 
     // add value
-    node->values[this->sz & BP_MASK] = val;
+    node->branches.template get<bp_leaves<T>>()[this->sz & BP_MASK] = val;
     ++this->sz;
 }
