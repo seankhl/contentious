@@ -271,7 +271,7 @@ void cont_heat()
     constexpr double dy = 0.0001;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
     constexpr double y_max = 400;
-    constexpr double t_max = 0.0001;
+    constexpr double t_max = 0.001;
     constexpr double V0 = 10;
 
     constexpr double s = viscosity * dt/ipow(dy,2);
@@ -308,9 +308,7 @@ int cont_vector_runner()
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
-    */
 
-    /*
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
     uniform_real_distribution<double> dist(-32.768, 32.768);
@@ -318,21 +316,17 @@ int cont_vector_runner()
     auto gen = std::bind(dist, mersenne_engine);
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
-    */
 
-    /*
     double answer_new = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer_new += test_vec[i];
     }
     cout << answer_new << endl;
     cont_reduce(test_vec);
-    */
 
-    /*
     chrono::time_point<chrono::system_clock> stdv_start, stdv_end;
     stdv_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 2; ++i) {
+    for (size_t i = 0; i < 4; ++i) {
         stdv_foreach(test_vec);
     }
     stdv_end = chrono::system_clock::now();
@@ -340,7 +334,7 @@ int cont_vector_runner()
 
     chrono::time_point<chrono::system_clock> cont_start, cont_end;
     cont_start = chrono::system_clock::now();
-    for (size_t i = 0; i < 2; ++i) {
+    for (size_t i = 0; i < 4; ++i) {
         cont_foreach(test_vec);
     }
     cont_end = chrono::system_clock::now();
@@ -349,14 +343,11 @@ int cont_vector_runner()
     cout << "stdv took: " << stdv_dur.count() << " seconds; " << endl;
     cout << "cont took: " << cont_dur.count() << " seconds; " << endl;
     cout << "ratio: " << cont_dur.count() / stdv_dur.count() << endl;
-    */
 
-    /*
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
     */
-
     for (int i = 0; i < 1; ++i) {
         cont_heat();
     }

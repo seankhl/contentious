@@ -28,13 +28,13 @@ TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
     }
     bp_node<T> *node = ret.root.get();
     for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-        bp_node_ptr<T> &next = node->branches[i >> s & BP_MASK];
+        bp_node_ptr<T> &next = node->as_branches()[i >> s & BP_MASK];
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next, id);
         }
         node = next.get();
     }
-    node->values[i & BP_MASK] = val;
+    node->as_leaves()[i & BP_MASK] = val;
     return ret;
 }
 
@@ -71,21 +71,17 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
         // update appropriate values
         ret.shift += BP_BITS;
         // rotate trie
-        boost::intrusive_ptr<bp_node<T>> temp = new bp_node<T>(id);
+        bp_node_ptr<T> temp = new bp_node<T>(bp_node_t::branches, id);
         ret.root.swap(temp);
-        ret.root->branches[0] = std::move(temp);
+        ret.root->as_branches()[0] = std::move(temp);
     }
 
     // travel to branch of trie where new node will be constructed (if any)
     bp_node<T> *node = ret.root.get();
     uint16_t s = ret.shift;
     while (depth_ins > 0) {
-        bp_node_ptr<T> &next = node->branches[sz >> s & BP_MASK];
-        if (!next) {
-            std::cout << "Constructing node where one should have already been"
-                      << std::endl;
-            next = new bp_node<T>(id);
-        }
+        bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
+        assert(next);
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next, id);
         }
@@ -98,20 +94,20 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
 
     // keep going, but this time, construct new nodes as necessary
     while (s > BP_BITS) {
-        bp_node_ptr<T> &next = node->branches[sz >> s & BP_MASK];
-        next = new bp_node<T>(id);
+        bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
+        next = new bp_node<T>(bp_node_t::branches, id);
         node = next.get();
         s -= BP_BITS;
     }
     if (s > 0) {
-        bp_node_ptr<T> &next = node->branches[sz >> s & BP_MASK];
-        next = new bp_node<T>(id);
+        bp_node_ptr<T> &next = node->as_branches()[sz >> s & BP_MASK];
+        next = new bp_node<T>(bp_node_t::leaves, id);
         node = next.get();
         s -= BP_BITS;
     }
 
     // add value
-    node->values[sz & BP_MASK] = val;
+    node->as_leaves()[sz & BP_MASK] = val;
     ++ret.sz;
     return ret;
 }
@@ -129,8 +125,8 @@ uint16_t bp_vector_base<T, TDer>::contained_at_shift(size_t a, size_t b) const
             break;
         }
         parent = node_a;
-        node_a = parent->branches[a >> s & BP_MASK].get();
-        node_b = parent->branches[b >> s & BP_MASK].get();
+        node_a = parent->as_branches()[a >> s & BP_MASK].get();
+        node_b = parent->as_branches()[b >> s & BP_MASK].get();
     }
     return s;
 }
@@ -145,11 +141,11 @@ bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i) const
         if (--depth == 0) {
             break;
         }
-        auto &next = node->branches[i >> s & BP_MASK];
+        auto &next = node->as_branches()[i >> s & BP_MASK];
         node = next.get();
     }
     assert(depth == 0);
-    return node->branches;
+    return node->as_branches();
 }
 
 template <typename T, template<typename> typename TDer>
@@ -165,14 +161,14 @@ bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i)
         if (--depth == 0) {
             break;
         }
-        auto &next = node->branches[i >> s & BP_MASK];
+        auto &next = node->as_branches()[i >> s & BP_MASK];
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next, id);
         }
         node = next.get();
     }
     assert(depth == 0);
-    return node->branches;
+    return node->as_branches();
 }
 
 // copy from other to *this from at to at+sz; vectors must have same size

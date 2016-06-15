@@ -40,20 +40,87 @@ using bp_vector_base_ptr = boost::intrusive_ptr<bp_vector_base<T, TDer>>;
 template <typename T>
 using bp_node_ptr = boost::intrusive_ptr<bp_node<T>>;
 
+enum class bp_node_t : uint8_t
+{
+    branches,
+    leaves,
+    uninitialized
+};
+
 template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
-private:
-    bp_node() = default;
-    bp_node(int32_t id_in)
-      : id(id_in)
-    {   /* nothing to do here*/ }
-    bp_node(const bp_node<T> &other, int32_t id_in)
-      : branches(other.branches), values(other.values), id(id_in)
-    {   /* nothing to do here*/ }
+    using bp_branches = std::array<bp_node_ptr<T>, BP_WIDTH>;
+    using bp_leaves = std::array<T, BP_WIDTH>;
 
-    std::array<bp_node_ptr<T>, BP_WIDTH> branches;
-    std::array<T, BP_WIDTH> values;
+public:
+    ~bp_node()
+    {
+        if (_u_type == bp_node_t::branches) {
+            as_branches().~bp_branches();
+        } else if (_u_type == bp_node_t::leaves) {
+            as_leaves().~bp_leaves();
+        }
+    }
+
+private:
+    bp_node() = delete;
+
+    bp_node(bp_node_t _u_type_in)
+      : _u_type(_u_type_in)
+    {
+        if (_u_type == bp_node_t::branches) {
+            new (&_u) bp_branches();
+        } else if (_u_type == bp_node_t::leaves) {
+            new (&_u) bp_leaves();
+        }
+    }
+
+    bp_node(bp_node_t _u_type_in, int32_t id_in)
+      : _u_type(_u_type_in), id(id_in)
+    {
+        if (_u_type == bp_node_t::branches) {
+            new (&_u) bp_branches();
+        } else if (_u_type == bp_node_t::leaves) {
+            new (&_u) bp_leaves();
+        }
+    }
+
+    bp_node(const bp_node<T> &other, int32_t id_in)
+      : _u_type(other._u_type), id(id_in)
+    {
+        if (_u_type == bp_node_t::branches) {
+            new (&_u) bp_branches(*reinterpret_cast<const bp_branches *>(
+                                    &(other._u)));
+        } else if (_u_type == bp_node_t::leaves) {
+            new (&_u) bp_leaves(*reinterpret_cast<const bp_leaves *>(
+                                    &(other._u)));
+        }
+    }
+
+    bp_node<T> &operator=(const bp_node<T> &other) = delete;
+
+    inline const bp_branches &as_branches() const
+    {
+        return *reinterpret_cast<const bp_branches *>(&_u);
+    }
+    inline bp_branches &as_branches()
+    {
+        return *reinterpret_cast<bp_branches *>(&_u);
+    }
+    inline const bp_leaves &as_leaves() const
+    {
+        return *reinterpret_cast<const bp_leaves *>(&_u);
+    }
+    inline bp_leaves &as_leaves()
+    {
+        return *reinterpret_cast<bp_leaves *>(&_u);
+    }
+
+    std::aligned_union_t<BP_WIDTH, bp_branches, bp_leaves> _u;
+    //std::array<bp_node_ptr<T>, BP_WIDTH> branches;
+    //std::array<T, BP_WIDTH> values;
+    bp_node_t _u_type;
     int32_t id;
 
     template <typename U, template <typename> typename TDer>
@@ -92,9 +159,9 @@ public:
     {
         const bp_node<T> *node = root.get();
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->as_branches()[i >> s & BP_MASK].get();
         }
-        return node->values[i & BP_MASK];
+        return node->as_leaves()[i & BP_MASK];
     }
     inline T &operator[](size_t i)
     {
@@ -147,7 +214,7 @@ public:
     // resize
     // swap
     TDer<T> set(const size_t i, const T &val) const;
-    
+
     /* not members of std::vector */
     inline int32_t get_id() const       { return id; }
     inline uint8_t get_depth() const    { return calc_depth(); }
@@ -167,12 +234,12 @@ public:
 protected:
     // protected because we cannot create instances of base type
     bp_vector_base()
-      : sz(0), shift(0), root(new bp_node<T>(0)), id(0)
+      : sz(0), shift(0), root(new bp_node<T>(bp_node_t::leaves, 0)), id(0)
     {   /* nothing to do here */ }
 
     // constructor that takes arbitrary id, for making transients
     bp_vector_base(int32_t id_in)
-      : sz(0), shift(0), root(new bp_node<T>(id_in)), id(id_in)
+      : sz(0), shift(0), root(new bp_node<T>(bp_node_t::leaves, id_in)), id(id_in)
     {   /* nothing to do here */ }
 
     // copy constructor is protected because it would allow us to create
@@ -290,7 +357,7 @@ public:
     tr_vector()
       : bp_vector_base<T, ::tr_vector>(this->get_unique_id())
     {   /* nothing to do here */ }
-    
+
     tr_vector(const tr_vector<T> &other) = default;
 
     tr_vector(const bp_vector_base<T, ::tr_vector> &other)

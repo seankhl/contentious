@@ -50,14 +50,14 @@ public:
         root = toit.root.get();
         bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[i >> s & BP_MASK];
+            bp_node_ptr &next = node->as_branches()[i >> s & BP_MASK];
             if (id != next->id) {
                 next = new bp_node<T>(*next, id);
             }
             node = next.get();
         }
-        cur = node->values.begin();
-        end = node->values.end();
+        cur = node->as_leaves().begin();
+        end = node->as_leaves().end();
     }
 
     bp_vector_iterator(const iterator &other)
@@ -98,14 +98,14 @@ public:
 
         bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[i >> s & BP_MASK];
+            bp_node_ptr &next = node->as_branches()[i >> s & BP_MASK];
             if (id != next->id) {
                 next = new bp_node<T>(*next, id);
             }
             node = next.get();
         }
-        cur = node->values.begin();
-        end = node->values.end();
+        cur = node->as_leaves().begin();
+        end = node->as_leaves().end();
         return *this;
     }
     /*
@@ -138,14 +138,14 @@ public:
 
         bp_node<T> *node = ret.root;
         for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
-            bp_node_ptr &next = node->branches[ret.i >> s & BP_MASK];
+            bp_node_ptr &next = node->as_branches()[ret.i >> s & BP_MASK];
             if (ret.id != next->id) {
                 next = new bp_node<T>(*next, ret.id);
             }
             node = next.get();
         }
-        ret.cur = node->values.begin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->values.end();
+        ret.cur = node->as_leaves().begin() + (ret.i & BP_MASK) + plusplus;
+        ret.end = node->as_leaves().end();
         ret.i -= ret.i & BP_MASK;
         return ret;
     }
@@ -193,10 +193,10 @@ public:
     {
         const bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->as_branches()[i >> s & BP_MASK].get();
         }
-        cur = node->values.cbegin() + (i & BP_MASK);
-        end = node->values.cend();
+        cur = node->as_leaves().cbegin() + (i & BP_MASK);
+        end = node->as_leaves().cend();
     }
 
     bp_vector_const_iterator(const const_iterator &other)
@@ -236,10 +236,10 @@ public:
 
         const bp_node<T> *node = root;
         for (uint16_t s = shift; s > 0; s -= BP_BITS) {
-            node = node->branches[i >> s & BP_MASK].get();
+            node = node->as_branches()[i >> s & BP_MASK].get();
         }
-        cur = node->values.cbegin();
-        end = node->values.cend();
+        cur = node->as_leaves().cbegin();
+        end = node->as_leaves().cend();
         return *this;
     }
     /*
@@ -272,10 +272,10 @@ public:
 
         const bp_node<T> *node = ret.root;
         for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
-            node = node->branches[ret.i >> s & BP_MASK].get();
+            node = node->as_branches()[ret.i >> s & BP_MASK].get();
         }
-        ret.cur = node->values.cbegin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->values.cend();
+        ret.cur = node->as_leaves().cbegin() + (ret.i & BP_MASK) + plusplus;
+        ret.end = node->as_leaves().cend();
         ret.i -= ret.i & BP_MASK;
         return ret;
     }
