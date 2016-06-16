@@ -14,6 +14,9 @@
 
 #include <boost/function.hpp>
 
+#include "../folly/ProducerConsumerQueue.h"
+#include "folly/LifoSem.h"
+
 template <typename T>
 class splt_vector;
 template <typename T>
@@ -34,7 +37,6 @@ partition(const uint16_t p, const size_t sz)
 }
 
 
-
 /* threadpool *************************************************************/
 
 using closure = std::function<void (void)>;
@@ -43,17 +45,12 @@ class threadpool
 {
 public:
     threadpool()
-      : tasks(hwconc), taskm(hwconc),
-        resolutions(hwconc), resm(hwconc),
-        m(hwconc), cv(hwconc), spin(true),
-        ntasksfin(0), nresolfin(0)
+      : spin(true)
     {
         for (int p = 0; p < hwconc; ++p) {
-            threads.push_back(std::thread(&threadpool::worker_thread, this,
-                                          std::ref(tasks[p]),
-                                          std::ref(resolutions[p]),
-                                          std::ref(spin),
-                                          p));
+            tasks.emplace_back(folly::ProducerConsumerQueue<closure>(4096));
+            resns.emplace_back(folly::ProducerConsumerQueue<closure>(4096));
+            threads[p] = std::thread(&threadpool::worker, this, p);
         }
     }
 
@@ -64,116 +61,89 @@ public:
         }
     }
 
-    void submit(const closure &task, int p) {
-        std::lock_guard<std::mutex> lk(taskm[p]);
-        tasks[p].push(task);
-        cv[p].notify_one();
+    void submit(const closure &task, int p)
+    {
+        while (!tasks[p].write(task)) {
+            continue;
+        }
+        sems[p].post();
     }
 
-    void submitr(const closure &resolution, int p) {
-        std::lock_guard<std::mutex> lk(resm[p]);
-        resolutions[p].push(resolution);
-        cv[p].notify_one();
+    void submitr(const closure &resn, int p)
+    {
+        while (!resns[p].write(resn)) {
+            continue;
+        }
+        sems[p].post();
     }
 
-    void finish() {
-        std::unique_lock<std::mutex> lk(mr);
+    void finish()
+    {
+        std::unique_lock<std::mutex> lk(fin_m);
         bool done = false;
         while (!done) {
-            done = cvr.wait_for(lk, std::chrono::milliseconds(1), [this] {
+            done = fin_cv.wait_for(lk, std::chrono::milliseconds{1}, [this] {
                 bool ret = true;
                 for (int p = 0; p < hwconc; ++p) {
-                    ret &= (tasks[p].size() == 0 &&
-                            resolutions[p].size() == 0);
+                    ret &= (tasks[p].isEmpty() && resns[p].isEmpty());
                 }
                 return ret;
             });
-            for (int p = 0; p < hwconc; ++p) {
-                cv[p].notify_one();
-            }
         }
     }
 
-    void stop() {
+    void stop()
+    {
         spin = false;
         for (int p = 0; p < hwconc; ++p) {
-            std::lock_guard<std::mutex> lk(m[p]);
-            cv[p].notify_one();
+            sems[p].post();
         }
     }
 
 private:
-    void worker_thread(std::reference_wrapper<std::queue<closure>> tasks,
-                       std::reference_wrapper<std::queue<closure>> resolutions,
-                       std::reference_wrapper<bool> spin, int tid)
+    void worker(int p)
     {
+        closure *task;
+        closure *resn;
         for (;;) {
             // wait until we have something to do
-            std::unique_lock<std::mutex> lk(m[tid]);
-            cv[tid].wait(lk, [this, tasks, resolutions, spin, tid] {
-                std::lock_guard<std::mutex> tlck(taskm[tid]);
-                std::lock_guard<std::mutex> rlck(resm[tid]);
-                return (tasks.get().size() > 0) ||
-                        resolutions.get().size() > 0 ||
-                        !spin;
-            });
-
+            sems[p].wait();
             // threadpool is done
             if (!spin) {
-                std::lock_guard<std::mutex> tlck(taskm[tid]);
-                std::lock_guard<std::mutex> rlck(resm[tid]);
-                assert(tasks.get().size() == 0);
-                assert(resolutions.get().size() == 0);
+                assert(tasks[p].isEmpty());
+                assert(resns[p].isEmpty());
                 break;
             }
-            if (tasks.get().size() == 0) {
+            if (tasks[p].isEmpty()) {
                 // must resolve
-                std::lock_guard<std::mutex> rlck(resm[tid]);
-                resolutions.get().front()();
-                ++nresolfin;
-                /*
-                std::cout << "ntasksfin (r): " << ntasksfin
-                          << "; nresolfin (r): " << nresolfin
-                          << std::endl;
-                          */
-                resolutions.get().pop();
+                resn = resns[p].frontPtr();
+                assert(resn);
+                (*resn)();
+                resns[p].popFront();
+                fin_cv.notify_one();
             } else {
                 // normal parallel processing
-                std::lock_guard<std::mutex> tlck(taskm[tid]);
-                assert(tasks.get().size() != 0);
-                tasks.get().front()();
-                ++ntasksfin;
-                /*
-                std::cout << "ntasksfin (t): " << ntasksfin
-                          << "; nresolfin (t): " << nresolfin
-                          << std::endl;
-                          */
-                tasks.get().pop();
+                task = tasks[p].frontPtr();
+                assert(task);
+                (*task)();
+                tasks[p].popFront();
             }
-            cvr.notify_one();
-
-            lk.unlock();
         }
     }
 
 private:
-    std::vector<std::thread> threads;
+    std::array<std::thread, hwconc> threads;
 
-    std::vector<std::queue<closure>> tasks;
-    std::vector<std::mutex> taskm;
+    std::vector<folly::ProducerConsumerQueue<closure>> tasks;
+    std::vector<folly::ProducerConsumerQueue<closure>> resns;
 
-    std::vector<std::queue<closure>> resolutions;
-    std::vector<std::mutex> resm;
+    std::atomic<bool> spin;
 
-    std::vector<std::mutex> m;
-    std::vector<std::condition_variable> cv;
+    std::array<folly::LifoSem, hwconc> sems;
 
-    bool spin;
-    std::atomic<int> ntasksfin;
-    std::atomic<int> nresolfin;
+    std::mutex fin_m;
+    std::condition_variable fin_cv;
 
-    std::mutex mr;
-    std::condition_variable cvr;
 };
 
 extern contentious::threadpool tp;
@@ -277,8 +247,8 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     T temp = target;
     auto end = used.cbegin() + b;
     for (auto it = used.cbegin() + a; it != end; ++it) {
-        temp = fp(temp, *it);
-        //temp += *it;
+        //temp = fp(temp, *it);
+        temp += *it;
     }
     target = temp;
 
@@ -310,8 +280,8 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     auto end = splt._data.begin() + b;
     for (auto it = splt._data.begin() + a; it != end; ++it) {
         T &target = *it;
-        target = fp(target, val);
-        //target *= val;
+        //target = fp(target, val);
+        target *= val;
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -349,8 +319,8 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     auto end = splt._data.begin() + bran;
     for (auto it = splt._data.begin() + aran; it != end; ++it, ++trck) {
         T &target = *it;
-        target = fp(target, *trck);
-        //target *= *trck;
+        //target = fp(target, *trck);
+        target *= *trck;
     }
 
     cont.reattach(splt, dep, p, a, b);
@@ -397,10 +367,11 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     auto end = splt._data.begin() + bp;
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
         T &target = *it;
+        /*
         for (size_t i = 0; i < offs_sz; ++i) {
             target = fs[i](target, *(trck + ioffs[i]));
-        }
-        //target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
+        }*/
+        target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
     }
 
     cont.reattach(splt, dep, p, a, b);

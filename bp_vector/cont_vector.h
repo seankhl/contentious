@@ -140,7 +140,7 @@ private:
         {   /* nothing to do here! */ }
 
         std::array<tr_vector<T>, hwconc> _used;
-        
+
         std::vector<contentious::op<T>> ops;
         std::vector<std::function<int(int)>> imaps;
         std::vector<std::set<int64_t>> iconflicts;
@@ -173,7 +173,7 @@ public:
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
       : _data(other._data.new_id())
-    {   /* nothing to do here */ 
+    {   /* nothing to do here */
         //std::cout << "COPY CVEC" << std::endl;
     }
     cont_vector<T> &operator=(cont_vector<T> other)

@@ -31,7 +31,7 @@ else
 	CXX_OG = -Og
 endif
 
-BOOST_PATH = /home/sean/Documents/software/modular-boost/stage/lib
+#BOOST_PATH = /home/sean/Documents/software/modular-boost/stage/lib
 #BOOST_PATH = ./bp_vector/boost-deps/stage/lib
 
 # General compiler flags
@@ -48,11 +48,11 @@ NEUROTIC_COMPILE_FLAGS = -pedantic -Wcast-align -Wcast-qual				\
 	-Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel		\
 	-Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused
 
-INCLUDES = -isystem /home/sean/Documents/software/modular-boost
+INCLUDES = -isystem /usr/local/include
 # General linker settings
 LINK_FLAGS = $(OPENMP) -mavx -lpthread						\
-			 -Wl,-rpath=$(BOOST_PATH) -L$(BOOST_PATH)		\
 			 -lboost_thread -lboost_context -lboost_system	\
+			 -lfolly
 			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =

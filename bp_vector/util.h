@@ -40,6 +40,7 @@ inline T implicit_cast(typename detail::icast_identity<T>::type x)
 }
 
 /* from http://stackoverflow.com/a/9194117 */
+
 constexpr inline int64_t next_multiple(int64_t i, int64_t m)
 {
     assert(m && ((m & (m-1)) == 0));

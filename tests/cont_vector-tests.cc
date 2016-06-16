@@ -4,7 +4,7 @@
 
 #include <iostream>
 #include <random>
-
+#include <algorithm>
 
 using namespace std;
 
@@ -137,13 +137,14 @@ void stdv_foreach(const vector<double> &test_vec)
     splt_start = std::chrono::system_clock::now();
 
     auto ret = inp;
-    for (size_t i = 0; i < inp.size(); ++i) {
-        ret[i] = inp[i] * 2;
-    }
+    std::for_each(ret.begin(), ret.end(),
+                  [](double &d){ d *= 2; }
+    );
     auto ret2 = ret;
-    for (size_t i = 0; i < inp.size(); ++i) {
-        ret2[i] = ret[i] * other[i];
-    }
+    auto oit = other.cbegin();
+    std::for_each(ret2.begin(), ret2.end(),
+                  [&oit](double &d){ d *= *oit; ++oit; }
+    );
 
     splt_end = std::chrono::system_clock::now();
     std::chrono::duration<double> splt_dur = splt_end - splt_start;
@@ -212,7 +213,7 @@ void cont_foreach(const vector<double> &test_vec)
     }
 }
 
-int cont_stencil(const vector<double> &test_vec)
+int cont_stencil(const vector<double> &)
 {
     cont_vector<double> cont_inp;
 
@@ -304,7 +305,7 @@ void cont_heat()
 
 int cont_vector_runner()
 {
-
+    /*
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
@@ -347,6 +348,7 @@ int cont_vector_runner()
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
+    */
 
     for (int i = 0; i < 1; ++i) {
         cont_heat();

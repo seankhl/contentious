@@ -551,12 +551,13 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
 
 template <typename T>
 template <int... Offs>
-std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(const std::vector<T> &coeffs,
-                                        const contentious::op<T> op1,
-                                        const contentious::op<T> op2)
+std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(
+                                const std::vector<T> &coeffs,
+                                const contentious::op<T>,
+                                const contentious::op<T> op2)
 {
-    constexpr size_t offs_sz = sizeof...(Offs);
-    std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
+    std::array<std::function<int (int)>, sizeof...(Offs)>
+                                offs{contentious::offset<Offs>...};
 
     auto dep = std::make_shared<cont_vector<T>>(cont_vector<T>(*this));
     freeze(*dep, true, contentious::identity, op2);
@@ -564,8 +565,8 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(const std::vector<T> &c
         //using namespace std::placeholders;
         contentious::op<T> fullop = {
             0,
-            boost::bind<double>(
-                    contentious::multplus_fp<double>, _1, _2, coeffs[i]),
+            boost::bind<double>(contentious::multplus_fp<double>,
+                                _1, _2, coeffs[i]),
             contentious::minus_fp<double>
         };
         freeze(*this, *dep, offs[i], fullop);
