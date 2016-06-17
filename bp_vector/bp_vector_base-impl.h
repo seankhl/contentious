@@ -7,15 +7,6 @@ const T &bp_vector_base<T, TDer>::at(size_t i) const
     }
     return this->operator[](i);
 }
-/*
-template <typename T, template<typename> typename TDer>
-T &bp_vector_base<T, TDer>::at(size_t i)
-{
-    // boilerplate implementation in terms of const version
-    return const_cast<T &>(
-      implicit_cast<const bp_vector_base<T, TDer> *>(this)->at(i));
-}
-*/
 // undefined behavior if i >= sz
 template <typename T, template<typename> typename TDer>
 TDer<T> bp_vector_base<T, TDer>::set(const size_t i, const T &val) const
@@ -113,7 +104,30 @@ TDer<T> bp_vector_base<T, TDer>::push_back(const T &val) const
 }
 
 template <typename T, template<typename> typename TDer>
-uint16_t bp_vector_base<T, TDer>::contained_at_shift(size_t a, size_t b) const
+int32_t bp_vector_base<T, TDer>::next_diff_ids(const TDer<T> &other,
+                                               const size_t i) const
+{
+    if (i >= sz) { return sz; }
+    bp_node<T> *node_a = this->root.get();
+    bp_node<T> *node_b = other.root.get();
+    if (node_a->id == node_b->id) {
+        return sz;
+    }
+    uint16_t s;
+    size_t interval = (this->capacity() >> BP_BITS);
+    for (s = this->shift; s > 0; s -= BP_BITS, interval >>= BP_BITS) {
+        node_a = node_a->as_branches()[i >> s & BP_MASK].get();
+        node_b = node_b->as_branches()[i >> s & BP_MASK].get();
+        if (node_a->id == node_b->id) {
+            return this->next_diff_ids(other, i + interval);
+        }
+    }
+    return i;
+}
+
+template <typename T, template<typename> typename TDer>
+uint16_t bp_vector_base<T, TDer>::contained_at_shift(const size_t a,
+                                                     const size_t b) const
 {
     assert(a < b);
     bp_node<T> *parent = this->root.get();
@@ -133,14 +147,12 @@ uint16_t bp_vector_base<T, TDer>::contained_at_shift(size_t a, size_t b) const
 
 template <typename T, template<typename> typename TDer>
 const std::array<bp_node_ptr<T>, BP_WIDTH> &
-bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i) const
+bp_vector_base<T, TDer>::get_branch(uint8_t depth, const int64_t i) const
 {
     bp_node<T> *node = root.get();
     uint16_t s;
     for (s = this->shift; s > 0; s -= BP_BITS) {
-        if (--depth == 0) {
-            break;
-        }
+        if (--depth == 0) { break; }
         auto &next = node->as_branches()[i >> s & BP_MASK];
         node = next.get();
     }
@@ -150,7 +162,7 @@ bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i) const
 
 template <typename T, template<typename> typename TDer>
 std::array<bp_node_ptr<T>, BP_WIDTH> &
-bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i)
+bp_vector_base<T, TDer>::get_branch(uint8_t depth, const int64_t i)
 {
     if (node_copy(root->id)) {
         root = new bp_node<T>(*root, id);
@@ -158,9 +170,7 @@ bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i)
     bp_node<T> *node = root.get();
     uint16_t s;
     for (s = this->shift; s > 0; s -= BP_BITS) {
-        if (--depth == 0) {
-            break;
-        }
+        if (--depth == 0) { break; }
         auto &next = node->as_branches()[i >> s & BP_MASK];
         if (node_copy(next->id)) {
             next = new bp_node<T>(*next, id);
@@ -173,7 +183,8 @@ bp_vector_base<T, TDer>::get_branch(uint8_t depth, int64_t i)
 
 // copy from other to *this from at to at+sz; vectors must have same size
 template <typename T, template<typename> typename TDer>
-void bp_vector_base<T, TDer>::assign(const TDer<T> &other, size_t a, size_t b)
+void bp_vector_base<T, TDer>::assign(const TDer<T> &other,
+                                     const size_t a, const size_t b)
 {
     assert(a < b);
     //size_t copy_count = 0;

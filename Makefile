@@ -52,7 +52,7 @@ INCLUDES = -isystem /usr/local/include
 # General linker settings
 LINK_FLAGS = $(OPENMP) -mavx -lpthread						\
 			 -lboost_thread -lboost_context -lboost_system	\
-			 -lfolly
+			 -lfolly -lglog
 			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =

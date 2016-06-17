@@ -472,13 +472,13 @@ int test_threadpool()
 }
 
 void my_accumulate(cont_vector<double> &test, cont_vector<double> &next,
-                   size_t index, uint16_t p)
+                   const contentious::imap_fp &imap, const uint16_t p)
 {
     splt_vector<double> splt = test.detach(next, p);
     for (int i = 0; i < 10; ++i) {
-        splt.mut_comp(index, i);
+        splt.mut_comp(imap(i), i);
     }
-    test.reattach(splt, next, p, index, index+1);
+    test.reattach(splt, next, p, imap(0), imap(0)+1);
 }
 int test_cvec()
 {
@@ -492,7 +492,7 @@ int test_cvec()
     // accumulate values on index comp_locus
     constexpr size_t locus = 3;
     assert(locus < test.size());
-    constexpr size_t T = 100;
+    constexpr size_t T = 8;
 
     // faux iteration
     array<cont_vector<double>, T+1> steps;
@@ -503,20 +503,18 @@ int test_cvec()
         auto &curr = steps[t];
         auto &next = steps[t+1];
         // this tells test that next depends on it, for resolution purposes
-        curr.freeze(next, true, contentious::alltoone<locus>, contentious::plus<double>);
+        curr.freeze(next,
+                    contentious::alltoone<locus>, contentious::plus<double>,
+                    true);
         for (uint16_t p = 0; p < nthreads; ++p) {
-            contentious::closure task = std::bind(
-                    my_accumulate, std::ref(curr), std::ref(next), locus, p);
+            contentious::closure task = std::bind(my_accumulate,
+                                std::ref(curr), std::ref(next),
+                                std::ref(contentious::alltoone<locus>), p);
             contentious::tp.submit(task, p);
         }
     }
-    /*for (size_t t = 0; t < T+1; ++t) {
-    std::cout << steps[t] << std::endl;
-    }*/
-
     contentious::tp.finish();
     for (size_t t = 0; t < T; ++t) {
-        auto &curr = steps[t];
         auto &next = steps[t+1];
         // we must resolve test before checking next's values
         if (next[locus] != test[locus] + 45 * hwconc * (t+1)) {

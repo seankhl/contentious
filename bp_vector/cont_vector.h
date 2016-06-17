@@ -25,6 +25,8 @@
 #include <boost/thread/latch.hpp>
 #include <boost/bind.hpp>
 
+#include "folly/AtomicHashMap.h"
+
 template <typename T>
 class splt_vector;
 template <typename T>
@@ -69,14 +71,14 @@ class splt_vector
                     const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
-    template <typename U, int... Offs>
+    template <typename U, size_t NS>
     friend void contentious::stencil_splt(
                     cont_vector<U> &, cont_vector<U> &,
                     const uint16_t);
 
     friend class cont_vector<T>;
 
-private:
+public://private:
     tr_vector<T> _data;
     std::vector<contentious::op<T>> ops;
 
@@ -117,48 +119,52 @@ class cont_vector
                     const uint16_t,
                     const std::reference_wrapper<cont_vector<T>> &);
 
-    template <typename U, int... Offs>
+    template <typename U, size_t NS>
     friend void contentious::stencil_splt(
                     cont_vector<U> &, cont_vector<U> &,
                     const uint16_t);
 
     friend class splt_vector<T>;
 
-private:
+public:
     struct dependency_tracker
     {
         // TODO: remove this evilness... maps need default constructors
         dependency_tracker()
           : ops{contentious::plus<T>},
-            imaps{contentious::identity}, iconflicts(1)
+            imaps{contentious::identity}, icontended(1)
         {   /* nothing to do here! */ }
 
-        dependency_tracker(const std::function<int(int)> imap_in,
+        dependency_tracker(const contentious::imap_fp imap_in,
                            const contentious::op<T> op_in)
           : ops{op_in},
-            imaps{imap_in}, iconflicts(1)
+            imaps{imap_in}, icontended(1)
         {   /* nothing to do here! */ }
 
         std::array<tr_vector<T>, hwconc> _used;
 
+        // all ops that were used from *this -> dep
         std::vector<contentious::op<T>> ops;
-        std::vector<std::function<int(int)>> imaps;
-        std::vector<std::set<int64_t>> iconflicts;
-
+        // all imaps that were used from *this-> dep
+        std::vector<contentious::imap_fp> imaps;
+        // will hold contended indices for this imap
+        std::vector<std::set<int64_t>> icontended;
+        // helper dependents of dep
         std::vector<cont_vector<T> *> frozen;
     };
 
     tr_vector<T> _data;
+    tr_vector<T> _orig;
     std::mutex dlck;
 
     // forward tracking : dep_ptr -> tracker
-    std::unordered_map<const cont_vector<T> *, dependency_tracker> tracker;
+    folly::AtomicHashMap<uintptr_t, dependency_tracker> tracker;
     // resolving onto (backward) :  uid -> latch
-    std::unordered_map<const cont_vector<T> *, std::unique_ptr<boost::latch>> rlatches;
+    folly::AtomicHashMap<uintptr_t, std::unique_ptr<boost::latch>> latches;
     // splinter tracking : sid -> reattached?
-    std::unordered_map<int32_t, bool> reattached;
-    std::set<int64_t> rconflicts;
-    std::mutex rlck;
+    folly::AtomicHashMap<int32_t, bool> splinters;
+    // indices we have to check during resolution from previous resolutions
+    std::set<int64_t> contended;
 
     bool abandoned = false;
     bool resolved = false;
@@ -170,9 +176,10 @@ private:
 
 public:
     cont_vector()
+      : tracker(8), latches(8), splinters(hwconc)
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
-      : _data(other._data.new_id())
+      : _data(other._data.new_id()), tracker(8), latches(8), splinters(hwconc)
     {   /* nothing to do here */
         //std::cout << "COPY CVEC" << std::endl;
     }
@@ -200,8 +207,8 @@ public:
     ~cont_vector()
     {
         // finish this round of resolutions to avoid segfaulting on ourselves
-        for (auto &rl : rlatches) {
-            rl.second->wait();
+        for (auto &l : latches) {
+            l.second->wait();
         }
         /*
         // make sure splinters are reattached, to avoid segfaulting in the
@@ -244,12 +251,10 @@ public:
     }
 
     void freeze(cont_vector<T> &dep,
-                bool onto,
-                std::function<int(int)> imap,
-                contentious::op<T> op,
-                uint16_t ndetached = hwconc);
+                contentious::imap_fp imap, contentious::op<T> op,
+                bool onto = false);
     void freeze(cont_vector<T> &cont, cont_vector<T> &dep,
-                std::function<int(int)> imap, contentious::op<T> op);
+                contentious::imap_fp imap, contentious::op<T> op);
     splt_vector<T> detach(cont_vector &dep, uint16_t p);
     void refresh(cont_vector &dep, uint16_t p, size_t a, size_t b);
 

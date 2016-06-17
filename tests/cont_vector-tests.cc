@@ -44,7 +44,7 @@ void cont_inc_reduce(cont_vector<double> &cont_ret, uint16_t p,
     //cout << "splt took: " << splt_dur.count() << " seconds; " << endl;
     //cout << "one cont_inc done: " << splt_ret.data.at(0) << endl;
     cont_vector<double> next = cont_vector<double>(cont_ret);
-    cont_ret.freeze(next, true, contentious::identity, contentious::plus<double>);
+    cont_ret.freeze(next, contentious::identity, contentious::plus<double>);
     cont_ret.reattach(splt_ret, next, p, 0, next.size());
 }
 double cont_reduce_manual(const vector<double> &test_vec)
@@ -268,11 +268,11 @@ constexpr double ipow(double base, int exp, double result = 1)
 }
 void cont_heat()
 {
-    constexpr double dt = 0.00001;
-    constexpr double dy = 0.0001;
+    constexpr double dt = 0.0005;
+    constexpr double dy = 0.0005;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
-    constexpr double y_max = 400;
-    constexpr double t_max = 0.001;
+    constexpr double y_max = 0.04;
+    constexpr double t_max = 1;
     constexpr double V0 = 10;
 
     constexpr double s = viscosity * dt/ipow(dy,2);
@@ -294,8 +294,10 @@ void cont_heat()
         }
     }
     contentious::tp.finish();
-    for (size_t i = 0; i < 32; ++i) {
-        cout << (*grid[r-1])[i] << " ";
+    size_t Y = 128;
+    Y = std::min((*grid[r-1]).size(), Y);
+    for (size_t j = 0; j < Y; ++j) {
+        cout << (*grid[r-1])[j] << " ";
     }
     cout << endl;
 }
@@ -305,7 +307,6 @@ void cont_heat()
 
 int cont_vector_runner()
 {
-    /*
     int64_t test_sz = pow(2,23);
     cout << "cont testing with size: " << test_sz << endl;
     if (test_sz < 0) return 1;
@@ -348,7 +349,6 @@ int cont_vector_runner()
     for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }
-    */
 
     for (int i = 0; i < 1; ++i) {
         cont_heat();

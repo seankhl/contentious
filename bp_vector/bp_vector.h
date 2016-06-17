@@ -151,10 +151,12 @@ private:
 template <typename T, template<typename> typename TDer>
 class bp_vector_base : protected bp_vector_glob
 {
+    using bp_branches = std::array<bp_node_ptr<T>, BP_WIDTH>;
+    using bp_leaves = std::array<T, BP_WIDTH>;
+
 public:
     /* element access */
     const T &at(size_t i) const;
-    //T &at(size_t i);
     const inline T &operator[](size_t i) const
     {
         const bp_node<T> *node = root.get();
@@ -163,12 +165,6 @@ public:
         }
         return node->as_leaves()[i & BP_MASK];
     }
-    /*inline T &operator[](size_t i)
-    {
-        // boilerplate implementation in terms of const version
-        return const_cast<T &>(
-          implicit_cast<const bp_vector_base<T, TDer> *>(this)->operator[](i));
-    }*/
     // fast copy from a to b
     void assign(const TDer<T> &other, size_t a, size_t b);
 
@@ -218,6 +214,7 @@ public:
     /* not members of std::vector */
     inline int32_t get_id() const       { return id; }
     inline uint8_t get_depth() const    { return calc_depth(); }
+    int32_t next_diff_ids(const TDer<T> &other, const size_t i) const;
 
     /* printers */
     friend std::ostream &operator<<(std::ostream &out, const TDer<T> &data)
@@ -264,13 +261,11 @@ protected:
     inline uint8_t calc_depth() const { return shift / BP_BITS + 1; }
 
     // helper for assign
-    uint16_t contained_at_shift(size_t, size_t) const;
+    uint16_t contained_at_shift(const size_t, const size_t) const;
 
     // returns an iterator over branches of an internal node
-    const std::array<bp_node_ptr<T>, BP_WIDTH> &get_branch(
-                                                uint8_t depth, int64_t i) const;
-    std::array<bp_node_ptr<T>, BP_WIDTH> &get_branch(
-                                                uint8_t depth, int64_t i);
+    const bp_branches &get_branch(uint8_t depth, const int64_t i) const;
+    bp_branches &get_branch(uint8_t depth, const int64_t i);
 
     size_t sz;
     uint16_t shift;
