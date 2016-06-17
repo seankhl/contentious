@@ -310,9 +310,8 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
     const auto &imaps = other.get().tracker.find(dkey)->second.imaps;
 
-    int64_t adom, aran;
+    int64_t adom, aran, bdom, bran;
     std::tie(adom, aran) = safe_mapping(imaps[0], a, 0, cont.size());
-    int64_t bdom, bran;
     std::tie(bdom, bran) = safe_mapping(imaps[0], b, 0, cont.size());
 
     splt_vector<T> splt = cont.detach(dep, p);
@@ -343,7 +342,6 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 {
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
-
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
     const auto &tracker = cont.tracker.find(dkey)->second;
 
@@ -362,15 +360,13 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     int64_t ap = *std::max_element(aran.begin(), aran.end());
     int64_t bp = *std::min_element(bran.begin(), bran.end());
 
+    /*std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
+    splt_start = std::chrono::system_clock::now();*/
 
     // iterate!
     splt_vector<T> splt = cont.detach(dep, p);
     auto trck = tracker._used[p].cbegin() + (ap+os[0]);
     auto end = splt._data.begin() + bp;
-
-    /*std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-    splt_start = std::chrono::system_clock::now();*/
-
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
         T &target = *it;
         for (size_t i = 0; i < NS; ++i) {
