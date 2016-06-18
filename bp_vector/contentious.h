@@ -14,7 +14,7 @@
 
 #include <boost/function.hpp>
 
-#include "../folly/ProducerConsumerQueue.h"
+#include "folly/ProducerConsumerQueue.h"
 #include "folly/LifoSem.h"
 
 template <typename T>
@@ -369,10 +369,10 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     auto end = splt._data.begin() + bp;
     for (auto it = splt._data.begin() + ap; it != end; ++it, ++trck) {
         T &target = *it;
-        for (size_t i = 0; i < NS; ++i) {
+        /*for (size_t i = 0; i < NS; ++i) {
             target = fs[i](target, *(trck + ioffs[i]));
-        }
-        //target += 0.2 * (*(trck) + -2 * *(trck+1) + *(trck+2));
+        }*/
+        target += 0.4 * (*(trck) + -2 * *(trck+1) + *(trck+2));
     }
 
     /*splt_end = std::chrono::system_clock::now();

@@ -29,8 +29,18 @@ double seq_reduce(const vector<double> &seq_vec)
     return seq_ret;
 }
 
+double vec_reduce(const vector<double> &test_vec)
+{
+    vector<double> vec_ret{0};
+    for (auto it = test_vec.begin(); it != test_vec.end(); ++it) {
+        vec_ret[0] += *it;
+    }
+    return vec_ret[0];
+}
+
 void locked_inc(double &locked_ret,
-                vector<double>::const_iterator a, vector<double>::const_iterator b,
+                vector<double>::const_iterator a,
+                vector<double>::const_iterator b,
                 mutex &ltm)
 {
     for (auto it = a; it != b; ++it) {
@@ -60,12 +70,13 @@ double locked_reduce(const vector<double> &test_vec)
 }
 
 void atomic_inc(atomic<double> &atomic_ret,
-                vector<double>::const_iterator a, vector<double>::const_iterator b)
+                vector<double>::const_iterator a,
+                vector<double>::const_iterator b)
 {
     for (auto it = a; it != b; ++it) {
         auto cur = atomic_ret.load();
         while (!atomic_ret.compare_exchange_weak(cur, cur + *it)) {
-            ;
+            continue;
         }
     }
 }
@@ -87,17 +98,13 @@ double atomic_reduce(const vector<double> &test_vec)
     return atomic_ret;
 }
 
-double async_inc(vector<double>::const_iterator a, vector<double>::const_iterator b)
+double async_inc(vector<double>::const_iterator a,
+                 vector<double>::const_iterator b)
 {
-    //chrono::time_point<chrono::system_clock> async_piece_start, async_piece_end;
-    //async_piece_start = chrono::system_clock::now();
     double async_ret = 0;
     for (auto it = a; it != b; ++it) {
         async_ret += *it;
     }
-    //async_piece_end = chrono::system_clock::now();
-    //chrono::duration<double> async_piece_dur = async_piece_end - async_piece_start;
-    //cout << "async took: " << async_piece_dur.count() << " seconds; " << endl;
     return async_ret;
 }
 double async_reduce(const vector<double> &test_vec)
@@ -149,88 +156,62 @@ double omp_reduce(const vector<double> &test_vec)
     return omp_ret;
 }
 
-double vec_reduce(const vector<double> &test_vec)
-{
-    vector<double> vec_ret{0};
-    for (auto it = test_vec.begin(); it != test_vec.end(); ++it) {
-        vec_ret[0] += *it;
-    }
-    return vec_ret[0];
-}
-
-double cont_reduce_dup(const cont_vector<double> &cont_arg)
-{
-    auto cont_inp(cont_arg);
-    auto cont_ret = cont_inp.reduce(contentious::plus<double>);
-    contentious::tp.finish();
-    return cont_ret[0];
-}
-
-
 int reduce_runner()
 {
-    int64_t test_sz = pow(2,23);
+    constexpr int64_t test_sz = std::pow(2,24);
+    static_assert(test_sz > 0, "Must run with test size > 0");
+
+    cout << "**** Testing reduce with size: " << test_sz << endl;
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
     uniform_real_distribution<double> dist(-32.768, 32.768);
     auto gen = std::bind(dist, mersenne_engine);
 
-    // make regular vector with vals in it
+    // make std::vector with vals in it
     vector<double> test_vec(test_sz);
     generate(begin(test_vec), end(test_vec), gen);
-
-    /*
-    for (auto &it : test_vec) {
-        std::cout << it << " ";
-    }
-    std::cout << std::endl;
-    */
 
     // make cont_vector with vals in it
     cont_vector<double> test_cvec;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         test_cvec.unprotected_push_back(test_vec[i]);
     }
-    //cout << test_cvec << endl;
 
     // compute reference answer
     double answer = 0;
     for (size_t i = 0; i < test_vec.size(); ++i) {
         answer += test_vec[i];
     }
-    cout << "reference: size is " << test_vec.size()
-         << " and reduce with addition gives " << answer << endl;
-
     // create runner for all the variations of reduce
-    map< string, function< pair<double, chrono::duration<double>>() >> runner {
-        //bind(timetest<double, vector<double>>, &locked_reduce, test_vec),
-        //bind(timetest<double, vector<double>>, &atomic_reduce, test_vec),
-        { "async",  bind(timetest<double, vector<double>>,
-                            &async_reduce, test_vec)                },
-        /*{ "avx",    bind(timetest<double, vector<double>>,
-                            &avx_reduce, test_vec)                  },*/
-        { "cont",   bind(timetest<double, cont_vector<double>>,
-                            &cont_reduce_dup, std::cref(test_cvec)) },
-        { "omp",    bind(timetest<double, vector<double>>,
-                            &omp_reduce, test_vec)                  },
-        { "seq",    bind(timetest<double, vector<double>>,
-                            &seq_reduce, test_vec)                  },
-        { "vec",    bind(timetest<double, vector<double>>,
-                            &vec_reduce, test_vec)                  }
+    slbench::suite<double> reduce_suite {
+        { "async",  slbench::make_bench<16>(async_reduce, test_vec)           },
+        { "avx",    slbench::make_bench<16>(avx_reduce, test_vec)             },
+        { "omp",    slbench::make_bench<16>(omp_reduce, test_vec)             },
+        { "seq",    slbench::make_bench<16>(seq_reduce, test_vec)             },
+        { "vec",    slbench::make_bench<16>(vec_reduce, test_vec)             },
+        { "cont",   slbench::make_bench<16>(
+                        *[](cont_vector<double> &v) {
+                            auto cont_ret = v.reduce(contentious::plus<double>);
+                            contentious::tp.finish();
+                            return cont_ret[0];
+                        },
+                        test_cvec)                                      }
     };
+    auto reduce_output = slbench::run_suite(reduce_suite);
+    cout << reduce_output << endl;
 
-    double out, cont_dur = 0, vec_dur = 0;
-    chrono::duration<double> dur;
+    /*
     for (const auto &test : runner) {
-        tie(out, dur) = test.second();
+        auto output = test.second();
         cout << test.first << endl
-             << "  diff: " << out - answer << endl
-             << "  took: " << dur.count() << " seconds; " << endl;
-        if      (test.first == "cont")  { cont_dur = dur.count(); }
-        else if (test.first == "vec")   { vec_dur  = dur.count(); }
+             << "  diff: " << output.res - answer << endl
+             << "  took: " << output.min.count() << " seconds; " << endl;
+        if      (test.first == "cont")  { cont_dur = output.min.count(); }
+        else if (test.first == "vec")   { vec_dur  = output.min.count(); }
     }
     cout << "ratio is: " << cont_dur/vec_dur << endl;
+    */
 
     return 0;
 }

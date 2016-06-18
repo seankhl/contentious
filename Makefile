@@ -35,7 +35,7 @@ endif
 #BOOST_PATH = ./bp_vector/boost-deps/stage/lib
 
 # General compiler flags
-COMPILE_FLAGS = -std=c++1z -Wall -Wextra -march=native -mtune=generic	\
+COMPILE_FLAGS = -std=c++14 -Wall -Wextra -march=native -mtune=generic	\
 				$(OPENMP) -mavx
 # Additional release-specific flags
 RCOMPILE_FLAGS = -DRELEASE -O3 -DNDEBUG
@@ -48,11 +48,11 @@ NEUROTIC_COMPILE_FLAGS = -pedantic -Wcast-align -Wcast-qual				\
 	-Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel		\
 	-Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused
 
-INCLUDES = -isystem /usr/local/include
+INCLUDES = -isystem /usr/local/include -I./include
 # General linker settings
 LINK_FLAGS = $(OPENMP) -mavx -lpthread						\
 			 -lboost_thread -lboost_context -lboost_system	\
-			 -lfolly -lglog
+			 -lfolly-minimal -ldouble-conversion -lglog
 			 # -lzmq -lprotobuf
 # Additional release-specific linker settings
 RLINK_FLAGS =
@@ -188,9 +188,10 @@ uninstall:
 clean:
 	@echo "Deleting $(BIN_NAME) symlink"
 	$(CMD_PREFIX)$(RM) $(BIN_NAME)
+	@echo "Deleting library"
+	$(CMD_PREFIX)$(RM) lib/libcontentious.a
 	@echo "Deleting directories"
 	$(CMD_PREFIX)$(RM) -r build
-	$(CMD_PREFIX)$(RM) -r lib
 	$(CMD_PREFIX)$(RM) -r bin
 
 # Compiles the protocol buffer files

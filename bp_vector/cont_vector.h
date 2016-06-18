@@ -270,8 +270,10 @@ public:
     }
 
     cont_vector<T> reduce(const contentious::op<T> op);
-    cont_vector<T> foreach(const contentious::op<T> op, const T &val);
-    cont_vector<T> foreach(const contentious::op<T> op, cont_vector<T> &other);
+    std::shared_ptr<cont_vector<T>> foreach(const contentious::op<T> op,
+                                            const T &val);
+    std::shared_ptr<cont_vector<T>> foreach(const contentious::op<T> op,
+                                            cont_vector<T> &other);
 
     template <int... Offs>
     cont_vector<T> stencil(const std::vector<T> &coeffs,

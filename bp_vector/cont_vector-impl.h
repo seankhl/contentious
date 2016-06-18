@@ -384,29 +384,32 @@ cont_vector<T> cont_vector<T>::reduce(const contentious::op<T> op)
 }
 
 template <typename T>
-cont_vector<T> cont_vector<T>::foreach(const contentious::op<T> op, const T &val)
+std::shared_ptr<cont_vector<T>> cont_vector<T>::foreach(
+                                        const contentious::op<T> op,
+                                        const T &val)
 {
-    auto dep = cont_vector<T>(*this);
+    auto dep = std::make_shared<cont_vector<T>>(*this);
 
     // template parameter is the arg to the foreach op
-    freeze(dep, contentious::identity, op);
-    exec_par<T>(contentious::foreach_splt<T>, dep, val);
+    freeze(*dep, contentious::identity, op);
+    exec_par<T>(contentious::foreach_splt<T>, *dep, val);
 
     return dep;
 }
 
 // TODO: right now, this->()size must be equal to other.size()
 template <typename T>
-cont_vector<T> cont_vector<T>::foreach(const contentious::op<T> op,
-                                       cont_vector<T> &other)
+std::shared_ptr<cont_vector<T>> cont_vector<T>::foreach(
+                                        const contentious::op<T> op,
+                                        cont_vector<T> &other)
 {
-    auto dep = cont_vector<T>(*this);
+    auto dep = std::make_shared<cont_vector<T>>(*this);
 
     // gratuitous use of reference_wrapper
-    freeze(dep, contentious::identity, op);
-    other.freeze(*this, dep, contentious::identity, op);
+    freeze(*dep, contentious::identity, op);
+    other.freeze(*this, *dep, contentious::identity, op);
     exec_par<std::reference_wrapper<cont_vector<T>>>(
-            contentious::foreach_splt_cvec<T>, dep, std::ref(other));
+            contentious::foreach_splt_cvec<T>, *dep, std::ref(other));
 
     return dep;
 }
@@ -557,7 +560,7 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(
     std::array<contentious::imap_fp, NS>
                                 offs{contentious::offset<Offs>...};
 
-    auto dep = std::make_shared<cont_vector<T>>(cont_vector<T>(*this));
+    auto dep = std::make_shared<cont_vector<T>>(*this);
     freeze(*dep, contentious::identity, op2);
     for (size_t i = 0; i < NS; ++i) {
         contentious::op<T> fullop = {
