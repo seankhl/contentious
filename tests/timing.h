@@ -20,7 +20,9 @@ static std::string durstr(std::chrono::duration<double> dur)
     using namespace std::chrono;
     if (dur.count() < 0.1) {
         return fmt::format("{:>12.3f}ms",
-                           static_cast<double>(duration_cast<microseconds>(dur).count())/1000);
+                            static_cast<double>(
+                                duration_cast<microseconds>(dur).count()
+                            )/1000);
     } else {
         return fmt::format("{:>12.3f}s ",
                            dur.count());
@@ -67,9 +69,9 @@ template <int N, typename T, typename ...Args1, typename ...Args2>
 auto make_bench(T (*F)(Args2...), Args1 &&...args)
 -> decltype(std::bind(run_bench<N, T , Args2...>, F, args...))
 {
-    return std::bind(run_bench<N, T, Args2...>, F, std::forward<Args1>(args)...);
+    return std::bind(run_bench<N, T, Args2...>,
+                     F, std::forward<Args1>(args)...);
 }
-
 
 template <typename T>
 using suite =
