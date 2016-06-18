@@ -1,7 +1,7 @@
 #### PROJECT SETTINGS ####
 
 # The name of the executable to be created
-BIN_NAME := vector-tests
+BIN_NAME := runner
 
 # Compiler used
 CXX_NAME = g++
@@ -15,7 +15,7 @@ CXX = $(CXX_NAME)-$(CXX_VER)
 # Extension of source files used in the project
 SRC_EXT = cc
 # Path to the source directory, relative to the makefile
-SRC_PATH = ./bp_vector
+SRC_PATH = ./contentious
 # Path to directory where libs will be built
 LIB_PATH = ./lib
 # Path to test source directory
@@ -48,7 +48,7 @@ NEUROTIC_COMPILE_FLAGS = -pedantic -Wcast-align -Wcast-qual				\
 	-Wredundant-decls -Wshadow -Wsign-promo -Wstrict-null-sentinel		\
 	-Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused
 
-INCLUDES = -isystem /usr/local/include -I./include
+INCLUDES = -isystem /usr/local/include -I. -I./include
 # General linker settings
 LINK_FLAGS = $(OPENMP) -mavx -lpthread						\
 			 -lboost_thread -lboost_context -lboost_system	\

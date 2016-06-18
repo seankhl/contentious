@@ -1,10 +1,11 @@
+#include "threadpool.h"
 #include "contentious.h"
 
 namespace contentious {
 
 std::mutex plck;
 
-contentious::threadpool tp;
+threadpool tp;
 
 std::pair<int64_t, int64_t> safe_mapping(const imap_fp &imap, size_t i,
                                          int64_t lo, int64_t hi)

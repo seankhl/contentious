@@ -2,9 +2,6 @@
 #ifndef CONT_VECTOR_H
 #define CONT_VECTOR_H
 
-#include "bp_vector.h"
-#include "contentious.h"
-
 #include <cmath>
 
 #include <iostream>
@@ -27,12 +24,14 @@
 
 #include "folly/AtomicHashMap.h"
 
+#include "bp_vector.h"
+#include "contentious_constants.h"
+#include "contentious.h"
+
 template <typename T>
 class splt_vector;
 template <typename T>
 class cont_vector;
-
-using contentious::hwconc;
 
 // locks in:
 //   * move constructor (other)
@@ -141,7 +140,7 @@ public:
             imaps{imap_in}, icontended(1)
         {   /* nothing to do here! */ }
 
-        std::array<tr_vector<T>, hwconc> _used;
+        std::array<tr_vector<T>, contentious::HWCONC> _used;
 
         // all ops that were used from *this -> dep
         std::vector<contentious::op<T>> ops;
@@ -176,10 +175,12 @@ public:
 
 public:
     cont_vector()
-      : tracker(8), latches(8), splinters(hwconc)
+      : tracker(8), latches(8),
+        splinters(contentious::HWCONC)
     {   /* nothing to do here */ }
     cont_vector(const cont_vector<T> &other)
-      : _data(other._data.new_id()), tracker(8), latches(8), splinters(hwconc)
+      : _data(other._data.new_id()), tracker(8), latches(8),
+        splinters(contentious::HWCONC)
     {   /* nothing to do here */
         //std::cout << "COPY CVEC" << std::endl;
     }
@@ -215,7 +216,7 @@ public:
         // cont_vector I depend on
         // TODO: BAD SPINLOCK! BAD!!!
         if (!unsplintered) {
-            while (reattached.size() != hwconc) {
+            while (reattached.size() != contentious::HWCONC) {
                 std::this_thread::yield();
             }
         }

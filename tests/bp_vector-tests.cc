@@ -1,6 +1,6 @@
 
 #include "bp_vector-tests.h"
-#include "../bp_vector/cont_vector.h"
+#include "contentious/cont_vector.h"
 
 #include <cmath>
 #include <cassert>
@@ -438,7 +438,7 @@ int test_coroutine_practical()
 
 int test_threadpool()
 {
-    uint16_t nthreads = contentious::hwconc;
+    uint16_t nthreads = contentious::HWCONC;
     int T = 10000;
     int off = 128;
     std::vector<std::unique_ptr<boost::latch>> latches;
@@ -484,7 +484,7 @@ int test_cvec()
 {
     // create a cont_vector with integers 0, 1, ..., nthreads
     cont_vector<double> test;
-    uint16_t nthreads = hwconc;
+    uint16_t nthreads = contentious::HWCONC;
     for (unsigned i = 0; i < 4; ++i) {
         test.unprotected_push_back(i);
     }
@@ -517,9 +517,9 @@ int test_cvec()
     for (size_t t = 0; t < T; ++t) {
         auto &next = steps[t+1];
         // we must resolve test before checking next's values
-        if (next[locus] != test[locus] + 45 * hwconc * (t+1)) {
+        if (next[locus] != test[locus] + 45 * nthreads * (t+1)) {
             cerr << "! test_cvec failed: got " << next[locus]
-                 << ", expected " << test[locus] + 45 * hwconc * (t+1) << endl;
+                 << ", expected " << test[locus] + 45 * nthreads * (t+1) << endl;
             return 1;
         }
     }

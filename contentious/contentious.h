@@ -6,32 +6,27 @@
 
 #include <iostream>
 #include <functional>
-#include <queue>
-#include <thread>
 #include <mutex>
-#include <condition_variable>
 #include <atomic>
 
 #include <boost/function.hpp>
 
-#include "folly/ProducerConsumerQueue.h"
-#include "folly/LifoSem.h"
+#include "contentious_constants.h"
+#include "threadpool.h"
 
 template <typename T>
 class splt_vector;
 template <typename T>
 class cont_vector;
 
-namespace contentious
-{
+namespace contentious {
 
-static constexpr uint16_t hwconc = 4;
 extern std::mutex plck;
 
 constexpr std::pair<const size_t, const size_t>
 partition(const uint16_t p, const size_t sz)
 {
-    size_t chunk_sz = std::ceil( static_cast<double>(sz)/hwconc );
+    size_t chunk_sz = std::ceil( static_cast<double>(sz)/HWCONC );
     return std::make_pair(chunk_sz * (p),
                           std::min(chunk_sz * (p+1), sz));
 }
@@ -39,114 +34,8 @@ partition(const uint16_t p, const size_t sz)
 
 /* threadpool *************************************************************/
 
-using closure = std::function<void (void)>;
+extern threadpool tp;
 
-class threadpool
-{
-public:
-    threadpool()
-      : spin(true)
-    {
-        for (int p = 0; p < hwconc; ++p) {
-            tasks.emplace_back(folly::ProducerConsumerQueue<closure>(128));
-            resns.emplace_back(folly::ProducerConsumerQueue<closure>(128));
-            threads[p] = std::thread(&threadpool::worker, this, p);
-        }
-    }
-
-    ~threadpool()
-    {
-        for (int p = 0; p < hwconc; ++p) {
-            threads[p].join();
-        }
-    }
-
-    void submit(const closure &task, int p)
-    {
-        while (!tasks[p].write(task)) {
-            continue;
-        }
-        sems[p].post();
-    }
-
-    void submitr(const closure &resn, int p)
-    {
-        while (!resns[p].write(resn)) {
-            continue;
-        }
-        sems[p].post();
-    }
-
-    void finish()
-    {
-        std::unique_lock<std::mutex> lk(fin_m);
-        bool done = false;
-        while (!done) {
-            done = fin_cv.wait_for(lk, std::chrono::milliseconds{1}, [this] {
-                bool ret = true;
-                for (int p = 0; p < hwconc; ++p) {
-                    ret &= (tasks[p].isEmpty() && resns[p].isEmpty());
-                }
-                return ret;
-            });
-        }
-    }
-
-    void stop()
-    {
-        spin = false;
-        for (int p = 0; p < hwconc; ++p) {
-            sems[p].post();
-        }
-    }
-
-private:
-    void worker(int p)
-    {
-        closure *task;
-        closure *resn;
-        for (;;) {
-            // wait until we have something to do
-            sems[p].wait();
-            // threadpool is done
-            if (!spin) {
-                assert(tasks[p].isEmpty());
-                assert(resns[p].isEmpty());
-                break;
-            }
-            if (tasks[p].isEmpty()) {
-                // must resolve
-                resn = resns[p].frontPtr();
-                assert(resn);
-                (*resn)();
-                resns[p].popFront();
-                fin_cv.notify_one();
-            } else {
-                // normal parallel processing
-                task = tasks[p].frontPtr();
-                assert(task);
-                (*task)();
-                tasks[p].popFront();
-            }
-        }
-    }
-
-private:
-    std::array<std::thread, hwconc> threads;
-
-    std::vector<folly::ProducerConsumerQueue<closure>> tasks;
-    std::vector<folly::ProducerConsumerQueue<closure>> resns;
-
-    std::atomic<bool> spin;
-
-    std::array<folly::LifoSem, hwconc> sems;
-
-    std::mutex fin_m;
-    std::condition_variable fin_cv;
-
-};
-
-extern contentious::threadpool tp;
 
 /* index mappings *********************************************************/
 
@@ -389,4 +278,3 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
 }   // end namespace contentious
 
 #endif  // CONT_CONTENTIOUS_H
-

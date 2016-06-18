@@ -1,7 +1,7 @@
 
 #include "reduce-tests.h"
-#include "timing.h"
-#include "../bp_vector/cont_vector.h"
+#include "slbench.h"
+#include "contentious/cont_vector.h"
 
 #include <iostream>
 #include <vector>
@@ -53,18 +53,18 @@ double locked_reduce(const vector<double> &test_vec)
     double locked_ret(0);
     mutex ltm;
     vector<thread> locked_threads;
-    int num_threads = thread::hardware_concurrency();
-    size_t chunk_sz = test_vec.size()/num_threads;
-    for (int i = 0; i < num_threads; ++i) {
+    uint16_t nthreads = thread::hardware_concurrency();
+    size_t chunk_sz = test_vec.size()/nthreads;
+    for (uint16_t p = 0; p < nthreads; ++p) {
         locked_threads.push_back(
           thread(locked_inc,
                  std::ref(locked_ret),
-                 test_vec.begin() + chunk_sz * i,
-                 test_vec.begin() + chunk_sz * (i+1),
+                 test_vec.begin() + chunk_sz * p,
+                 test_vec.begin() + chunk_sz * (p+1),
                  std::ref(ltm)));
     }
-    for (int i = 0; i < num_threads; ++i) {
-        locked_threads[i].join();
+    for (int p = 0; p < nthreads; ++p) {
+        locked_threads[p].join();
     }
     return locked_ret;
 }
@@ -84,16 +84,16 @@ double atomic_reduce(const vector<double> &test_vec)
 {
     atomic<double> atomic_ret(0);
     vector<thread> atomic_threads;
-    int num_threads = thread::hardware_concurrency();
-    size_t chunk_sz = test_vec.size()/num_threads;
-    for (int i = 0; i < num_threads; ++i) {
+    uint16_t nthreads = thread::hardware_concurrency();
+    size_t chunk_sz = test_vec.size()/nthreads;
+    for (int p = 0; p < nthreads; ++p) {
         atomic_threads.push_back(
           thread(atomic_inc, std::ref(atomic_ret),
-                 test_vec.begin() + chunk_sz * i,
-                 test_vec.begin() + chunk_sz * (i+1)));
+                 test_vec.begin() + chunk_sz * p,
+                 test_vec.begin() + chunk_sz * (p+1)));
     }
-    for (int i = 0; i < num_threads; ++i) {
-        atomic_threads[i].join();
+    for (int p = 0; p < nthreads; ++p) {
+        atomic_threads[p].join();
     }
     return atomic_ret;
 }
@@ -111,16 +111,16 @@ double async_reduce(const vector<double> &test_vec)
 {
     double async_ret(0);
     vector<future<double>> async_pieces;
-    int16_t num_threads = thread::hardware_concurrency();
-    size_t chunk_sz = test_vec.size()/num_threads;
-    for (int i = 0; i < num_threads; ++i) {
+    uint16_t nthreads = thread::hardware_concurrency();
+    size_t chunk_sz = test_vec.size()/nthreads;
+    for (int p = 0; p < nthreads; ++p) {
         async_pieces.push_back(
                 async(launch::async, &async_inc,
-                      test_vec.begin() + chunk_sz * i,
-                      test_vec.begin() + chunk_sz * (i+1)));
+                      test_vec.begin() + chunk_sz * p,
+                      test_vec.begin() + chunk_sz * (p+1)));
     }
-    for (int i = 0; i < num_threads; ++i) {
-        async_ret += async_pieces[i].get();
+    for (int p = 0; p < nthreads; ++p) {
+        async_ret += async_pieces[p].get();
     }
     return async_ret;
 }

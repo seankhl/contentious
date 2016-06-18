@@ -1,7 +1,7 @@
 
 #include "cont_vector-tests.h"
-#include "timing.h"
-#include "../bp_vector/cont_vector.h"
+#include "slbench.h"
+#include "contentious/cont_vector.h"
 
 #include <iostream>
 #include <random>
@@ -47,7 +47,7 @@ double cont_reduce_manual(const vector<double> &test_vec)
     cont_vector<double> cont_ret;
     cont_ret.unprotected_push_back(0);
     vector<thread> cont_threads;
-    uint16_t nthreads = hwconc; // * 16;
+    uint16_t nthreads = contentious::HWCONC;
     size_t chunk_sz = test_vec.size()/nthreads;
     for (uint16_t p = 0; p < nthreads; ++p) {
         cont_threads.push_back(

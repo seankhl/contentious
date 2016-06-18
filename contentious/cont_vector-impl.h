@@ -8,7 +8,7 @@ void cont_vector<T>::freeze(cont_vector<T> &dep,
     // if we want our output to depend on input
     tracker.emplace(dkey, imap, op);
     // make a latch for reattaching splinters
-    dep.latches.emplace(dkey, new boost::latch(hwconc));
+    dep.latches.emplace(dkey, new boost::latch(contentious::HWCONC));
     // make sure we have a valid _orig if not monotonic
     if (!contentious::is_monotonic(imap)) {
         // locked this->_data
@@ -240,7 +240,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
         const auto &dep_op = dep_tracker.ops[i];
         auto &imap = dep_tracker.imaps[i];
         auto &icontended = dep_tracker.icontended[i];
-        for (int p = 0; p < hwconc; ++p) {
+        for (int p = 0; p < contentious::HWCONC; ++p) {
             std::tie(a, b) = contentious::partition(p, this->size());
             //std::cout << "size of imaps: " << dep_tracker.imaps.size() << std::endl;
             std::tie(adom, aran) = contentious::safe_mapping(imap, a, 0, this->size());
@@ -271,20 +271,20 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
         {   // locked dep
             std::lock_guard<std::mutex> lock(dep.dlck);
 
-            uint16_t p = hwconc;
+            uint16_t p = contentious::HWCONC;
             for (auto &c : icontended) {
-                p = hwconc;
+                p = contentious::HWCONC;
                 int64_t cmap = imap(c);
                 if (cmap < 0 || cmap > (int64_t)dep._data.size()) {
                     continue;
                 }
-                for (uint16_t pi = 0; pi < hwconc; ++pi) {
+                for (uint16_t pi = 0; pi < contentious::HWCONC; ++pi) {
                     std::tie(a, b) = contentious::partition(pi, this->size());
                     if (cmap >= (int64_t)a && cmap < (int64_t)b) {
                         p = pi;
                     }
                 }
-                assert(p != hwconc);
+                assert(p != contentious::HWCONC);
                 auto it = dep._data.begin() + cmap;
                 auto curr = this->_data.cbegin() + c;
                 auto trck = dep_tracker._used[p].cbegin() + c;
@@ -313,7 +313,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                 }
                 // already resolved
                 if (icontended.count(c) > 0) { continue; }
-                for (uint16_t pi = 0; pi < hwconc; ++pi) {
+                for (uint16_t pi = 0; pi < contentious::HWCONC; ++pi) {
                     std::tie(a, b) = contentious::partition(pi, this->size());
                     if (cmap >= (int64_t)a && cmap < (int64_t)b) {
                         p = pi;
@@ -353,7 +353,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
 
 
 /* this function performs thread function f on the passed cont_vector
- * based on a partition for processor p of hwconc
+ * based on a partition for processor p of HWCONC
  * with extra args U... as necessary */
 template <typename T>
 template <typename... U>
@@ -361,7 +361,7 @@ void cont_vector<T>::exec_par(void f(cont_vector<T> &, cont_vector<T> &,
                                      const uint16_t, const U &...),
                               cont_vector<T> &dep, const U &... args)
 {
-    for (uint16_t p = 0; p < hwconc; ++p) {
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
         auto task = std::bind(f, std::ref(*this), std::ref(dep),
                               p, args...);
         contentious::tp.submit(task, p);
@@ -572,7 +572,7 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(
         freeze(*this, *dep, offs[i], fullop);
     }
 
-    for (uint16_t p = 0; p < hwconc; ++p) {
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
         auto task = std::bind(contentious::stencil_splt<T, NS>,
                               std::ref(*this), std::ref(*dep), p);
         contentious::tp.submit(task, p);
