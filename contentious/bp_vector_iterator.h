@@ -245,38 +245,42 @@ public:
     const_iterator operator++(int); //optional
     const_iterator& operator--(); //optional
     const_iterator operator--(int); //optional
-    const_iterator& operator+=(size_type); //optional
     */
 
-    const_iterator operator+(size_t n) const
+    const_iterator& operator+=(size_t n)
     {
         // no need to do anything if size == 0 or if we're not incrementing
         if (sz == 0 || n == 0) {
             return *this;
         }
-        auto ret = *this;
         // +ing within leaf
-        if (ret.end - ret.cur > (int64_t)n) {
-            ret.cur += n;
-            return ret;
+        if (end - cur > (int64_t)n) {
+            cur += n;
+            return *this;
         }
 
         uint8_t plusplus = 0;
         // update i and add n to it
-        ret.i += BP_WIDTH - (ret.end - ret.cur) + n;
-        if (ret.i >= ret.sz) {
-            ret.i = ret.sz - 1;
+        i += BP_WIDTH - (end - cur) + n;
+        if (i >= sz) {
+            i = sz - 1;
             plusplus = 1;
         }
 
-        const bp_node<T> *node = ret.root;
-        for (uint16_t s = ret.shift; s > 0; s -= BP_BITS) {
-            node = node->as_branches()[ret.i >> s & BP_MASK].get();
+        const bp_node<T> *node = root;
+        for (uint16_t s = shift; s > 0; s -= BP_BITS) {
+            node = node->as_branches()[i >> s & BP_MASK].get();
         }
-        ret.cur = node->as_leaves().cbegin() + (ret.i & BP_MASK) + plusplus;
-        ret.end = node->as_leaves().cend();
-        ret.i -= ret.i & BP_MASK;
-        return ret;
+        cur = node->as_leaves().cbegin() + (i & BP_MASK) + plusplus;
+        end = node->as_leaves().cend();
+        i -= i & BP_MASK;
+        return *this;
+    }
+
+    const_iterator operator+(size_t n) const
+    {
+        auto ret = *this;
+        return ret += n;
     }
 
     /*

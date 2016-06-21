@@ -158,7 +158,7 @@ double omp_reduce(const vector<double> &test_vec)
 
 int reduce_runner()
 {
-    constexpr int64_t test_sz = std::pow(2,24);
+    constexpr int64_t test_sz = std::pow(2,21) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
 
     cout << "**** Testing reduce with size: " << test_sz << endl;
@@ -185,21 +185,27 @@ int reduce_runner()
     }
     // create runner for all the variations of reduce
     slbench::suite<double> reduce_suite {
-        { "async",  slbench::make_bench<16>(async_reduce, test_vec)           },
-        { "avx",    slbench::make_bench<16>(avx_reduce, test_vec)             },
-        { "omp",    slbench::make_bench<16>(omp_reduce, test_vec)             },
-        { "seq",    slbench::make_bench<16>(seq_reduce, test_vec)             },
-        { "vec",    slbench::make_bench<16>(vec_reduce, test_vec)             },
-        { "cont",   slbench::make_bench<16>(
+        { "async",  slbench::make_bench<32>(async_reduce, test_vec)  }
+       ,{ "avx",    slbench::make_bench<32>(avx_reduce, test_vec)    }
+       ,{ "omp",    slbench::make_bench<32>(omp_reduce, test_vec)    }
+       ,{ "seq",    slbench::make_bench<32>(seq_reduce, test_vec)    }
+       ,{ "vec",    slbench::make_bench<32>(vec_reduce, test_vec)    }
+       ,{ "cont",   slbench::make_bench<32>(
                         *[](cont_vector<double> &v) {
                             auto cont_ret = v.reduce(contentious::plus<double>);
                             contentious::tp.finish();
                             return cont_ret[0];
                         },
-                        test_cvec)                                      }
+                        test_cvec)                                  }
     };
     auto reduce_output = slbench::run_suite(reduce_suite);
     cout << reduce_output << endl;
+    {
+        using namespace fmt::literals;
+        slbench::log_output("reduce_{}_{}_{}.log"_format(
+                            contentious::HWCONC, test_sz, BP_BITS),
+                            reduce_output);
+    }
 
     /*
     for (const auto &test : runner) {

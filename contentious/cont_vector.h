@@ -233,6 +233,11 @@ public:
         // should be okay now
     }
 
+    typedef bp_vector_const_iterator<T, tr_vector> const_iterator;
+
+    inline const_iterator cbegin() const { return this->_data.cbegin(); }
+    inline const_iterator cend() const   { return this->_data.cend(); }
+
     inline size_t size() const  { return _data.size(); }
 
     // internal passthroughs

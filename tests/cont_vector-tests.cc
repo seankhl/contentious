@@ -4,6 +4,7 @@
 #include "contentious/cont_vector.h"
 
 #include <iostream>
+#include <fstream>
 #include <random>
 #include <algorithm>
 
@@ -164,7 +165,7 @@ vector<double> stdv_heat(const int64_t c, const int64_t r,
     vector<double> inp;
     inp.push_back(V0);
     for (int64_t i = 1; i < c; ++i) {
-        inp.push_back(0.0);
+        inp.push_back(0);
     }
     array<unique_ptr<vector<double>>, 9> grid;
     grid[0] = make_unique<vector<double>>(inp);
@@ -214,7 +215,7 @@ shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
 
 int cont_vector_runner()
 {
-    constexpr int64_t test_sz = std::pow(2,23);
+    constexpr int64_t test_sz = std::pow(2,21) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
 
     cout << "**** Testing cont_vector with size: " << test_sz << endl;
@@ -244,61 +245,80 @@ int cont_vector_runner()
     // parameters for heat equation tests
     constexpr double dy = 0.0005;
     constexpr double dt = 0.0005;
-    constexpr double y_max = 80;
-    constexpr double t_max = 2;
+    constexpr double y_max = 400;
+    constexpr double t_max = 1;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr double V0 = 10;
     constexpr double s = viscosity * dt/ipow(dy,2);
 
-    /*
-    double answer_new = 0;
-    for (size_t i = 0; i < test_vec.size(); ++i) {
-        answer_new += test_vec[i];
-    }
-    cout << answer_new << endl;
-    cont_reduce(test_vec);
-
-    for (int i = 0; i < 1; ++i) {
+    /*for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
-    }
-    */
+    }*/
+    cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
 
     slbench::suite<vector<double>> stdv_suite {
-        {"stdv_foreach", slbench::make_bench<16>(stdv_foreach,
-                                                 test_vec, other_vec)   },
-        {"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
+        {"stdv_foreach", slbench::make_bench<32>(stdv_foreach,
+                                                 test_vec, other_vec)   }
+       ,{"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
-    auto stdv_ans = stdv_output["stdv_heat"].res;
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
-        {"cont_foreach", slbench::make_bench<16>(cont_foreach,
-                                                 test_cvec, other_cvec) },
-        {"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
+        {"cont_foreach", slbench::make_bench<32>(cont_foreach,
+                                                 test_cvec, other_cvec) }
+       ,{"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
-    auto cont_ans = cont_output["cont_heat"].res;
 
     cout << stdv_output << endl;
     cout << cont_output << endl;
 
-    size_t bad = 0;
+    /*{
+        using namespace fmt::literals;
+        slbench::log_output("heat_{}_{}_{}.log"_format(
+                            contentious::HWCONC, test_sz, BP_BITS),
+                            stdv_output);
+        slbench::log_output("heat_{}_{}_{}.log"_format(
+                            contentious::HWCONC, test_sz, BP_BITS),
+                            cont_output);
+    }*/
+
+    /*size_t foreach_bad = 0;
     double tol = 0.000001;
+    auto stdv_ans = stdv_output["stdv_foreach"].res;
+    auto cont_ans = cont_output["cont_foreach"].res;
     for (size_t i = 0; i < stdv_ans.size(); ++i) {
         if (abs(stdv_ans[i] - (*cont_ans)[i]) > tol) {
-            ++bad;
+            ++foreach_bad;
         }
     }
-    if (bad > 0) {
-        cout << "bad: " << bad << endl;
+    if (foreach_bad > 0) {
+        cout << "Bad vals of foreach: " << foreach_bad << endl;
+    }*/
+    size_t heat_bad = 0;
+    double tol = 0.000001;
+    auto stdv_ans = stdv_output["stdv_heat"].res;
+    auto cont_ans = cont_output["cont_heat"].res;
+    for (size_t i = 0; i < stdv_ans.size(); ++i) {
+        if (abs(stdv_ans[i] - (*cont_ans)[i]) > tol) {
+            std::cout << "bad val of heat at: " << i << ", " << stdv_ans[i] << ", " << (*cont_ans)[i] << std::endl;
+            ++heat_bad;
+        }
+    }
+    if (heat_bad > 0) {
+        cout << "Bad vals of heat: " << heat_bad << endl;
     }
 
-    size_t Y = 128;
-    Y = min(cont_ans->size(), Y);
-    for (size_t j = 0; j < Y; ++j) {
-        cout << (*cont_ans)[j] << " ";
+    size_t Y = 32;
+    size_t y_skip = cont_ans->size()/Y;
+    for (auto it = cont_ans->cbegin(); it != cont_ans->cend(); it += y_skip) {
+        cout << *it << " ";
+    }
+    cout << endl;
+    for (auto it = stdv_ans.cbegin(); it < stdv_ans.cend(); it += y_skip) {
+        cout << *it << " ";
     }
     cout << endl;
 
