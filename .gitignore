@@ -32,12 +32,8 @@
 
 ## project specific
 *.in
-autom4te.cache
-configure
-config.h.in
-compile
-ar-lib
-missing
-install-sh
-depcomp
 aclocal.m4
+autom4te.cache
+build-aux
+configure
+include/folly/folly-config.h

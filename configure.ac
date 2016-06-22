@@ -10,6 +10,7 @@ AC_CONFIG_HEADERS([config.h])
 AX_PREFIX_CONFIG_H(
         [${srcdir}/include/folly/folly-config.h],
         [folly], [config.h])
+AC_CONFIG_AUX_DIR([build-aux])
 
 # Checks for programs.
 AC_PROG_CXXCPP
