@@ -2,15 +2,15 @@
 AC_PREREQ([2.64])
 AC_INIT([contentious], [0.3], [slaguna@cs.uchicago.edu])
 
-AM_INIT_AUTOMAKE([1.10 -Wall -Werror foreign subdir-objects])
-m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES]([yes]))
-
-AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
 AX_PREFIX_CONFIG_H(
         [${srcdir}/include/folly/folly-config.h],
         [folly], [config.h])
 AC_CONFIG_AUX_DIR([build-aux])
+
+AM_INIT_AUTOMAKE([1.10 -Wall -Werror foreign subdir-objects])
+AC_CONFIG_MACRO_DIR([m4])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES]([yes]))
 
 # Checks for programs.
 AC_PROG_CXXCPP
