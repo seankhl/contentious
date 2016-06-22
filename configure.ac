@@ -1,18 +1,23 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.64])
 AC_INIT([contentious], [0.3], [slaguna@cs.uchicago.edu])
-AM_INIT_AUTOMAKE([1.11 -Wall -Werror foreign subdir-objects])
-AM_SILENT_RULES([yes])
-AC_CONFIG_MACRO_DIRS([m4])
+
+AM_INIT_AUTOMAKE([1.10 -Wall -Werror foreign subdir-objects])
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES]([yes]))
+
+AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_HEADERS([config.h])
+AX_PREFIX_CONFIG_H(
+		[${srcdir}/include/folly/folly-config.h],
+		[folly], [config.h])
 
 # Checks for programs.
 AC_PROG_CXXCPP
 AC_PROG_CXX
 AC_PROG_RANLIB
-AM_PROG_AR
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
 AC_LANG([C++])
 
@@ -48,6 +53,7 @@ AC_OPENMP
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lpthread':
 AC_CHECK_LIB([pthread], [main])
+AC_CHECK_LIB([jemalloc], [xallocx])
 # FIXME: Replace `main' with a function in `-lboost_context':
 AC_CHECK_LIB([boost_context], [main])
 # FIXME: Replace `main' with a function in `-lboost_system':
@@ -58,6 +64,76 @@ AC_CHECK_LIB([boost_thread], [main])
 #AC_CHECK_LIB([profiler], [main])
 # FIXME: Replace `main' with a function in `-ltcmalloc':
 #AC_CHECK_LIB([tcmalloc], [main])
+
+# folly header checks
+AC_HEADER_STDC
+AC_CHECK_HEADERS([ \
+		fcntl.h features.h inttypes.h limits.h \
+		sched.h stdint.h stdlib.h string.h sys/time.h \
+		unistd.h mutex.h malloc.h \
+		byteswap.h bits/functexcept.h bits/c++config.h])
+
+# folly checks for library functions.
+AC_CHECK_FUNCS([getdelim gettimeofday \
+                memmove memset \
+                pow strerror sched_yield \
+                malloc_size malloc_usable_size memrchr \
+                pipe2 preadv pwritev])
+
+# folly check for clock_gettime(2), link with rt if necessary.
+AC_SEARCH_LIBS([clock_gettime], [rt],
+  AC_DEFINE(
+    [HAVE_CLOCK_GETTIME],
+    [1],
+    [Define to 1 if we support clock_gettime(2).]),
+  [])
+
+# folly check for pthread_atfork(3), include pthread.h if necessary.
+AC_CACHE_CHECK(
+  [for pthread_atfork support],
+  [folly_cv_prog_cc_pthread_atfork],
+  [AC_COMPILE_IFELSE(
+    [AC_LANG_SOURCE[ 
+      #include <pthread.h>
+      void func() {pthread_atfork(NULL, NULL, NULL);}]
+    ],
+    [folly_cv_prog_cc_pthread_atfork=yes],
+    [folly_cv_prog_cc_pthread_atfork=no])])
+if test "$folly_cv_prog_cc_pthread_atfork" = "yes"; then
+  AC_DEFINE([HAVE_PTHREAD_ATFORK], [1],
+            [Define to 1 if the compiler supports pthread_atfork])
+fi
+
+# folly figure out if we support weak symbols, if not, we will link in some
+# null stubs for functions that would otherwise be weak.
+AC_CACHE_CHECK(
+  [for weak symbol support], 
+  [folly_cv_prog_cc_weak_symbols],
+  [AC_LINK_IFELSE(
+    [AC_LANG_SOURCE[
+      extern "C" void configure_link_extern_weak_test() __attribute__((weak));
+      int main(int argc, char** argv) {
+          return configure_link_extern_weak_test == nullptr;
+      }]],     
+    [folly_cv_prog_cc_weak_symbols="yes"],
+    [folly_cv_prog_cc_weak_symbols="no"])])
+if test "$folly_cv_prog_cc_weak_symbols" = yes; then
+  AC_DEFINE([HAVE_WEAK_SYMBOLS], [1],
+            [Define to 1 if the linker supports weak symbols.])
+fi               
+
+AM_CONDITIONAL([HAVE_STD_THREAD], [test "$ac_cv_header_features" = "yes"])
+AM_CONDITIONAL([HAVE_X86_64], [test "$build_cpu" = "x86_64"])
+AM_CONDITIONAL([HAVE_PPC64], [test "$build_cpu" = "powerpc64le"])
+AM_CONDITIONAL([RUN_ARCH_SPECIFIC_TESTS], [test "$build_cpu" = "x86_64" || test "$build_cpu" = "powerpc64le"])
+AM_CONDITIONAL([HAVE_LINUX], [test "$build_os" == "linux-gnu"])
+AM_CONDITIONAL([HAVE_WEAK_SYMBOLS],
+               [test "$folly_cv_prog_cc_weak_symbols" = "yes"])
+AM_CONDITIONAL([HAVE_BITS_FUNCTEXCEPT_H], [test "$ac_cv_header_bits_functexcept_h" = "yes"])
+AM_CONDITIONAL([HAVE_EXTRANDOM_SFMT19937],
+               [test "$folly_cv_prog_cc_have_extrandom_sfmt19937" = "yes"])
+AM_CONDITIONAL([FOLLY_TESTMAIN], [test "x${use_follytestmain}" = "xyes"])
+AM_CONDITIONAL([HAVE_BOOST_CONTEXT], [test "x${ax_cv_boost_context}" = "xyes"])
 
 # Checks for header files.
 #AC_FUNC_ALLOCA
@@ -99,8 +175,5 @@ AC_SUBST([AM_CXXFLAGS])
 AC_SUBST([AM_LDFLAGS])
 
 AC_CONFIG_FILES([Makefile])
-AC_CONFIG_FILES([include/folly/Makefile])
-AC_CONFIG_FILES([contentious/Makefile])
-AC_CONFIG_FILES([tests/Makefile])
 
 AC_OUTPUT

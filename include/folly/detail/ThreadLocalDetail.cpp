@@ -160,37 +160,7 @@ void StaticMetaBase::reserve(EntryID* id) {
   // still linked in meta, so another thread might access invalid memory
   // after realloc succeeds. We'll copy by hand and update our ThreadEntry
   // under the lock.
-  if (usingJEMalloc()) {
-    bool success = false;
-    size_t newByteSize = nallocx(newCapacity * sizeof(ElementWrapper), 0);
-
-    // Try to grow in place.
-    //
-    // Note that xallocx(MALLOCX_ZERO) will only zero newly allocated memory,
-    // even if a previous allocation allocated more than we requested.
-    // This is fine; we always use MALLOCX_ZERO with jemalloc and we
-    // always expand our allocation to the real size.
-    if (prevCapacity * sizeof(ElementWrapper) >= jemallocMinInPlaceExpandable) {
-      success =
-          (xallocx(threadEntry->elements, newByteSize, 0, MALLOCX_ZERO) ==
-           newByteSize);
-    }
-
-    // In-place growth failed.
-    if (!success) {
-      success =
-          ((reallocated = static_cast<ElementWrapper*>(
-                mallocx(newByteSize, MALLOCX_ZERO))) != nullptr);
-    }
-
-    if (success) {
-      // Expand to real size
-      assert(newByteSize / sizeof(ElementWrapper) >= newCapacity);
-      newCapacity = newByteSize / sizeof(ElementWrapper);
-    } else {
-      throw std::bad_alloc();
-    }
-  } else { // no jemalloc
+  { // no jemalloc
     // calloc() is simpler than malloc() followed by memset(), and
     // potentially faster when dealing with a lot of memory, as it can get
     // already-zeroed pages from the kernel.

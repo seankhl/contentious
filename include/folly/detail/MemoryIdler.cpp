@@ -35,63 +35,7 @@ namespace folly { namespace detail {
 AtomicStruct<std::chrono::steady_clock::duration>
 MemoryIdler::defaultIdleTimeout(std::chrono::seconds(5));
 
-
-// Calls mallctl, optionally reading a value of type <T> if out is
-// non-null.  Logs on error.
-template <typename T>
-static int mallctlRead(const char* cmd, T* out) {
-  size_t outLen = sizeof(T);
-  int err = mallctl(cmd,
-                    out, out ? &outLen : nullptr,
-                    nullptr, 0);
-  if (err != 0) {
-    /*
-    FB_LOG_EVERY_MS(WARNING, 10000)
-      << "mallctl " << cmd << ": " << strerror(err) << " (" << err << ")";
-    */
-  }
-  return err;
-}
-
-static int mallctlCall(const char* cmd) {
-  // Use <unsigned> rather than <void> to avoid sizeof(void).
-  return mallctlRead<unsigned>(cmd, nullptr);
-}
-
 void MemoryIdler::flushLocalMallocCaches() {
-  if (usingJEMalloc()) {
-    if (!mallctl || !mallctlnametomib || !mallctlbymib) {
-      /*
-      FB_LOG_EVERY_MS(ERROR, 10000) << "mallctl* weak link failed";
-      */
-      return;
-    }
-
-    // "tcache.flush" was renamed to "thread.tcache.flush" in jemalloc 3
-    mallctlCall("thread.tcache.flush");
-
-    // By default jemalloc has 4 arenas per cpu, and then assigns each
-    // thread to one of those arenas.  This means that in any service
-    // that doesn't perform a lot of context switching, the chances that
-    // another thread will be using the current thread's arena (and hence
-    // doing the appropriate dirty-page purging) are low.  Some good
-    // tuned configurations (such as that used by hhvm) use fewer arenas
-    // and then pin threads to avoid contended access.  In that case,
-    // purging the arenas is counter-productive.  We use the heuristic
-    // that if narenas <= 2 * num_cpus then we shouldn't do anything here,
-    // which detects when the narenas has been reduced from the default
-    unsigned narenas;
-    unsigned arenaForCurrent;
-    size_t mib[3];
-    size_t miblen = 3;
-    if (mallctlRead<unsigned>("opt.narenas", &narenas) == 0 &&
-        narenas > 2 * CacheLocality::system().numCpus &&
-        mallctlRead<unsigned>("thread.arena", &arenaForCurrent) == 0 &&
-        mallctlnametomib("arena.0.purge", mib, &miblen) == 0) {
-      mib[1] = size_t(arenaForCurrent);
-      mallctlbymib(mib, miblen, nullptr, nullptr, nullptr, 0);
-    }
-  }
 }
 
 
