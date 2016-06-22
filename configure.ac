@@ -1,6 +1,4 @@
-# -*- Autoconf -*-
-# Process this file with autoconf to produce a configure script.
-
+# -*- autoconf -*-
 AC_PREREQ([2.64])
 AC_INIT([contentious], [0.3], [slaguna@cs.uchicago.edu])
 
@@ -55,7 +53,7 @@ AC_OPENMP
 
 AX_BOOST_BASE([1.56.0], [],
               [AC_MSG_ERROR(
-                  [Please install boost >= 1.56.0 (context, system, thread)])])
+                  [Please install boost >= 1.56.0 (system, thread)])])
 AX_BOOST_SYSTEM
 AX_BOOST_THREAD
 
@@ -100,54 +98,28 @@ if test "$folly_cv_prog_cc_pthread_atfork" = "yes"; then
             [Define to 1 if the compiler supports pthread_atfork])
 fi
 
-AM_CONDITIONAL([HAVE_STD_THREAD], [test "$ac_cv_header_features" = "yes"])
-AM_CONDITIONAL([HAVE_X86_64], [test "$build_cpu" = "x86_64"])
-AM_CONDITIONAL([HAVE_PPC64], [test "$build_cpu" = "powerpc64le"])
-AM_CONDITIONAL([RUN_ARCH_SPECIFIC_TESTS], [test "$build_cpu" = "x86_64" || test "$build_cpu" = "powerpc64le"])
-AM_CONDITIONAL([HAVE_LINUX], [test "$build_os" == "linux-gnu"])
-AM_CONDITIONAL([HAVE_BITS_FUNCTEXCEPT_H], [test "$ac_cv_header_bits_functexcept_h" = "yes"])
+AM_CONDITIONAL([HAVE_STD_THREAD],
+               [test "$ac_cv_header_features" = "yes"])
+AM_CONDITIONAL([HAVE_X86_64],
+               [test "$build_cpu" = "x86_64"])
+AM_CONDITIONAL([HAVE_PPC64],
+               [test "$build_cpu" = "powerpc64le"])
+AM_CONDITIONAL([HAVE_LINUX],
+               [test "$build_os" == "linux-gnu"])
+AM_CONDITIONAL([HAVE_BITS_FUNCTEXCEPT_H],
+               [test "$ac_cv_header_bits_functexcept_h" = "yes"])
 AM_CONDITIONAL([HAVE_EXTRANDOM_SFMT19937],
                [test "$folly_cv_prog_cc_have_extrandom_sfmt19937" = "yes"])
-AM_CONDITIONAL([FOLLY_TESTMAIN], [test "x${use_follytestmain}" = "xyes"])
 
-# Checks for header files.
-#AC_FUNC_ALLOCA
-#AC_CHECK_HEADERS([arpa/inet.h fcntl.h fenv.h float.h inttypes.h libintl.h limits.h locale.h malloc.h memory.h netdb.h netinet/in.h stddef.h stdint.h stdlib.h string.h sys/file.h sys/mount.h sys/param.h sys/socket.h sys/statvfs.h sys/time.h sys/vfs.h unistd.h utime.h wchar.h wctype.h])
-
-# Checks for typedefs, structures, and compiler characteristics.
-#AC_CHECK_HEADER_STDBOOL
-#AC_C_INLINE
-
-#AC_TYPE_INT8_T
-#AC_TYPE_INT16_T
-#AC_TYPE_INT32_T
-#AC_TYPE_INT64_T
+# some checks for things contentious uses... but we already checked for c++14
 AC_TYPE_UINT8_T
-#AC_TYPE_UINT16_T
-#AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
-#AC_TYPE_SSIZE_T
-#AC_TYPE_SIZE_T
-#AC_TYPE_MODE_T
-#AC_TYPE_OFF_T
-#AC_TYPE_PID_T
+AC_TYPE_SIZE_T
 AC_CHECK_TYPES([ptrdiff_t])
-
-# Checks for library functions.
-#AC_FUNC_ERROR_AT_LINE
-#AC_FUNC_FORK
-#AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
-#AC_FUNC_MALLOC
-#AC_FUNC_MKTIME
-#AC_FUNC_MMAP
-#AC_FUNC_REALLOC
-#AC_FUNC_STRERROR_R
-#AC_FUNC_STRTOD
-#AC_CHECK_FUNCS([atexit clock_gettime dup2 fesetround floor ftruncate getcwd getpagesize gettimeofday iswprint localeconv localtime_r memchr memmove memset mkdir modf munmap pathconf pow regcomp rmdir select setlocale socket sqrt strchr strcspn strdup strerror strndup strrchr strtol strtoul uname utime])
+AC_CHECK_FUNCS([floor ceil])
 
 AM_CPPFLAGS="$AM_CPPFLAGS $BOOST_CPPFLAGS"
 AM_LDFLAGS="$AM_LDFLAGS $BOOST_THREAD_LIB $BOOST_SYSTEM_LIB"
-
 AC_SUBST([AM_CPPFLAGS])
 AC_SUBST([AM_CXXFLAGS])
 AC_SUBST([AM_LDFLAGS])

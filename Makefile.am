@@ -1,11 +1,6 @@
 ACLOCAL_AMFLAGS = -I./m4
 
-# the subdirectories of the project to go into
-#SUBDIRS = \
-#          include/folly \
-#          contentious \
-#          tests
-#libmylib_a_HEADERS = \
+#libmylib_a_HEADERS = headers_to_install.h
 #libmylib_adir = $(includedir)/mylib
 
 AM_CPPFLAGS = @AM_CPPFLAGS@ -I$(top_srcdir)/include
