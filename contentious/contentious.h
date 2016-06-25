@@ -23,7 +23,7 @@ namespace contentious {
 
 extern std::mutex plck;
 
-constexpr std::pair<const size_t, const size_t>
+static inline std::pair<const size_t, const size_t>
 partition(const uint16_t p, const size_t sz)
 {
     size_t chunk_sz = std::ceil( static_cast<double>(sz)/HWCONC );

@@ -158,8 +158,8 @@ double omp_reduce(const vector<double> &test_vec)
 
 int reduce_runner()
 {
-    constexpr int64_t test_sz = std::pow(2,21) * 3;
-    static_assert(test_sz > 0, "Must run with test size > 0");
+    int64_t test_sz = std::pow(2,21) * 3;
+    //static_assert(test_sz > 0, "Must run with test size > 0");
 
     cout << "**** Testing reduce with size: " << test_sz << endl;
 

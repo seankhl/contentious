@@ -50,7 +50,7 @@ AX_CHECK_COMPILE_FLAG(["-mtune=generic"], [
 AC_OPENMP
 
 # Aeems like we don't actually need this
-#AX_PTHREAD
+AX_PTHREAD
 
 AX_BOOST_BASE([1.56.0], [],
               [AC_MSG_ERROR(

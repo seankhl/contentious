@@ -165,6 +165,6 @@ std::ostream &operator<<(std::ostream &out, const output<T> &output)
     return out;
 }
 
-}
+}   // namespace slbench
 
 #endif

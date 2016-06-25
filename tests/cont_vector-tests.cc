@@ -215,7 +215,7 @@ shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
 
 int cont_vector_runner()
 {
-    constexpr int64_t test_sz = std::pow(2,21) * 3;
+    constexpr int64_t test_sz = ipow(2,21) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
 
     cout << "**** Testing cont_vector with size: " << test_sz << endl;

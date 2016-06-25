@@ -17,6 +17,7 @@ libcontentious_a_SOURCES = $(contentious_sources)
 
 runner_CXXFLAGS = @AM_CXXFLAGS@ -mavx @OPENMP_CXXFLAGS@
 runner_SOURCES = $(runner_sources)
-runner_LDADD =  $(AM_LDFLAGS) \
+runner_LDFLAGS = @AM_LDFLAGS@ -pthread
+runner_LDADD = $(AM_LDFLAGS) \
 				$(top_builddir)/libcontentious.a \
 				$(top_builddir)/libfolly-minimal.a
