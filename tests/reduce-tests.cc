@@ -163,7 +163,7 @@ constexpr double ipow(double base, int exp, double result = 1)
 
 int reduce_runner()
 {
-	constexpr int16_t f = cont_testing::s;
+	constexpr int16_t f = cont_testing::huge;
     constexpr int64_t test_sz = ipow(2,15+f) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
     const int16_t test_n = ipow(2,14-f);

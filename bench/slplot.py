@@ -5,7 +5,8 @@
 import matplotlib.font_manager as fm
 font0 = fm.FontProperties()
 font0.set_family("monospace")
-font0.set_name("mononoki")
+font0.set_name("M+ 1mn")
+font0.set_weight("medium")
 
 import seaborn as sns
 sns.set_style("whitegrid", {'grid.linestyle': ':'})
@@ -55,29 +56,33 @@ def tparse(fname, tag):
     return tdata
 
 # get data from File
-def get_fdata(bench, proc_set, size_set, bpsz_set, x_axis):
+def get_fdata(bench, proc_set, size_set, bpsz_set, curve_type):
     fdata = {}
     for proc in proc_set:
         for size in size_set:
             for bpsz in bpsz_set:
                 fname = fname_tmpl.format(bench, proc, size, bpsz)
-                if x_axis == "proc":
+                if curve_type == "proc":
                     tag = str(proc)
                     pad = max(map(ndigits, proc_set))
-                elif x_axis == "size":
+                elif curve_type == "size":
                     tag = str(size)
                     pad = max(map(ndigits, size_set))
-                elif x_axis == "pbsz":
+                elif curve_type == "bpsz":
                     tag = str(bpsz)
                     pad = max(map(ndigits, bpsz_set))
                 fdata[fname] = tparse(fname, tag.zfill(pad))
                 for impl in fdata[fname]:
-                    fdata[fname][impl]["proc"] = proc 
-    #print(json.dumps(fdata, indent=2))
+                    # possible x axes units
+                    fdata[fname][impl]["proc"] = proc
+                    fdata[fname][impl]["size"] = size
+                    fdata[fname][impl]["bpsz"] = bpsz
+
+    print(json.dumps(fdata, indent=2))
     return fdata
 
 # make data for Plot
-def make_pdata(fdata, stat_type):
+def make_pdata(fdata, stat_type, x_axis):
     pdata = {}
     for lkey, log in fdata.items():
         for key, stat_set in log.items():
@@ -85,7 +90,7 @@ def make_pdata(fdata, stat_type):
                 pdata[key] = [];
             for i in stat_set:
                 if i == stat_type:
-                    pdata[key] += [ (stat_set["proc"], float(stat_set[i])) ]
+                    pdata[key] += [ (stat_set[x_axis], float(stat_set[i])) ]
     for pkey in pdata:
         pdata[pkey] = sorted(pdata[pkey])
     return pdata
@@ -96,17 +101,20 @@ def rpvs_all(pkey):
     return "cont" in pkey
 def fpvs_all(pkey):
     return "cont" in pkey
-def svt(pkey):
-    return true
+def rsvt(pkey):
+    return "4" in pkey
+def fsvt(pkey):
+    return True
 def fbvs(pkey):
     return "cont006291456" in pkey
 
 selector = {
-    "size-v-time": svt,
+    "reduce_size-v-time": rsvt,
     "reduce_procs-v-speed-s": partial(rpvs, size=2**19 * 3),
     "reduce_procs-v-speed-m": partial(rpvs, size=2**21 * 3),
     "reduce_procs-v-speed-l": partial(rpvs, size=2**23 * 3),
     "reduce_procs-v-speed-a": rpvs_all,
+    "foreach_size-v-time": fsvt,
     "foreach_procs-v-speed-a": fpvs_all,
     "foreach_bpbits-v-speed": fbvs
 }
@@ -114,90 +122,151 @@ selector = {
 
 ################################################################################
 
-# filename template
-log_path = "logs_16-07"
+# filename path/template
+log_path = "logs"
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
-# bench name
-bench_name = "reduce_procs-v-speed-s"
+# key of dispatch table, ettc
+bench_name = "foreach_size-v-time"
+if "reduce" in bench_name:
+    test_name = "reduce"
+elif "foreach" in bench_name:
+    test_name = "foreach"
+
+if "procs-v-speed-a" in bench_name:
+    curve_type = "size"
+    x_axis = "proc"
+elif "size-v-time" in bench_name:
+    curve_type = "proc"
+    x_axis = "size"
+
+# name of saved file
+graph_name = "newest"
 
 proc_set = [1, 2, 4]
 proc_val = 4
+procs = proc_set
 
 size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8, 2**10])
 size_val_s = 2**19 * 3
 size_val_m = 2**21 * 3
 size_val_l = 2**23 * 3
+if "procs-v-speed-a" in bench_name:
+    sizes = size_set
+elif bench_name == "reduce_procs-v-speed-s":
+    sizes = [size_val_s]
+elif bench_name == "reduce_procs-v-speed-m":
+    sizes = [size_val_m]
+elif bench_name == "reduce_procs-v-speed-l":
+    sizes = [size_val_l]
+elif "size-v-time" in bench_name:
+    sizes = size_set
+else:
+    sizes = [size_val_m]
 
 bpsz_set = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 bpsz_val = 10
+if bench_name == "foreach_bpbits-v-speed":
+    bpszs = bpsz_set
+else:
+    bpszs = [bpsz_val]
 
 unre_set = [2**0, 2**1, 2**2, 2**3, 2**4, 2**5, 2**6]
 unre_val = 8
 
+
+################################################################################
+
 # file data
 print("Reading data from disk...")
-fdata = get_fdata("reduce", proc_set, [size_val_s], [bpsz_val], "size")
+fdata = get_fdata(test_name, procs, sizes, bpszs, curve_type)
 
 # plot data
 print("Importing data...")
-pdata = make_pdata(fdata, "min")
+pdata = make_pdata(fdata, "min", x_axis)
 pp.pprint(pdata)
 pdata = { k: zip(*v) for k,v in pdata.items() }
 
+for k,v in pdata.items():
+    print (k,v)
+
 # plotting
 print("Plotting data...")
-#sns.plt.axhline(1, color='#777777', linestyle='-', label="std::vector<double>")
-for pkey, pvals in pdata.items():
-    if not selector[bench_name](pkey):
-        continue
-    plab = "".join(i for i in pkey if i.isalpha())
-    ptag = "".join(i for i in pkey if i.isdigit())
-    plab += ", " + ptag.strip("0") + " elements"
-    baseline = pdata["vec" + ptag][1][0]
-    sns.plt.plot(pvals[0], [y / baseline for y in pvals[1]], marker='d', label=plab)
+figtext = ''
+if "procs-v-speed" in bench_name:
+    for pkey, pvals in pdata.items():
+        if not selector[bench_name](pkey):
+            continue
+        plab = "".join(i for i in pkey if i.isalpha())
+        ptag = "".join(i for i in pkey if i.isdigit())
+        plab += ", " + ptag.strip("0") + " elements"
+        if "reduce" in bench_name:
+            baseline = pdata["vec" + ptag][1][0]
+        elif "foreach" in bench_name:
+            baseline = pdata["stdv_foreach" + ptag][1][0]
+        if (("seq" in pkey or "vec" in pkey) and "1" in pkey):
+            sns.plt.axhline(pvals[1][0] / baseline, color='#777777', linestyle='-', label=plab)
+        else:
+            sns.plt.plot(pvals[0], [y / baseline for y in pvals[1]], marker='d', label=plab)
 
-handles, labels = sns.plt.gca().get_legend_handles_labels()
-labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
-leg = sns.plt.legend(handles, labels, loc='upper right', fancybox=True, frameon=True, prop=font0)
-leg.get_frame().set_alpha(1.0)
-sns.plt.ylim(0.5, 1.3)
-sns.plt.xlim(1, 4)
+    handles, labels = sns.plt.gca().get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
+    leg = sns.plt.legend(handles, labels, loc='upper right', fancybox=True, frameon=True, prop=font0)
+    leg.get_frame().set_alpha(1.0)
+    sns.plt.xlim(1, 4)
+    if "reduce" in bench_name:
+        sns.plt.ylim(0.5, 1.3)
+    elif "foreach" in bench_name:
+        sns.plt.ylim(0.3, 1.5)
+    sns.plt.title('Scaling (reduce with +)')
+    sns.plt.xlabel('# threads')
+    sns.plt.ylabel('relative speedup')
+    figtext = 'bench: ' + test_name + ', branching factor: 10'
+elif "size-v-time" in bench_name:
+    for pkey, pvals in pdata.items():
+        if not selector[bench_name](pkey):
+            print pkey
+            continue
+        plab = "".join(i for i in pkey if i.isalpha())
+        ptag = "".join(i for i in pkey if i.isdigit())
+        plab += ", " + ptag.strip("0") + " elements"
+        sns.plt.plot(pvals[0], pvals[1], marker='d', label=plab)
+
+    handles, labels = sns.plt.gca().get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
+    leg = sns.plt.legend(handles, labels, loc='upper left', fancybox=True, frameon=True, prop=font0)
+    leg.get_frame().set_alpha(1.0)
+    if "reduce" in bench_name:
+        sns.plt.ylim(0.02, 150)
+    elif "foreach" in bench_name:
+        #sns.plt.ylim(0.3, 1.5)
+        sns.plt.ylim(0.18, 1000)
+    sns.plt.xscale('log', basex=2)
+    sns.plt.yscale('log', basey=10)
+    sns.plt.title('Runtime (reduce with *)')
+    sns.plt.xlabel('# elements')
+    sns.plt.ylabel('time (s)')
+    figtext = 'bench: ' + test_name + ', branching factor: 10'
 
 # old options
-#sns.plt.xscale('log', basex=2)
-#sns.plt.yscale('log', basey=10)
 #sns.plt.ylim(0.35, 1.75)
-#sns.plt.ylim(0.18, 1000)
 #sns.plt.xlim(0, 16)
-#sns.plt.ylim(0, 275)
 #sns.plt.gca().xaxis.grid(False)
 #sns.plt.gca().yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.25))
 #sns.plt.xticks(range(0, 16))
 
-# 1
-sns.plt.title('Scaling (reduce with +)')
-sns.plt.xlabel('# threads')
-sns.plt.ylabel('relative speedup')
-t = sns.plt.figtext(0.512, 0.12, 'bench: reduce, branching factor: 10',
-                    fontsize=10, fontproperties=font0, ha='center')
 # 2
-sns.plt.title('Effect of BP_SIZE on runtime')
-sns.plt.xlabel(r'BP_SIZE ($\log_2~$of branches/node)')
-sns.plt.ylabel('relative speedup')
-t = sns.plt.figtext(0.512, 0.12, 'bench: foreach, #elements: 6291456, #threads: 4',
-                    fontsize=10, fontproperties=font0, ha='center')
-# 2
-sns.plt.title('Runtime (foreach with *)')
-sns.plt.xlabel('# elements')
-sns.plt.ylabel('time (s)')
-t = sns.plt.figtext(0.512, 0.12, 'bench: foreach, #elements: 6291456, #threads: 4',
-                    fontsize=10, fontproperties=font0, ha='center')
+#sns.plt.title('Effect of BP_SIZE on runtime')
+#sns.plt.xlabel(r'BP_SIZE ($\log_2~$of branches/node)')
+#sns.plt.ylabel('relative speedup')
+#t = sns.plt.figtext(0.512, 0.12, 'bench: foreach, #elements: 6291456, #threads: 4',
+#                    fontsize=10, fontproperties=font0, ha='center')
 
+t = sns.plt.figtext(0.512, 0.12, figtext, fontsize=10, fontproperties=font0,
+                    ha='center')
 t.set_bbox(dict(color='white', alpha=1.0, edgecolor='grey'))
 
 print("Saving plot...")
-#sns.plt.savefig(graph_name)
-sns.plt.savefig('newest.png')
+sns.plt.savefig(graph_name + ".png")
 sns.plt.close()
 
 """

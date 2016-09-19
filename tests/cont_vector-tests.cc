@@ -216,7 +216,7 @@ shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
 
 int cont_vector_runner()
 {
-	constexpr int16_t f = cont_testing::s;
+	constexpr int16_t f = cont_testing::mini;
     constexpr int64_t test_sz = ipow(2,15+f) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
     const int16_t test_n = ipow(2,14-f);
@@ -246,7 +246,7 @@ int cont_vector_runner()
     }
 
     // parameters for heat equation tests
-    constexpr double dy = 0.0005;
+    /*constexpr double dy = 0.0005;
     constexpr double dt = 0.0005;
     constexpr double y_max = 400;
     constexpr double t_max = 1;
@@ -254,12 +254,12 @@ int cont_vector_runner()
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr double V0 = 10;
-    constexpr double s = viscosity * dt/ipow(dy,2);
+    constexpr double s = viscosity * dt/ipow(dy,2);*/
 
     /*for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }*/
-    cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
+    //cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
 
     slbench::suite<vector<double>> stdv_suite {
         {"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
@@ -278,15 +278,15 @@ int cont_vector_runner()
     cout << stdv_output << endl;
     cout << cont_output << endl;
 
-    /*{
+    {
         using namespace fmt::literals;
-        slbench::log_output("heat_{}_{}_{}.log"_format(
+        slbench::log_output("foreach_{}_{}_{}.log"_format(
                             contentious::HWCONC, test_sz, BP_BITS),
                             stdv_output);
-        slbench::log_output("heat_{}_{}_{}.log"_format(
+        slbench::log_output("foreach_{}_{}_{}.log"_format(
                             contentious::HWCONC, test_sz, BP_BITS),
                             cont_output);
-    }*/
+    }
 
     /*size_t foreach_bad = 0;
     double tol = 0.000001;
