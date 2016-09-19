@@ -1,0 +1,12 @@
+name:stdv_foreach,its:32,avg:232.835,min:228.841,max:256.407
+name:cont_foreach,its:32,avg:164.146,min:151.497,max:205.649
+name:stdv_foreach,its:32,avg:235.4,min:230.803,max:246.087
+name:cont_foreach,its:32,avg:164.325,min:151.142,max:213.526
+name:stdv_foreach,its:32,avg:234.269,min:230.069,max:236.929
+name:cont_foreach,its:32,avg:165.854,min:151.489,max:209.607
+name:cont_foreach,its:32,avg:163.846,min:150.929,max:207.631
+name:stdv_foreach,its:32,avg:234.615,min:231.685,max:239.841
+name:cont_foreach,its:32,avg:168.812,min:153.082,max:211.515
+name:stdv_foreach,its:32,avg:236.275,min:232.789,max:260.266
+name:stdv_foreach,its:32,avg:230.313,min:224.751,max:231.074
+name:cont_foreach,its:32,avg:171.172,min:156.133,max:213.476

@@ -1,0 +1,4 @@
+name:stdv_foreach,its:128,avg:60.2099,min:58.7188,max:70.4179
+name:cont_foreach,its:128,avg:30.2988,min:29.5804,max:66.8199
+name:stdv_foreach,its:128,avg:60.584,min:58.3789,max:64.2794
+name:cont_foreach,its:128,avg:30.9672,min:29.637,max:68.099

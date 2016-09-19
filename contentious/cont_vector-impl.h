@@ -557,8 +557,8 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(
                                 const contentious::op<T> op2)
 {
     constexpr size_t NS = sizeof...(Offs);
-    std::array<contentious::imap_fp, NS>
-                                offs{contentious::offset<Offs>...};
+    std::array<contentious::imap_fp, NS> offs{
+                                {contentious::offset<Offs>...} };
 
     auto dep = std::make_shared<cont_vector<T>>(*this);
     freeze(*dep, contentious::identity, op2);

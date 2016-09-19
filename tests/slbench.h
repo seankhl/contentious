@@ -89,7 +89,7 @@ data<T> run_bench(T (*F)(Args ...), Args ...args)
 {
     std::chrono::time_point<std::chrono::steady_clock> start, end;
     std::array<std::chrono::duration<int64_t, period>, N> durs;
-    T res;
+    T res{};
     for (int i = 0; i < N; ++i) {
         start = std::chrono::steady_clock::now();
         res = F(args...);
