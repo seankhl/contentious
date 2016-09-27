@@ -215,8 +215,9 @@ shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
 
 int cont_vector_runner()
 {
-    constexpr int64_t test_sz = ipow(2,21) * 3;
+    constexpr int64_t test_sz = ipow(2,25) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
+    const int16_t test_ct = 8;
 
     cout << "**** Testing cont_vector with size: " << test_sz << endl;
 
@@ -259,15 +260,15 @@ int cont_vector_runner()
     cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
 
     slbench::suite<vector<double>> stdv_suite {
-        {"stdv_foreach", slbench::make_bench<32>(stdv_foreach,
-                                                 test_vec, other_vec)   }
+        {"stdv_foreach", slbench::make_bench<test_ct>(stdv_foreach,
+                                                      test_vec, other_vec)   }
        ,{"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
-        {"cont_foreach", slbench::make_bench<32>(cont_foreach,
-                                                 test_cvec, other_cvec) }
+        {"cont_foreach", slbench::make_bench<test_ct>(cont_foreach,
+                                                      test_cvec, other_cvec) }
        ,{"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);

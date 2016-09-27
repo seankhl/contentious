@@ -47,6 +47,20 @@ enum class bp_node_t : uint8_t
     uninitialized
 };
 
+#include <algorithm>
+template <std::size_t Len, class... Types>
+struct aligned_union
+{
+    static constexpr std::size_t alignment_value = std::max({alignof(Types)...});
+ 
+    struct type
+    {
+      alignas(alignment_value) char _s[std::max({Len, sizeof(Types)...})];
+    };
+};
+template< std::size_t Len, class... Types >
+using aligned_union_t = typename aligned_union<Len,Types...>::type;
+
 template <typename T>
 class bp_node : public boost::intrusive_ref_counter<bp_node<T>>
 {
@@ -117,7 +131,7 @@ private:
         return *reinterpret_cast<bp_leaves *>(&_u);
     }
 
-    std::aligned_union_t<BP_WIDTH, bp_branches, bp_leaves> _u;
+    aligned_union_t<BP_WIDTH, bp_branches, bp_leaves> _u;
     //std::array<bp_node_ptr<T>, BP_WIDTH> branches;
     //std::array<T, BP_WIDTH> values;
     bp_node_t _u_type;

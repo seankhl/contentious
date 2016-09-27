@@ -13,10 +13,8 @@
 
 #include <cmath>
 
+#include <omp.h>
 #include <immintrin.h>
-
-#include <CL/cl.h>
-
 
 using namespace std;
 
@@ -53,7 +51,7 @@ double locked_reduce(const vector<double> &test_vec)
     double locked_ret(0);
     mutex ltm;
     vector<thread> locked_threads;
-    uint16_t nthreads = thread::hardware_concurrency();
+    uint16_t nthreads = contentious::HWCONC;
     size_t chunk_sz = test_vec.size()/nthreads;
     for (uint16_t p = 0; p < nthreads; ++p) {
         locked_threads.push_back(
@@ -84,7 +82,7 @@ double atomic_reduce(const vector<double> &test_vec)
 {
     atomic<double> atomic_ret(0);
     vector<thread> atomic_threads;
-    uint16_t nthreads = thread::hardware_concurrency();
+    uint16_t nthreads = contentious::HWCONC;
     size_t chunk_sz = test_vec.size()/nthreads;
     for (int p = 0; p < nthreads; ++p) {
         atomic_threads.push_back(
@@ -111,7 +109,7 @@ double async_reduce(const vector<double> &test_vec)
 {
     double async_ret(0);
     vector<future<double>> async_pieces;
-    uint16_t nthreads = thread::hardware_concurrency();
+    uint16_t nthreads = contentious::HWCONC;
     size_t chunk_sz = test_vec.size()/nthreads;
     for (int p = 0; p < nthreads; ++p) {
         async_pieces.push_back(
@@ -144,8 +142,9 @@ double avx_reduce(const vector<double> &test_vec)
 
 double omp_reduce(const vector<double> &test_vec)
 {
+    omp_set_dynamic(0);
     double omp_ret(0);
-#pragma omp parallel for reduction(+:omp_ret)
+#pragma omp parallel for reduction(+:omp_ret) num_threads(contentious::HWCONC)
 /*
   default(shared) private(i)    \
   schedule(static, chunk)       \
@@ -158,7 +157,8 @@ double omp_reduce(const vector<double> &test_vec)
 
 int reduce_runner()
 {
-    int64_t test_sz = std::pow(2,21) * 3;
+    int64_t test_sz = std::pow(2,25) * 3;
+    const int16_t test_ct = 16;
     //static_assert(test_sz > 0, "Must run with test size > 0");
 
     cout << "**** Testing reduce with size: " << test_sz << endl;
@@ -185,12 +185,12 @@ int reduce_runner()
     }
     // create runner for all the variations of reduce
     slbench::suite<double> reduce_suite {
-        { "async",  slbench::make_bench<32>(async_reduce, test_vec)  }
-       ,{ "avx",    slbench::make_bench<32>(avx_reduce, test_vec)    }
-       ,{ "omp",    slbench::make_bench<32>(omp_reduce, test_vec)    }
-       ,{ "seq",    slbench::make_bench<32>(seq_reduce, test_vec)    }
-       ,{ "vec",    slbench::make_bench<32>(vec_reduce, test_vec)    }
-       ,{ "cont",   slbench::make_bench<32>(
+        { "async",  slbench::make_bench<test_ct>(async_reduce, test_vec)  }
+       //,{ "avx",    slbench::make_bench<test_ct>(avx_reduce, test_vec)    }
+       ,{ "omp",    slbench::make_bench<test_ct>(omp_reduce, test_vec)    }
+       //,{ "seq",    slbench::make_bench<test_ct>(seq_reduce, test_vec)    }
+       ,{ "vec",    slbench::make_bench<test_ct>(vec_reduce, test_vec)    }
+       ,{ "cont",   slbench::make_bench<test_ct>(
                         *[](cont_vector<double> &v) {
                             auto cont_ret = v.reduce(contentious::plus<double>);
                             contentious::tp.finish();

@@ -43,6 +43,8 @@ folly_sources = \
   ./include/folly/detail/Futex.cpp \
   ./include/folly/detail/CacheLocality.h \
   ./include/folly/detail/CacheLocality.cpp \
+  ./include/folly/detail/FunctionalExcept.h \
+  ./include/folly/detail/FunctionalExcept.cpp \
   ./include/folly/detail/MemoryIdler.h \
   ./include/folly/detail/ThreadLocalDetail.h \
   ./include/folly/detail/UncaughtExceptionCounter.h \

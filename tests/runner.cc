@@ -17,10 +17,11 @@ int main()
 #ifdef RELEASE
     cout << "Benchmarking..." << endl;
 #endif
+    cout << "hwconc: " << std::thread::hardware_concurrency() << std::endl;
     int ret = 0;
 
-    ret += bp_vector_runner();
-    ret += reduce_runner();
+    //ret += bp_vector_runner();
+    //ret += reduce_runner();
     ret += cont_vector_runner();
 
     contentious::tp.stop();
