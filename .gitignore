@@ -32,6 +32,8 @@
 
 ## project specific
 *.in
+*scratch
+.tags
 aclocal.m4
 autom4te.cache
 build-aux

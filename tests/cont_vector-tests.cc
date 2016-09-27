@@ -1,4 +1,5 @@
 
+#include "test-constants.h"
 #include "cont_vector-tests.h"
 #include "slbench.h"
 #include "contentious/cont_vector.h"
@@ -215,9 +216,10 @@ shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
 
 int cont_vector_runner()
 {
-    constexpr int64_t test_sz = ipow(2,25) * 3;
+	constexpr int16_t f = cont_testing::mini;
+    constexpr int64_t test_sz = ipow(2,15+f) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
-    const int16_t test_ct = 8;
+    const int16_t test_n = ipow(2,14-f);
 
     cout << "**** Testing cont_vector with size: " << test_sz << endl;
 
@@ -244,7 +246,7 @@ int cont_vector_runner()
     }
 
     // parameters for heat equation tests
-    constexpr double dy = 0.0005;
+    /*constexpr double dy = 0.0005;
     constexpr double dt = 0.0005;
     constexpr double y_max = 400;
     constexpr double t_max = 1;
@@ -252,39 +254,39 @@ int cont_vector_runner()
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr double V0 = 10;
-    constexpr double s = viscosity * dt/ipow(dy,2);
+    constexpr double s = viscosity * dt/ipow(dy,2);*/
 
     /*for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }*/
-    cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
+    //cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
 
     slbench::suite<vector<double>> stdv_suite {
-        {"stdv_foreach", slbench::make_bench<test_ct>(stdv_foreach,
-                                                      test_vec, other_vec)   }
-       ,{"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
+        {"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
+                                                     test_vec, other_vec)   }
+       //,{"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
-        {"cont_foreach", slbench::make_bench<test_ct>(cont_foreach,
-                                                      test_cvec, other_cvec) }
-       ,{"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
+        {"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
+                                                     test_cvec, other_cvec) }
+       //,{"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
 
     cout << stdv_output << endl;
     cout << cont_output << endl;
 
-    /*{
+    {
         using namespace fmt::literals;
-        slbench::log_output("heat_{}_{}_{}.log"_format(
+        slbench::log_output("foreach_{}_{}_{}.log"_format(
                             contentious::HWCONC, test_sz, BP_BITS),
                             stdv_output);
-        slbench::log_output("heat_{}_{}_{}.log"_format(
+        slbench::log_output("foreach_{}_{}_{}.log"_format(
                             contentious::HWCONC, test_sz, BP_BITS),
                             cont_output);
-    }*/
+    }
 
     /*size_t foreach_bad = 0;
     double tol = 0.000001;
@@ -298,7 +300,7 @@ int cont_vector_runner()
     if (foreach_bad > 0) {
         cout << "Bad vals of foreach: " << foreach_bad << endl;
     }*/
-    size_t heat_bad = 0;
+    /*size_t heat_bad = 0;
     double tol = 0.000001;
     auto stdv_ans = stdv_output["stdv_heat"].res;
     auto cont_ans = cont_output["cont_heat"].res;
@@ -321,7 +323,7 @@ int cont_vector_runner()
     for (auto it = stdv_ans.cbegin(); it < stdv_ans.cend(); it += y_skip) {
         cout << *it << " ";
     }
-    cout << endl;
+    cout << endl;*/
 
     return 0;
 }

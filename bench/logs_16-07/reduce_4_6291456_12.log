@@ -1,0 +1,12 @@
+name:async,its:128,avg:3.67557,min:3.59515,max:5.88613
+name:avx,its:128,avg:3.97041,min:3.91204,max:5.44756
+name:cont,its:128,avg:4.59437,min:3.76539,max:7.58822
+name:omp,its:128,avg:4.57451,min:3.54953,max:9.82978
+name:seq,its:128,avg:5.89049,min:5.49849,max:8.21514
+name:vec,its:128,avg:5.5968,min:5.55675,max:5.83472
+name:async,its:128,avg:3.67986,min:3.61061,max:6.29847
+name:avx,its:128,avg:4.1976,min:3.90944,max:8.49649
+name:cont,its:128,avg:4.81221,min:3.85239,max:9.46912
+name:omp,its:128,avg:3.64586,min:3.57573,max:6.49902
+name:seq,its:128,avg:5.55289,min:5.50532,max:5.79582
+name:vec,its:128,avg:5.93553,min:5.5607,max:8.41524

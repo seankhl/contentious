@@ -1,4 +1,5 @@
 
+#include "test-constants.h"
 #include "reduce-tests.h"
 #include "slbench.h"
 #include "contentious/cont_vector.h"
@@ -155,11 +156,18 @@ double omp_reduce(const vector<double> &test_vec)
     return omp_ret;
 }
 
+constexpr double ipow(double base, int exp, double result = 1)
+{
+    return exp < 1 ? result : \
+               ipow(base*base, exp/2, (exp % 2) ? result*base : result);
+}
+
 int reduce_runner()
 {
-    int64_t test_sz = std::pow(2,25) * 3;
-    const int16_t test_ct = 16;
-    //static_assert(test_sz > 0, "Must run with test size > 0");
+	constexpr int16_t f = cont_testing::huge;
+    constexpr int64_t test_sz = ipow(2,15+f) * 3;
+    static_assert(test_sz > 0, "Must run with test size > 0");
+    const int16_t test_n = ipow(2,14-f);
 
     cout << "**** Testing reduce with size: " << test_sz << endl;
 

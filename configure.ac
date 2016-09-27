@@ -20,10 +20,10 @@ m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 
 AC_LANG([C++])
 
-AX_CHECK_COMPILE_FLAG(["-std=c++14"], [
-  AM_CXXFLAGS="$AM_CXXFLAGS -std=c++14"
+AX_CHECK_COMPILE_FLAG(["-std=c++1z"], [
+  AM_CXXFLAGS="$AM_CXXFLAGS -std=c++1z"
 ], [
-  echo "Your compiler does not support c++14!"
+  echo "Your compiler does not support c++1z!"
   exit -1
 ])
 AX_CHECK_COMPILE_FLAG(["-Wall"], [
@@ -36,16 +36,16 @@ AX_CHECK_COMPILE_FLAG(["-Wextra"], [
 ], [
   echo "No extra warning flags, compiling anyway"
 ])
-AX_CHECK_COMPILE_FLAG(["-march=native"], [
-  AM_CPPFLAGS="$AM_CPPFLAGS -march=native"
-], [
-  echo "No native arch build, compiling anyway"
-])
-AX_CHECK_COMPILE_FLAG(["-mtune=generic"], [
-  AM_CPPFLAGS="$AM_CPPFLAGS -mtune=generic"
-], [
-  echo "No native tuned build, compiling anyway"
-])
+# AX_CHECK_COMPILE_FLAG(["-march=native"], [
+#   AM_CPPFLAGS="$AM_CPPFLAGS -march=native"
+# ], [
+#   echo "No native arch build, compiling anyway"
+# ])
+# AX_CHECK_COMPILE_FLAG(["-mtune=generic"], [
+#   AM_CPPFLAGS="$AM_CPPFLAGS -mtune=generic"
+# ], [
+#   echo "No native tuned build, compiling anyway"
+# ])
 
 AC_OPENMP
 
@@ -112,7 +112,7 @@ AM_CONDITIONAL([HAVE_BITS_FUNCTEXCEPT_H],
 AM_CONDITIONAL([HAVE_EXTRANDOM_SFMT19937],
                [test "$folly_cv_prog_cc_have_extrandom_sfmt19937" = "yes"])
 
-# some checks for things contentious uses... but we already checked for c++14
+# some checks for things contentious uses... but we already checked for c++1z
 AC_TYPE_UINT8_T
 AC_TYPE_UINT64_T
 AC_TYPE_SIZE_T

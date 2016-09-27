@@ -3,7 +3,7 @@ ACLOCAL_AMFLAGS = -I./m4
 #libmylib_a_HEADERS = headers_to_install.h
 #libmylib_adir = $(includedir)/mylib
 
-AM_CPPFLAGS = @AM_CPPFLAGS@ -I$(top_srcdir)/include
+AM_CPPFLAGS = @AM_CPPFLAGS@ -isystem$(top_srcdir)/include
 
 lib_LIBRARIES = libfolly-minimal.a libcontentious.a
 

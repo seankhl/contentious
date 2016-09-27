@@ -17,9 +17,13 @@ int main()
 #ifdef RELEASE
     cout << "Benchmarking..." << endl;
 #endif
-    cout << "hwconc: " << std::thread::hardware_concurrency() << std::endl;
-    int ret = 0;
+    cout << "# logical procs: "
+         << std::thread::hardware_concurrency() 
+         << std::endl;
+    cout << "HWCONC: " << contentious::HWCONC << endl;
+    cout << "BPBITS: " << static_cast<int>(BP_BITS) << endl;
 
+    int ret = 0;
     //ret += bp_vector_runner();
     //ret += reduce_runner();
     ret += cont_vector_runner();
