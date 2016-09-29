@@ -1,0 +1,10 @@
+name:async,its:16,avg:654.136,min:169.373,max:7869.77
+name:cont,its:16,avg:2096.04,min:177.079,max:30799.7
+name:omp,its:16,avg:871.758,min:169.285,max:11359.2
+name:seq,its:16,avg:1435.08,min:168.096,max:20430.6
+name:vec,its:16,avg:1714.27,min:173.313,max:24738.8
+name:async,its:16,avg:649.906,min:169.554,max:7845.99
+name:cont,its:16,avg:1699.44,min:186.747,max:24153.8
+name:omp,its:16,avg:1632.55,min:192.091,max:23166.1
+name:seq,its:16,avg:1589.71,min:168.18,max:22900.5
+name:vec,its:16,avg:1948.72,min:173.199,max:28492.1

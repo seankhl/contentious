@@ -1,0 +1,5 @@
+name:async,its:16384,avg:0.180216,min:0.174754,max:0.80009
+name:cont,its:16384,avg:0.184213,min:0.179711,max:0.44187
+name:omp,its:16384,avg:0.146435,min:0.1461,max:0.349988
+name:seq,its:16384,avg:0.144966,min:0.144684,max:0.299763
+name:vec,its:16384,avg:0.149622,min:0.145958,max:0.311192
