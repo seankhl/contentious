@@ -123,7 +123,7 @@ selector = {
 ################################################################################
 
 # filename path/template
-log_path = "logs"
+log_path = "logs_28-09"
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 
 # key of dispatch table, etc
@@ -153,7 +153,7 @@ elif "bpsz-v-speed" in bench_name:
     x_axis = "bpsz"
 
 # name of saved file
-graph_name = "graphs_2016-09-26/" + bench_name
+graph_name = "graphs_2016-09-28/" + bench_name
 
 # processor counts
 proc_set = [1, 2, 4]
