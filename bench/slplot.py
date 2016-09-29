@@ -17,13 +17,13 @@ sns.plt.rcParams.update({'mathtext.fontset' : 'custom',
                          'mathtext.bf' : 'Bitstream Vera Sans:bold',
                          'mathtext.tt' : 'mononoki',
                          'mathtext.cal' : 'MathJax_Caligraphic'})
-#sns.set_style("ticks")
 sns.set_palette("Set2")
 
 import datetime
 import time
 
 import collections
+from collections import OrderedDict
 
 import json
 
@@ -125,27 +125,42 @@ selector = {
 # filename path/template
 log_path = "logs"
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
-# key of dispatch table, ettc
-bench_name = "foreach_size-v-time"
+
+# key of dispatch table, etc
+#bench_name = "reduce_size-v-time"
+#bench_name = "reduce_procs-v-speed-s"
+#bench_name = "reduce_procs-v-speed-m"
+#bench_name = "reduce_procs-v-speed-l"
+#bench_name = "reduce_procs-v-speed-a"
+#bench_name = "foreach_size-v-time"
+bench_name = "foreach_procs-v-speed-a"
+#bench_name = "foreach_bpbits-v-speed"
 if "reduce" in bench_name:
     test_name = "reduce"
+    op = "+"
 elif "foreach" in bench_name:
     test_name = "foreach"
+    op = "*"
 
-if "procs-v-speed-a" in bench_name:
+if "procs-v-speed" in bench_name:
     curve_type = "size"
     x_axis = "proc"
 elif "size-v-time" in bench_name:
     curve_type = "proc"
     x_axis = "size"
+elif "bpsz-v-speed" in bench_name:
+    curve_type = "size"
+    x_axis = "bpsz"
 
 # name of saved file
-graph_name = "newest"
+graph_name = "graphs_2016-09-26/" + bench_name
 
+# processor counts
 proc_set = [1, 2, 4]
 proc_val = 4
 procs = proc_set
 
+# vector sizes
 size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8, 2**10])
 size_val_s = 2**19 * 3
 size_val_m = 2**21 * 3
@@ -163,6 +178,7 @@ elif "size-v-time" in bench_name:
 else:
     sizes = [size_val_m]
 
+# bit partition sizes
 bpsz_set = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 bpsz_val = 10
 if bench_name == "foreach_bpbits-v-speed":
@@ -170,6 +186,7 @@ if bench_name == "foreach_bpbits-v-speed":
 else:
     bpszs = [bpsz_val]
 
+# unresolved depth values (unused as of now)
 unre_set = [2**0, 2**1, 2**2, 2**3, 2**4, 2**5, 2**6]
 unre_val = 8
 
@@ -189,6 +206,18 @@ pdata = { k: zip(*v) for k,v in pdata.items() }
 for k,v in pdata.items():
     print (k,v)
 
+def keysort(s):
+    if "reduce" in s[0]:
+        keyorder = {k:v for v,k in enumerate(["seq", "vec", "cont", "async", "omp"])}
+        for k,v in keyorder.items():
+            if k in s[0]:
+                return v
+        return keyorder.size()
+    print s[0]
+    return s[0]
+
+pdata = OrderedDict(sorted(pdata.items(), key=keysort))
+
 # plotting
 print("Plotting data...")
 figtext = ''
@@ -196,7 +225,11 @@ if "procs-v-speed" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
             continue
-        plab = "".join(i for i in pkey if i.isalpha())
+        plab = "".join(i for i in pkey if not i.isdigit())
+        if "cont" in plab:
+            plab = "cont"
+        elif "stdv" in plab:
+            plab = "stdv"
         ptag = "".join(i for i in pkey if i.isdigit())
         plab += ", " + ptag.strip("0") + " elements"
         if "reduce" in bench_name:
@@ -214,21 +247,29 @@ if "procs-v-speed" in bench_name:
     leg.get_frame().set_alpha(1.0)
     sns.plt.xlim(1, 4)
     if "reduce" in bench_name:
-        sns.plt.ylim(0.5, 1.3)
+        sns.plt.ylim(0.4, 1.2)
     elif "foreach" in bench_name:
         sns.plt.ylim(0.3, 1.5)
-    sns.plt.title('Scaling (reduce with +)')
+    sns.plt.title('Scaling (' + test_name + ' with ' + op + ')')
     sns.plt.xlabel('# threads')
     sns.plt.ylabel('relative speedup')
+    sns.plt.xticks([1,2,4])
     figtext = 'bench: ' + test_name + ', branching factor: 10'
 elif "size-v-time" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
             print pkey
             continue
-        plab = "".join(i for i in pkey if i.isalpha())
+        plab = "".join(i for i in pkey if not i.isdigit())
+        print plab
+        if "cont" in plab:
+            plab = "cont"
+        elif "stdv" in plab:
+            plab = "stdv"
+            if "1" not in pkey:
+                continue
         ptag = "".join(i for i in pkey if i.isdigit())
-        plab += ", " + ptag.strip("0") + " elements"
+        plab += ", " + ptag.strip("0") + " procs"
         sns.plt.plot(pvals[0], pvals[1], marker='d', label=plab)
 
     handles, labels = sns.plt.gca().get_legend_handles_labels()
@@ -238,14 +279,43 @@ elif "size-v-time" in bench_name:
     if "reduce" in bench_name:
         sns.plt.ylim(0.02, 150)
     elif "foreach" in bench_name:
-        #sns.plt.ylim(0.3, 1.5)
         sns.plt.ylim(0.18, 1000)
     sns.plt.xscale('log', basex=2)
     sns.plt.yscale('log', basey=10)
-    sns.plt.title('Runtime (reduce with *)')
+    sns.plt.title('Runtime (' + test_name + ' with ' + op + ')')
     sns.plt.xlabel('# elements')
     sns.plt.ylabel('time (s)')
     figtext = 'bench: ' + test_name + ', branching factor: 10'
+elif "bpsz-v-speed" in bench_name:
+    for pkey, pvals in pdata.items():
+        if not selector[bench_name](pkey):
+            print pkey
+            continue
+        plab = "".join(i for i in pkey if not i.isdigit())
+        print plab
+        if "cont" in plab:
+            plab = "cont"
+        elif "stdv" in plab:
+            plab = "stdv"
+        ptag = "".join(i for i in pkey if i.isdigit())
+        plab += ", " + ptag.strip("0") + " procs"
+        sns.plt.plot(pvals[0], pvals[1], marker='d', label=plab)
+
+    handles, labels = sns.plt.gca().get_legend_handles_labels()
+    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
+    leg = sns.plt.legend(handles, labels, loc='upper left', fancybox=True, frameon=True, prop=font0)
+    leg.get_frame().set_alpha(1.0)
+    if "reduce" in bench_name:
+        sns.plt.ylim(0.02, 150)
+    elif "foreach" in bench_name:
+        sns.plt.ylim(0.18, 1000)
+    sns.plt.xscale('log', basex=2)
+    sns.plt.yscale('log', basey=10)
+    sns.plt.title('Runtime (' + test_name + ' with ' + op + ')')
+    sns.plt.xlabel('# elements')
+    sns.plt.ylabel('time (s)')
+    figtext = 'bench: ' + test_name + ', branching factor: 10'
+
 
 # old options
 #sns.plt.ylim(0.35, 1.75)
