@@ -1,0 +1,6 @@
+name:stdv_heat,its:4,avg:8984.03,min:8902.16,max:9103.1
+name:cont_heat,its:4,avg:3269.27,min:3072.67,max:3505.2
+name:stdv_heat,its:4,avg:9290.83,min:9102.7,max:9524.07
+name:cont_heat,its:4,avg:3687.83,min:3502.73,max:4104.07
+name:stdv_heat,its:12,avg:9349.99,min:9070.05,max:9451.09
+name:cont_heat,its:12,avg:3114.02,min:2985.07,max:3789.71

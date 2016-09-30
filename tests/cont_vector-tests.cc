@@ -213,7 +213,7 @@ int cont_vector_runner()
     static_assert(test_sz > 0, "Must run with test size > 0");
     const int16_t test_n = ipow(2,14-f);
 
-    cout << "**** Testing cont_vector with size: " << test_sz << endl;
+    //cout << "**** Testing cont_vector with size: " << test_sz << endl;
 
     random_device rnd_device;
     mt19937 mersenne_engine(rnd_device());
@@ -267,7 +267,7 @@ int cont_vector_runner()
     slbench::suite<vector<double>> stdv_suite {
         /*{"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
                                                      test_vec, other_vec)   }
-       ,*/{"stdv_heat",    slbench::make_bench<4>(stdv_heat,
+       ,*/{"stdv_heat",    slbench::make_bench<12>(stdv_heat,
                                                    heat_vec, c, r, V0, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
@@ -275,7 +275,7 @@ int cont_vector_runner()
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
         /*{"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
                                                        test_cvec, other_cvec) }
-       ,*/{"cont_heat",    slbench::make_bench<4>(cont_heat,
+       ,*/{"cont_heat",    slbench::make_bench<12>(cont_heat,
                                                    heat_cvec, c, r, V0, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
