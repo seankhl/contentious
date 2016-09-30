@@ -130,7 +130,7 @@ selector = {
 ################################################################################
 
 # filename path/template
-date = "2016-09-29"
+date = "2016-09-30"
 log_path = "logs_" + date
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 
@@ -143,9 +143,9 @@ fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 #bench_name = "foreach_size-v-time"
 #bench_name = "foreach_procs-v-speed-a"
 #bench_name = "foreach_bpbits-v-speed"
-#bench_name = "heat_size-v-time"
+bench_name = "heat_size-v-time"
 #bench_name = "heat_width-v-speed-a"
-bench_name = "heat_steps-v-speed-a"
+#bench_name = "heat_steps-v-speed-a"
 if "reduce" in bench_name:
     test_name = "reduce"
     op = "+"
@@ -176,7 +176,7 @@ if "steps-v-speed" in bench_name:
 graph_name = "graphs_" + date + "/" + bench_name
 
 # processor counts
-proc_set = [1, 2, 4]
+proc_set = [1, 2, 4, 8, 16]
 proc_val = 16
 procs = proc_set
 
@@ -209,7 +209,7 @@ else:
 r_set = [3, 11, 21, 101, 201, 1000]
 r_val = 1000
 
-c_set = [1940, 7801, 31240, 125001, 500000, 2000001, 8000000]
+c_set = [7801, 31240, 125001, 500000, 2000001, 8000000]
 c_val = 8000000
 
 # unresolved depth values (unused as of now)
@@ -223,6 +223,8 @@ unre_val = 8
 print("Reading data from disk...")
 if "reduce" in test_name or "foreach" in test_name:
     fdata = get_fdata(test_name, procs, sizes, bpszs, curve_type)
+elif "heat_size" in bench_name:
+    fdata = get_fdata(test_name, procs, c_set, [r_val], curve_type)
 elif "heat_width" in bench_name:
     fdata = get_fdata(test_name, procs, c_set, [r_val], curve_type)
 elif "heat_steps" in bench_name:
@@ -243,7 +245,15 @@ def keysort(s):
         for k,v in keyorder.items():
             if k in s[0]:
                 return v
-        return keyorder.size()
+        return keyorder.items().size()
+    elif "heat" in s[0]:
+        keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_heat01", "cont_heat01", "2", "4", "8", "16"])})
+        for k,v in keyorder.items():
+            if k in s[0]:
+                print k,s[0]
+                return v
+        return keyorder.items().size()
+
     print s[0]
     return s[0]
 
@@ -262,7 +272,12 @@ if "-v-speed" in bench_name:
         elif "stdv" in plab:
             plab = "stdv"
         ptag = "".join(i for i in pkey if i.isdigit())
-        plab += ", " + ptag.lstrip("0") + " elements"
+        if "procs" in bench_name:
+            plab += ", " + ptag.lstrip("0") + " elements"
+        elif "width" in bench_name:
+            plab += ", " + ptag.lstrip("0") + " spatial points"
+        elif "steps" in bench_name:
+            plab += ", " + ptag.lstrip("0") + " timesteps"
         if "reduce" in bench_name:
             baseline = pdata["vec" + ptag][1][0]
         elif "foreach" in bench_name:
@@ -289,18 +304,24 @@ if "-v-speed" in bench_name:
     sns.plt.ylabel('relative speedup')
     sns.plt.xticks(proc_set)
     figtext = 'bench: ' + test_name + ', branching factor: 10'
+    if "width" in bench_name:
+        figtext += ", " + str(r_val) + " timesteps"
+        sns.plt.ylim(0.0, 4.5)
+    if "steps" in bench_name:
+        figtext += ", " + str(c_val) + " spatial points"
+        sns.plt.ylim(0.0, 1.6)
 elif "size-v-time" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
             print pkey
             continue
         plab = "".join(i for i in pkey if not i.isdigit())
-        print plab
+        print plab, pvals
         if "cont" in plab:
             plab = "cont"
         elif "stdv" in plab:
             plab = "stdv"
-            if "1" not in pkey:
+            if "1" not in pkey or "16" in pkey:
                 continue
         ptag = "".join(i for i in pkey if i.isdigit())
         plab += ", " + ptag.strip("0") + " procs"
@@ -314,12 +335,17 @@ elif "size-v-time" in bench_name:
         sns.plt.ylim(0.01, 300)
     elif "foreach" in bench_name:
         sns.plt.ylim(0.24, 400)
+    elif "heat" in bench_name:
+        sns.plt.xlim(2**12.5, 2**23.5)
     sns.plt.xscale('log', basex=2)
     sns.plt.yscale('log', basey=10)
     sns.plt.title('Runtime (' + test_name + ' with ' + op + ')')
     sns.plt.xlabel('# elements')
-    sns.plt.ylabel('time (s)')
+    sns.plt.ylabel('time (ms)')
     figtext = 'bench: ' + test_name + ', branching factor: 10'
+    if "heat" in bench_name:
+        figtext += ", " + str(c_val) + " spatial points"
+        figtext += ", " + str(r_val) + " timesteps"
 elif "bpsz-v-speed" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
@@ -347,7 +373,7 @@ elif "bpsz-v-speed" in bench_name:
     sns.plt.yscale('log', basey=10)
     sns.plt.title('Runtime (' + test_name + ' with ' + op + ')')
     sns.plt.xlabel('# elements')
-    sns.plt.ylabel('time (s)')
+    sns.plt.ylabel('time (ms)')
     figtext = 'bench: ' + test_name + ', branching factor: 10'
 
 
