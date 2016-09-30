@@ -18,7 +18,7 @@ sns.plt.rcParams.update({'mathtext.fontset' : 'custom',
                          'mathtext.tt' : 'mononoki',
                          'mathtext.cal' : 'MathJax_Caligraphic'})
 #sns.set_palette("Set2")
-sns.set_palette(sns.color_palette("cubehelix", 7))
+sns.set_palette(sns.color_palette("cubehelix", 6))
 
 
 import datetime
@@ -130,7 +130,7 @@ selector = {
 ################################################################################
 
 # filename path/template
-date = "2016-09-30"
+date = "2016-09-28"
 log_path = "logs_" + date
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 
@@ -139,11 +139,11 @@ fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 #bench_name = "reduce_procs-v-speed-s"
 #bench_name = "reduce_procs-v-speed-m"
 #bench_name = "reduce_procs-v-speed-l"
-#bench_name = "reduce_procs-v-speed-a"
+bench_name = "reduce_procs-v-speed-a"
 #bench_name = "foreach_size-v-time"
 #bench_name = "foreach_procs-v-speed-a"
 #bench_name = "foreach_bpbits-v-speed"
-bench_name = "heat_size-v-time"
+#bench_name = "heat_size-v-time"
 #bench_name = "heat_width-v-speed-a"
 #bench_name = "heat_steps-v-speed-a"
 if "reduce" in bench_name:
@@ -181,7 +181,7 @@ proc_val = 16
 procs = proc_set
 
 # vector sizes
-size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8])
+size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8, 2**10])
 size_val_s = 2**19 * 3
 size_val_m = 2**21 * 3
 size_val_l = 2**23 * 3
@@ -244,8 +244,16 @@ def keysort(s):
         keyorder = {k:v for v,k in enumerate(["seq", "vec", "cont", "async", "omp"])}
         for k,v in keyorder.items():
             if k in s[0]:
+                print "AH HA",k,s[0]
                 return v
         return keyorder.items().size()
+#   elif "foreach" in s[0]:
+#       keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_foreach01", "cont_foreach01", "2", "4", "8", "16"])})
+#       for k,v in keyorder.items():
+#           if k in s[0]:
+#               print k,s[0]
+#               return v
+#       return keyorder.items().size()
     elif "heat" in s[0]:
         keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_heat01", "cont_heat01", "2", "4", "8", "16"])})
         for k,v in keyorder.items():
@@ -289,7 +297,6 @@ if "-v-speed" in bench_name:
         else:
             sns.plt.plot(pvals[0], [y / baseline for y in pvals[1]], marker='d', label=plab)
 
-    sns.plt.axhline(1, color='#777777', linestyle='-', label="baseline")
     handles, labels = sns.plt.gca().get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
     leg = sns.plt.legend(handles, labels, loc='upper right', fancybox=True, frameon=True, prop=font0)
