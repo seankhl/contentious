@@ -17,7 +17,9 @@ sns.plt.rcParams.update({'mathtext.fontset' : 'custom',
                          'mathtext.bf' : 'Bitstream Vera Sans:bold',
                          'mathtext.tt' : 'mononoki',
                          'mathtext.cal' : 'MathJax_Caligraphic'})
-sns.set_palette("Set2")
+#sns.set_palette("Set2")
+sns.set_palette(sns.color_palette("cubehelix", 7))
+
 
 import datetime
 import time
@@ -101,9 +103,11 @@ def rpvs_all(pkey):
     return "cont" in pkey
 def fpvs_all(pkey):
     return "cont" in pkey
+def hpvs_all(pkey):
+    return "cont" in pkey
 def rsvt(pkey):
     return "16" in pkey
-def fsvt(pkey):
+def svt(pkey):
     return True
 def fbvs(pkey):
     return "cont006291456" in pkey
@@ -114,16 +118,20 @@ selector = {
     "reduce_procs-v-speed-m": partial(rpvs, size=2**21 * 3),
     "reduce_procs-v-speed-l": partial(rpvs, size=2**23 * 3),
     "reduce_procs-v-speed-a": rpvs_all,
-    "foreach_size-v-time": fsvt,
+    "foreach_size-v-time": svt,
     "foreach_procs-v-speed-a": fpvs_all,
-    "foreach_bpbits-v-speed": fbvs
+    "foreach_bpbits-v-speed": fbvs,
+    "heat_size-v-time": svt,
+    "heat_width-v-speed-a": hpvs_all,
+    "heat_steps-v-speed-a": hpvs_all
 }
         
 
 ################################################################################
 
 # filename path/template
-log_path = "logs_28-09"
+date = "2016-09-29"
+log_path = "logs_" + date
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 
 # key of dispatch table, etc
@@ -132,15 +140,21 @@ fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 #bench_name = "reduce_procs-v-speed-m"
 #bench_name = "reduce_procs-v-speed-l"
 #bench_name = "reduce_procs-v-speed-a"
-bench_name = "foreach_size-v-time"
+#bench_name = "foreach_size-v-time"
 #bench_name = "foreach_procs-v-speed-a"
 #bench_name = "foreach_bpbits-v-speed"
+#bench_name = "heat_size-v-time"
+#bench_name = "heat_width-v-speed-a"
+bench_name = "heat_steps-v-speed-a"
 if "reduce" in bench_name:
     test_name = "reduce"
     op = "+"
 elif "foreach" in bench_name:
     test_name = "foreach"
     op = "*"
+elif "heat" in bench_name:
+    test_name = "heat"
+    op = "stencil"
 
 if "procs-v-speed" in bench_name:
     curve_type = "size"
@@ -151,12 +165,18 @@ elif "size-v-time" in bench_name:
 elif "bpsz-v-speed" in bench_name:
     curve_type = "size"
     x_axis = "bpsz"
+if "width-v-speed" in bench_name:
+    curve_type = "size"
+    x_axis = "proc"
+if "steps-v-speed" in bench_name:
+    curve_type = "bpsz"
+    x_axis = "proc"
 
 # name of saved file
-graph_name = "graphs_2016-09-28/" + bench_name
+graph_name = "graphs_" + date + "/" + bench_name
 
 # processor counts
-proc_set = [1, 2, 4, 8, 16]
+proc_set = [1, 2, 4]
 proc_val = 16
 procs = proc_set
 
@@ -186,6 +206,12 @@ if bench_name == "foreach_bpbits-v-speed":
 else:
     bpszs = [bpsz_val]
 
+r_set = [3, 11, 21, 101, 201, 1000]
+r_val = 1000
+
+c_set = [1940, 7801, 31240, 125001, 500000, 2000001, 8000000]
+c_val = 8000000
+
 # unresolved depth values (unused as of now)
 unre_set = [2**0, 2**1, 2**2, 2**3, 2**4, 2**5, 2**6]
 unre_val = 8
@@ -195,7 +221,12 @@ unre_val = 8
 
 # file data
 print("Reading data from disk...")
-fdata = get_fdata(test_name, procs, sizes, bpszs, curve_type)
+if "reduce" in test_name or "foreach" in test_name:
+    fdata = get_fdata(test_name, procs, sizes, bpszs, curve_type)
+elif "heat_width" in bench_name:
+    fdata = get_fdata(test_name, procs, c_set, [r_val], curve_type)
+elif "heat_steps" in bench_name:
+    fdata = get_fdata(test_name, procs, [c_val], r_set, curve_type)
 
 # plot data
 print("Importing data...")
@@ -221,7 +252,7 @@ pdata = OrderedDict(sorted(pdata.items(), key=keysort))
 # plotting
 print("Plotting data...")
 figtext = ''
-if "procs-v-speed" in bench_name:
+if "-v-speed" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
             continue
@@ -231,16 +262,19 @@ if "procs-v-speed" in bench_name:
         elif "stdv" in plab:
             plab = "stdv"
         ptag = "".join(i for i in pkey if i.isdigit())
-        plab += ", " + ptag.strip("0") + " elements"
+        plab += ", " + ptag.lstrip("0") + " elements"
         if "reduce" in bench_name:
             baseline = pdata["vec" + ptag][1][0]
         elif "foreach" in bench_name:
             baseline = pdata["stdv_foreach" + ptag][1][0]
+        elif "heat" in bench_name:
+            baseline = pdata["stdv_heat" + ptag][1][0]
         if (("seq" in pkey or "vec" in pkey) and "1" in pkey):
             sns.plt.axhline(pvals[1][0] / baseline, color='#777777', linestyle='-', label=plab)
         else:
             sns.plt.plot(pvals[0], [y / baseline for y in pvals[1]], marker='d', label=plab)
 
+    sns.plt.axhline(1, color='#777777', linestyle='-', label="baseline")
     handles, labels = sns.plt.gca().get_legend_handles_labels()
     labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
     leg = sns.plt.legend(handles, labels, loc='upper right', fancybox=True, frameon=True, prop=font0)
