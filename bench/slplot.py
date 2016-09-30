@@ -102,7 +102,7 @@ def rpvs_all(pkey):
 def fpvs_all(pkey):
     return "cont" in pkey
 def rsvt(pkey):
-    return "4" in pkey
+    return "16" in pkey
 def fsvt(pkey):
     return True
 def fbvs(pkey):
@@ -132,8 +132,8 @@ fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 #bench_name = "reduce_procs-v-speed-m"
 #bench_name = "reduce_procs-v-speed-l"
 #bench_name = "reduce_procs-v-speed-a"
-#bench_name = "foreach_size-v-time"
-bench_name = "foreach_procs-v-speed-a"
+bench_name = "foreach_size-v-time"
+#bench_name = "foreach_procs-v-speed-a"
 #bench_name = "foreach_bpbits-v-speed"
 if "reduce" in bench_name:
     test_name = "reduce"
@@ -156,12 +156,12 @@ elif "bpsz-v-speed" in bench_name:
 graph_name = "graphs_2016-09-28/" + bench_name
 
 # processor counts
-proc_set = [1, 2, 4]
-proc_val = 4
+proc_set = [1, 2, 4, 8, 16]
+proc_val = 16
 procs = proc_set
 
 # vector sizes
-size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8, 2**10])
+size_set = map(lambda x: x * (2**15 * 3), [2**0, 2**2, 2**4, 2**6, 2**8])
 size_val_s = 2**19 * 3
 size_val_m = 2**21 * 3
 size_val_l = 2**23 * 3
@@ -247,13 +247,13 @@ if "procs-v-speed" in bench_name:
     leg.get_frame().set_alpha(1.0)
     sns.plt.xlim(1, 4)
     if "reduce" in bench_name:
-        sns.plt.ylim(0.4, 1.2)
+        sns.plt.ylim(0.0, 1.3)
     elif "foreach" in bench_name:
         sns.plt.ylim(0.3, 1.5)
     sns.plt.title('Scaling (' + test_name + ' with ' + op + ')')
     sns.plt.xlabel('# threads')
     sns.plt.ylabel('relative speedup')
-    sns.plt.xticks([1,2,4])
+    sns.plt.xticks(proc_set)
     figtext = 'bench: ' + test_name + ', branching factor: 10'
 elif "size-v-time" in bench_name:
     for pkey, pvals in pdata.items():
@@ -277,9 +277,9 @@ elif "size-v-time" in bench_name:
     leg = sns.plt.legend(handles, labels, loc='upper left', fancybox=True, frameon=True, prop=font0)
     leg.get_frame().set_alpha(1.0)
     if "reduce" in bench_name:
-        sns.plt.ylim(0.02, 150)
+        sns.plt.ylim(0.01, 300)
     elif "foreach" in bench_name:
-        sns.plt.ylim(0.18, 1000)
+        sns.plt.ylim(0.24, 400)
     sns.plt.xscale('log', basex=2)
     sns.plt.yscale('log', basey=10)
     sns.plt.title('Runtime (' + test_name + ' with ' + op + ')')
