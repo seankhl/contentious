@@ -1,5 +1,5 @@
 
-#include "test-constants.h"
+#include "test_constants.h"
 #include "reduce-tests.h"
 #include "slbench.h"
 #include "contentious/cont_vector.h"
@@ -193,12 +193,12 @@ int reduce_runner()
     }
     // create runner for all the variations of reduce
     slbench::suite<double> reduce_suite {
-        { "async",  slbench::make_bench<test_ct>(async_reduce, test_vec)  }
-       //,{ "avx",    slbench::make_bench<test_ct>(avx_reduce, test_vec)    }
-       ,{ "omp",    slbench::make_bench<test_ct>(omp_reduce, test_vec)    }
-       //,{ "seq",    slbench::make_bench<test_ct>(seq_reduce, test_vec)    }
-       ,{ "vec",    slbench::make_bench<test_ct>(vec_reduce, test_vec)    }
-       ,{ "cont",   slbench::make_bench<test_ct>(
+        { "async",  slbench::make_bench<test_n>(async_reduce, test_vec)  }
+       //,{ "avx",    slbench::make_bench<test_n>(avx_reduce, test_vec)    }
+       ,{ "omp",    slbench::make_bench<test_n>(omp_reduce, test_vec)    }
+       ,{ "seq",    slbench::make_bench<test_n>(seq_reduce, test_vec)    }
+       ,{ "vec",    slbench::make_bench<test_n>(vec_reduce, test_vec)    }
+       ,{ "cont",   slbench::make_bench<test_n>(
                         *[](cont_vector<double> &v) {
                             auto cont_ret = v.reduce(contentious::plus<double>);
                             contentious::tp.finish();

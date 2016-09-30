@@ -1,5 +1,5 @@
 
-#include "test-constants.h"
+#include "test_constants.h"
 #include "cont_vector-tests.h"
 #include "slbench.h"
 #include "contentious/cont_vector.h"
@@ -112,15 +112,15 @@ int cont_stencil(const vector<double> &)
     }
     cont_inp.unprotected_push_back(/*test_vec[i]*/0);
     //cout << "cont_inp: " << cont_inp << endl;
-    auto cont_ret = cont_inp.stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret2 = cont_ret->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret3 = cont_ret2->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret4 = cont_ret3->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret5 = cont_ret4->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret6 = cont_ret5->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret7 = cont_ret6->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret8 = cont_ret7->stencil3<-1, 1>({0.5, 0.5});
-    auto cont_ret9 = cont_ret8->stencil3<-1, 1>({0.5, 0.5});
+    auto cont_ret = cont_inp.stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret2 = cont_ret->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret3 = cont_ret2->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret4 = cont_ret3->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret5 = cont_ret4->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret6 = cont_ret5->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret7 = cont_ret6->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret8 = cont_ret7->stencil<-1, 1>({0.5, 0.5});
+    auto cont_ret9 = cont_ret8->stencil<-1, 1>({0.5, 0.5});
     //cout << cont_ret4 << endl;
     contentious::tp.finish();
 
@@ -155,7 +155,8 @@ constexpr double ipow(double base, int exp, double result = 1)
                ipow(base*base, exp/2, (exp % 2) ? result*base : result);
 }
 
-vector<double> stdv_heat(const int64_t c, const int64_t r,
+vector<double> stdv_heat(vector<double> &inp,
+                         const int64_t c, const int64_t r,
                          const double V0, const double s)
 {
     /*using namespace std::placeholders;
@@ -163,11 +164,6 @@ vector<double> stdv_heat(const int64_t c, const int64_t r,
                std::bind(multplus_fp<double>, _1, _2, s);
     function<double (double,double)> center =
                std::bind(multplus_fp<double>, _1, _2, -2*s);*/
-    vector<double> inp;
-    inp.push_back(V0);
-    for (int64_t i = 1; i < c; ++i) {
-        inp.push_back(0);
-    }
     array<unique_ptr<vector<double>>, 9> grid;
     grid[0] = make_unique<vector<double>>(inp);
     for (int i = 1; i < r; ++i) {
@@ -188,21 +184,17 @@ vector<double> stdv_heat(const int64_t c, const int64_t r,
     return *grid[(r-1) % 9];
 }
 
-shared_ptr<cont_vector<double>> cont_heat(const int64_t c, const int64_t r,
+shared_ptr<cont_vector<double>> cont_heat(cont_vector<double> &cont_inp,
+                                          const int64_t c, const int64_t r,
                                           const double V0, const double s)
 {
-    cont_vector<double> cont_inp;
-    cont_inp.unprotected_push_back(V0);
-    for (int64_t i = 1; i < c; ++i) {
-        cont_inp.unprotected_push_back(0);
-    }
-    constexpr int t_store = 33;
+    constexpr int t_store = 9;
     array<shared_ptr<cont_vector<double>>, t_store> grid;
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
         int icurr = t % t_store;
         int iprev = (t-1) % t_store;
-        grid[icurr] = grid[iprev]->stencil3<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
+        grid[icurr] = grid[iprev]->stencil<-1, 0, 1>({1.0*s, -2.0*s, 1.0*s});
         if (t % (t_store-1) == (t_store-2)) {
             contentious::tp.finish();
         }
@@ -244,34 +236,47 @@ int cont_vector_runner()
     for (size_t i = 0; i < test_cvec.size(); ++i) {
         other_cvec.unprotected_push_back(i+1);
     }
-
+    
     // parameters for heat equation tests
-    /*constexpr double dy = 0.0005;
+    constexpr double dy = 0.05;
     constexpr double dt = 0.0005;
-    constexpr double y_max = 400;
-    constexpr double t_max = 1;
-    constexpr double viscosity = 2.0 * 1.0/ipow(10,4);
+    constexpr double y_max = 400000/*/4/4/4/4/4/4*/;
+    constexpr double t_max = 0.001;
+    constexpr double viscosity = 2.0 * 1.0/ipow(10,0);
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
     constexpr double V0 = 10;
-    constexpr double s = viscosity * dt/ipow(dy,2);*/
+    constexpr double s = viscosity * dt/ipow(dy,2);
+
+    // vectors for heat equation tests
+    vector<double> heat_vec;
+    cont_vector<double> heat_cvec;
+    heat_vec.push_back(sin(0) + 2.7);
+    heat_cvec.unprotected_push_back(sin(0) + 2.7);
+    for (int64_t i = 1; i < c; ++i) {
+        double val = sin(dy*i) + 2.7;
+        heat_vec.push_back(val);
+        heat_cvec.unprotected_push_back(val);
+    }
 
     /*for (int i = 0; i < 1; ++i) {
         cont_stencil(test_vec);
     }*/
-    //cout << "**** Testing heat equation with (c,r): " << c << "," << r << endl;
+    cout << "**** Testing heat equation with (c,r,s): " << c << "," << r << "," << s << endl;
 
     slbench::suite<vector<double>> stdv_suite {
-        {"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
+        /*{"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
                                                      test_vec, other_vec)   }
-       //,{"stdv_heat",    slbench::make_bench<2>(stdv_heat, c, r, V0, s) }
+       ,*/{"stdv_heat",    slbench::make_bench<4>(stdv_heat,
+                                                   heat_vec, c, r, V0, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
-        {"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
-                                                     test_cvec, other_cvec) }
-       //,{"cont_heat",    slbench::make_bench<2>(cont_heat, c, r, V0, s) }
+        /*{"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
+                                                       test_cvec, other_cvec) }
+       ,*/{"cont_heat",    slbench::make_bench<4>(cont_heat,
+                                                   heat_cvec, c, r, V0, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
 
@@ -280,11 +285,11 @@ int cont_vector_runner()
 
     {
         using namespace fmt::literals;
-        slbench::log_output("foreach_{}_{}_{}.log"_format(
-                            contentious::HWCONC, test_sz, BP_BITS),
+        slbench::log_output("heat_{}_{}_{}.log"_format(
+                            contentious::HWCONC, c, r),
                             stdv_output);
-        slbench::log_output("foreach_{}_{}_{}.log"_format(
-                            contentious::HWCONC, test_sz, BP_BITS),
+        slbench::log_output("heat_{}_{}_{}.log"_format(
+                            contentious::HWCONC, c, r),
                             cont_output);
     }
 
@@ -299,8 +304,11 @@ int cont_vector_runner()
     }
     if (foreach_bad > 0) {
         cout << "Bad vals of foreach: " << foreach_bad << endl;
+    } else {
+        cout << "No bad vals of foreach" << endl;
     }*/
-    /*size_t heat_bad = 0;
+
+    size_t heat_bad = 0;
     double tol = 0.000001;
     auto stdv_ans = stdv_output["stdv_heat"].res;
     auto cont_ans = cont_output["cont_heat"].res;
@@ -312,10 +320,16 @@ int cont_vector_runner()
     }
     if (heat_bad > 0) {
         cout << "Bad vals of heat: " << heat_bad << endl;
+    } else {
+        cout << "No bad vals of heat" << endl;
     }
 
-    size_t Y = 32;
+    size_t Y = 10;
     size_t y_skip = cont_ans->size()/Y;
+    for (auto it = heat_cvec.cbegin(); it != heat_cvec.cend(); it += y_skip) {
+        cout << *it << " ";
+    }
+    cout << endl;
     for (auto it = cont_ans->cbegin(); it != cont_ans->cend(); it += y_skip) {
         cout << *it << " ";
     }
@@ -323,7 +337,7 @@ int cont_vector_runner()
     for (auto it = stdv_ans.cbegin(); it < stdv_ans.cend(); it += y_skip) {
         cout << *it << " ";
     }
-    cout << endl;*/
+    cout << endl;
 
     return 0;
 }

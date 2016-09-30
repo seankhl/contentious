@@ -5,7 +5,11 @@
 
 namespace contentious {
 
-constexpr uint16_t HWCONC = 16;
+#ifdef CTTS_HWCONC
+constexpr uint16_t HWCONC = CTTS_HWCONC;
+#else
+constexpr uint16_t HWCONC = 1;
+#endif
 
 }
 

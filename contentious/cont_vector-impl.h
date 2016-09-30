@@ -416,9 +416,9 @@ std::shared_ptr<cont_vector<T>> cont_vector<T>::foreach(
 
 template <typename T>
 template <int... Offs>
-cont_vector<T> cont_vector<T>::stencil(const std::vector<T> &coeffs,
-                                       const contentious::op<T> op1,
-                                       const contentious::op<T> op2)
+cont_vector<T> cont_vector<T>::stencil_oldest(const std::vector<T> &coeffs,
+                                              const contentious::op<T> op1,
+                                              const contentious::op<T> op2)
 {
     using cvec_ref = std::reference_wrapper<cont_vector<T>>;
 
@@ -508,9 +508,9 @@ cont_vector<T> cont_vector<T>::stencil(const std::vector<T> &coeffs,
 
 template <typename T>
 template <int... Offs>
-cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
-                                         const contentious::op<T> op1,
-                                         const contentious::op<T> op2)
+cont_vector<T> *cont_vector<T>::stencil_old(const std::vector<T> &coeffs,
+                                            const contentious::op<T> op1,
+                                            const contentious::op<T> op2)
 {
     constexpr size_t offs_sz = sizeof...(Offs);
     std::array<std::function<int(int)>, offs_sz> offs{contentious::offset<Offs>...};
@@ -551,7 +551,7 @@ cont_vector<T> *cont_vector<T>::stencil2(const std::vector<T> &coeffs,
 
 template <typename T>
 template <int... Offs>
-std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil3(
+std::shared_ptr<cont_vector<T>> cont_vector<T>::stencil(
                                 const std::vector<T> &coeffs,
                                 const contentious::op<T>,
                                 const contentious::op<T> op2)

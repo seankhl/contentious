@@ -282,15 +282,15 @@ public:
                                             cont_vector<T> &other);
 
     template <int... Offs>
-    cont_vector<T> stencil(const std::vector<T> &coeffs,
+    cont_vector<T> stencil_oldest(const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult<T>,
                            const contentious::op<T> op2 = contentious::plus<T>);
     template <int... Offs>
-    cont_vector<T> *stencil2(const std::vector<T> &coeffs,
+    cont_vector<T> *stencil_old(const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult<T>,
                            const contentious::op<T> op2 = contentious::plus<T>);
     template <int... Offs>
-    std::shared_ptr<cont_vector<T>> stencil3(const std::vector<T> &coeffs,
+    std::shared_ptr<cont_vector<T>> stencil(const std::vector<T> &coeffs,
                            const contentious::op<T> op1 = contentious::mult<T>,
                            const contentious::op<T> op2 = contentious::plus<T>);
 
