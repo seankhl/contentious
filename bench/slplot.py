@@ -106,7 +106,7 @@ def fpvs_all(pkey):
 def hpvs_all(pkey):
     return "cont" in pkey
 def rsvt(pkey):
-    return "16" in pkey
+    return "4" in pkey
 def svt(pkey):
     return True
 def fbvs(pkey):
@@ -130,7 +130,7 @@ selector = {
 ################################################################################
 
 # filename path/template
-date = "2016-09-28"
+date = "2016-09-19"
 log_path = "logs_" + date
 fname_tmpl = log_path + "/{0:s}_{1:d}_{2:d}_{3:d}.log"
 
@@ -176,8 +176,8 @@ if "steps-v-speed" in bench_name:
 graph_name = "graphs_" + date + "/" + bench_name
 
 # processor counts
-proc_set = [1, 2, 4, 8, 16]
-proc_val = 16
+proc_set = [1, 2, 4]
+proc_val = 4
 procs = proc_set
 
 # vector sizes
@@ -240,27 +240,28 @@ for k,v in pdata.items():
     print (k,v)
 
 def keysort(s):
-    if "reduce" in s[0]:
+    if True:
         keyorder = {k:v for v,k in enumerate(["seq", "vec", "cont", "async", "omp"])}
         for k,v in keyorder.items():
             if k in s[0]:
-                print "AH HA",k,s[0]
-                return v
-        return keyorder.items().size()
+                print "AH HA",k,s[0],v
+                print v*5+int("0" + "".join(i for i in s[0] if i.isdigit()))
+                return v*5+int("0" + "".join(i for i in s[0] if i.isdigit()))
+        return len(keyorder)
 #   elif "foreach" in s[0]:
 #       keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_foreach01", "cont_foreach01", "2", "4", "8", "16"])})
 #       for k,v in keyorder.items():
 #           if k in s[0]:
 #               print k,s[0]
 #               return v
-#       return keyorder.items().size()
-    elif "heat" in s[0]:
-        keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_heat01", "cont_heat01", "2", "4", "8", "16"])})
-        for k,v in keyorder.items():
-            if k in s[0]:
-                print k,s[0]
-                return v
-        return keyorder.items().size()
+#       return len(keyorder)
+#   elif "heat" in s[0]:
+#       keyorder = OrderedDict({k:v for v,k in enumerate(["stdv_heat1", "cont_heat1", "2", "4", "8", "16"])})
+#       for k,v in keyorder.items():
+#           if k in s[0]:
+#               print k,s[0]
+#               return v
+#       return len(keyorder)
 
     print s[0]
     return s[0]
@@ -298,12 +299,12 @@ if "-v-speed" in bench_name:
             sns.plt.plot(pvals[0], [y / baseline for y in pvals[1]], marker='d', label=plab)
 
     handles, labels = sns.plt.gca().get_legend_handles_labels()
-    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
+    labels, handles = zip(*zip(labels, handles))
     leg = sns.plt.legend(handles, labels, loc='upper right', fancybox=True, frameon=True, prop=font0)
     leg.get_frame().set_alpha(1.0)
     sns.plt.xlim(1, 4)
     if "reduce" in bench_name:
-        sns.plt.ylim(0.0, 1.3)
+        sns.plt.ylim(0.4, 1.2)
     elif "foreach" in bench_name:
         sns.plt.ylim(0.3, 1.5)
     sns.plt.title('Scaling (' + test_name + ' with ' + op + ')')
@@ -313,17 +314,16 @@ if "-v-speed" in bench_name:
     figtext = 'bench: ' + test_name + ', branching factor: 10'
     if "width" in bench_name:
         figtext += ", " + str(r_val) + " timesteps"
-        sns.plt.ylim(0.0, 4.5)
+        #sns.plt.ylim(0.0, 4.5)
     if "steps" in bench_name:
         figtext += ", " + str(c_val) + " spatial points"
-        sns.plt.ylim(0.0, 1.6)
+        #sns.plt.ylim(0.0, 1.6)
 elif "size-v-time" in bench_name:
     for pkey, pvals in pdata.items():
         if not selector[bench_name](pkey):
             print pkey
             continue
         plab = "".join(i for i in pkey if not i.isdigit())
-        print plab, pvals
         if "cont" in plab:
             plab = "cont"
         elif "stdv" in plab:
@@ -332,16 +332,17 @@ elif "size-v-time" in bench_name:
                 continue
         ptag = "".join(i for i in pkey if i.isdigit())
         plab += ", " + ptag.strip("0") + " procs"
+        print plab, pvals
         sns.plt.plot(pvals[0], pvals[1], marker='d', label=plab)
 
     handles, labels = sns.plt.gca().get_legend_handles_labels()
-    labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: len(t[0])))
+    labels, handles = zip(*zip(labels, handles))
     leg = sns.plt.legend(handles, labels, loc='upper left', fancybox=True, frameon=True, prop=font0)
     leg.get_frame().set_alpha(1.0)
     if "reduce" in bench_name:
-        sns.plt.ylim(0.01, 300)
+        sns.plt.ylim(0.02, 100)
     elif "foreach" in bench_name:
-        sns.plt.ylim(0.24, 400)
+        sns.plt.ylim(0.18, 1000)
     elif "heat" in bench_name:
         sns.plt.xlim(2**12.5, 2**23.5)
     sns.plt.xscale('log', basex=2)
