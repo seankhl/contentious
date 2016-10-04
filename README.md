@@ -4,22 +4,22 @@
 
 This package provides a namespace (`contentious`) that contains the following template classes:
 
-  * a persistent vector (psvector), 
-  * a transient vector (trvector), 
-  * a "contentious" vector (ctvector) that allows for multiple readers and writers on its values;
+  * a persistent vector (`psvector`), 
+  * a transient vector (`trvector`), 
+  * a "contentious" vector (`ctvector`) that allows for multiple readers and writers on its values;
 
 the following functions:
 
-  * reduce, which performs a reduce operation on a ctvector, 
-  * foreach, which performs a foreach operation, 
-  * stencil, which provides a more general interface for performing concurrent and parallel operations, 
-  * some example binary operations (plus, mult) that can be used with the above, 
-  * some example index mappings (all-to-one, identity, offset) that can be used with the above
+  * `reduce`, which performs a reduce operation on a ctvector, 
+  * `foreach`, which performs a foreach operation, 
+  * `stencil`, which provides a more general interface for performing concurrent and parallel operations, 
+  * some example binary operations (`plus`, `mult`) that can be used with the above, 
+  * some example index mappings (`all-to-one`, `identity`, `offset`) that can be used with the above
 
 the following constants:
 
-  * HWCONC: the number of concurrent threads to spawn when performing automated parallel operations 
-  * BPBITS: the number of bits to use to store branches or leaves in the bit-partitioned trie used to implement the above data structures;
+  * `HWCONC`: the number of concurrent threads to spawn when performing automated parallel operations 
+  * `BPBITS`: the number of bits to use to store branches or leaves in the bit-partitioned trie used to implement the above data structures;
 
 And the following types:
   * a "binary operator" type for use with the above functions, 
