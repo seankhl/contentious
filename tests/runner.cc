@@ -29,5 +29,21 @@ int main()
     ret += cont_vector_runner();
 
     contentious::tp.stop();
+
+#ifdef CTTS_STATS
+    cout << contentious::conflicted << endl;
+#endif
+#ifdef CTTS_TIMING
+    for (int p = 0; p < contentious::HWCONC; ++p) {
+        auto splt_data = slbench::compute_data(contentious::splt_durs[p]);
+        cout << "splt_data[" << p << "]: " << splt_data << endl;
+        if (!contentious::rslv_durs[p].durs.empty()) {
+            auto rslv_data = slbench::compute_data(contentious::rslv_durs[p]);
+            cout << "rslv_data[" << p <<"]: " << rslv_data << endl;
+        } else {
+            cout << "No rslv_data vals at " << p << endl;
+        }
+    }
+#endif
     return ret;
 }

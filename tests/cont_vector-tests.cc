@@ -241,7 +241,7 @@ int cont_vector_runner()
     constexpr double dy = 0.05;
     constexpr double dt = 0.0005;
     constexpr double y_max = 400000/*/4/4/4/4/4/4*/;
-    constexpr double t_max = 0.001;
+    constexpr double t_max = 0.01;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,0);
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;

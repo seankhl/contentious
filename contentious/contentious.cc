@@ -3,6 +3,13 @@
 
 namespace contentious {
 
+#ifdef CTTS_STATS
+std::atomic<uint64_t> conflicted{0};
+#endif
+#ifdef CTTS_TIMING
+std::array<slbench::stopwatch, contentious::HWCONC> splt_durs{};
+std::array<slbench::stopwatch, contentious::HWCONC> rslv_durs{};
+#endif
 std::mutex plck;
 
 threadpool tp;

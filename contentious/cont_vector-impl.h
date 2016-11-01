@@ -25,7 +25,6 @@ template <typename T>
 void cont_vector<T>::freeze(cont_vector<T> &cont, cont_vector<T> &dep,
                             contentious::imap_fp imap, contentious::op<T> op)
 {
-    // create _used, which has the old id of _data
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
     auto ret = tracker.emplace(dkey, imap, op);
     if (!ret.second) {
@@ -303,6 +302,9 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                     // since this changed, we may need to resolve it even if it's
                     // not one of the potentially-conflicted values
                     dep.contended.insert(cmap);
+#ifdef CTTS_STATS
+                    ++contentious::conflicted;
+#endif
                 }
             }
             for (auto &c : contended) {
@@ -337,6 +339,9 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                     // since this changed, we may need to resolve it even if it's
                     // not one of the potentially-conflicted values
                     dep.contended.insert(cmap);
+#ifdef CTTS_STATS
+                    ++contentious::conflicted;
+#endif
                 }
             }
         }

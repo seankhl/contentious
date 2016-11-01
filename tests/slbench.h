@@ -18,8 +18,9 @@
 namespace slbench {
 
 using period = std::chrono::steady_clock::period;
+using duration = std::chrono::duration<int64_t, period>;
 
-static std::string durstr(std::chrono::duration<int64_t, period> dur)
+static std::string durstr(duration dur)
 {
     using namespace std::chrono;
     constexpr intmax_t kilo = 1000;
@@ -48,6 +49,50 @@ static std::string durstr(std::chrono::duration<int64_t, period> dur)
     }
 }
 
+using stat = std::function<duration (std::vector<duration>)>;
+
+namespace stats {
+
+inline duration sum(std::vector<duration> durs)
+{
+    return std::accumulate(durs.begin(), durs.end(), duration{0});
+}
+
+inline duration mean(std::vector<duration> durs)
+{
+    return std::accumulate(durs.begin(), durs.end(), duration{0})/durs.size();
+}
+
+inline duration min(std::vector<duration> durs)
+{
+    return *std::min_element(durs.begin(), durs.end());
+}
+
+inline duration max(std::vector<duration> durs)
+{
+    return *std::max_element(durs.begin(), durs.end());
+}
+
+/*
+double variance(std::vector<duration> durs)
+{
+    duration avg{0};
+    duration del{0};
+    duration tmp{0};
+    double M2{0};
+    size_t N = durs.size();
+    for (int i = 0; i < N; ++i) {
+        del = durs[i] - avg;
+        avg += del/N;
+        tmp = durs[i] - avg;
+        M2 += del.count() * tmp.count();
+    }
+    return M2/(N-1);
+}
+*/
+
+}
+
 enum struct outfmt
 {
     console,
@@ -58,10 +103,9 @@ template <typename T>
 struct data
 {
     T res;
+    std::vector<duration> durs;
     size_t its;
-    std::chrono::duration<int64_t, period> avg;
-    std::chrono::duration<int64_t, period> min;
-    std::chrono::duration<int64_t, period> max;
+    std::vector<stat> stats;
     outfmt ofmt;
 
     friend std::ostream &operator<<(std::ostream &out, const data<T> &data)
@@ -70,25 +114,50 @@ struct data
         if (data.ofmt == outfmt::console) {
             w.write("{:>24d}{:>s}{:>s}{:>s}",
                     data.its,
-                    durstr(data.avg),
-                    durstr(data.min),
-                    durstr(data.max));
+                    durstr(data.stats[0](data.durs)),
+                    durstr(data.stats[1](data.durs)),
+                    durstr(data.stats[2](data.durs)));
         } else {
             w.write("its:{},avg:{},min:{},max:{}",
                     data.its,
-                    std::chrono::duration<double, std::milli>(data.avg).count(),
-                    std::chrono::duration<double, std::milli>(data.min).count(),
-                    std::chrono::duration<double, std::milli>(data.max).count());
+                    std::chrono::duration<double, std::milli>(data.stats[0](data.durs)).count(),
+                    std::chrono::duration<double, std::milli>(data.stats[1](data.durs)).count(),
+                    std::chrono::duration<double, std::milli>(data.stats[2](data.durs)).count());
         }
         return out << w.c_str();
     }
 };
 
+struct stopwatch
+{
+    std::vector<duration> durs;
+
+    void add(const duration &dur)
+    {
+        durs.push_back(dur);
+    }
+    template <typename U>
+    void add(const U &start, const U &end)
+    {
+        durs.emplace_back(end - start);
+    }
+};
+
+inline data<double> compute_data(const stopwatch &sw)
+{
+    std::vector<stat> statsv{};
+    statsv.push_back(stats::sum);
+    statsv.push_back(stats::mean);
+    statsv.push_back(stats::min);
+    statsv.push_back(stats::max);
+    return data<double>{ 0, sw.durs, sw.durs.size(), statsv, outfmt::console };
+}
+
 template <int N, typename T, typename ...Args>
 data<T> run_bench(T (*F)(Args ...), Args ...args)
 {
     std::chrono::time_point<std::chrono::steady_clock> start, end;
-    std::array<std::chrono::duration<int64_t, period>, N> durs;
+    std::vector<duration> durs(N);
     T res{};
     for (int i = 0; i < N; ++i) {
         start = std::chrono::steady_clock::now();
@@ -96,11 +165,11 @@ data<T> run_bench(T (*F)(Args ...), Args ...args)
         end = std::chrono::steady_clock::now();
         durs[i] = end - start;
     }
-    auto minmax_it = std::minmax_element(durs.begin(), durs.end());
-    auto sum = std::accumulate(durs.begin(), durs.end(),
-                               std::chrono::duration<int64_t, period>{0});
-    return data<T>{ res, N, sum/N, *minmax_it.first, *minmax_it.second,
-                    outfmt::console };
+    std::vector<stat> statsv{};
+    statsv.push_back(stats::mean);
+    statsv.push_back(stats::min);
+    statsv.push_back(stats::max);
+    return data<T>{ res, durs, N, statsv, outfmt::console };
 }
 
 template <int N, typename T, typename ...Args1, typename ...Args2>

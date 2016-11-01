@@ -34,7 +34,15 @@ void threadpool::worker(int p)
             // must resolve
             resn = resns[p].frontPtr();
             assert(resn);
+#ifdef CTTS_TIMING
+            std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
+            splt_start = std::chrono::system_clock::now();
+#endif
             (*resn)();
+#ifdef CTTS_TIMING
+            splt_end = std::chrono::system_clock::now();
+            rslv_durs[p].add(splt_start, splt_end);
+#endif
             resns[p].popFront();
             fin_cv.notify_one();
         } else {
