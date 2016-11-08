@@ -48,7 +48,7 @@ int main()
         ss << setw(2) << setfill('0') << contentious::HWCONC;
         string pstr(ss.str());
         ss.str("");
-        ss << setw(3) << setfill('0') << 10;
+        ss << setw(3) << setfill('0') << 512;
         string ustr(ss.str());
         auto fname = "durs_mean.log";
 

@@ -194,7 +194,7 @@ shared_ptr<cont_vector<double>> cont_heat(cont_vector<double> &cont_inp,
         contentious::rslv_series[p].start(chrono::steady_clock::now());
     }
 #endif
-    constexpr int t_store = 400;
+    constexpr int t_store = 513;
     array<shared_ptr<cont_vector<double>>, t_store> grid;
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
@@ -254,8 +254,8 @@ int cont_vector_runner()
     // parameters for heat equation tests
     constexpr double dy = 0.05;
     constexpr double dt = 0.0005;
-    constexpr double y_max = 400000/4/*/4/4/4/4/4*/;
-    constexpr double t_max = 0.1;
+    constexpr double y_max = 400000/4/4/*/4/4/4/4*/;
+    constexpr double t_max = 0.5;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,0);
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
@@ -281,14 +281,14 @@ int cont_vector_runner()
     slbench::suite<vector<double>> stdv_suite {
         /*{"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
                                                      test_vec, other_vec)   }
-       ,*/{"stdv_heat",    slbench::make_bench<3>(stdv_heat, heat_vec, r, c, s) }
+       ,*/{"stdv_heat",    slbench::make_bench<12>(stdv_heat, heat_vec, r, c, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
         /*{"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
                                                        test_cvec, other_cvec) }
-       ,*/{"cont_heat",    slbench::make_bench<3>(cont_heat, heat_cvec, r, s) }
+       ,*/{"cont_heat",    slbench::make_bench<12>(cont_heat, heat_cvec, r, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
 
