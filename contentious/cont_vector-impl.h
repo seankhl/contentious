@@ -139,20 +139,20 @@ void cont_vector<T>::reattach(splt_vector<T> &splt, cont_vector<T> &dep,
     }
 
     contentious::closure resolution;
-    if (p == 0) {
-        if (contentious::is_monotonic(dep_tracker.imaps[0])) {
-            resolution = std::bind(&cont_vector::resolve_monotonic,
-                                   std::ref(*this), std::ref(dep));
-        } else {
-            resolution = std::bind(&cont_vector::resolve,
-                                   std::ref(*this), std::ref(dep));
-        }
-        contentious::tp.submitr(resolution, p);
-    }
 
     auto latch = dep.latches.find(dkey);
     if (latch != dep.latches.end()) {
         latch->second->count_down();
+        if (latch->second->try_wait()) {
+            if (contentious::is_monotonic(dep_tracker.imaps[0])) {
+                resolution = std::bind(&cont_vector::resolve_monotonic,
+                                       std::ref(*this), std::ref(dep));
+            } else {
+                resolution = std::bind(&cont_vector::resolve,
+                                       std::ref(*this), std::ref(dep));
+            }
+            contentious::tp.submitr(resolution);
+        }
     } else {
         std::cout << "didn't find latch" << std::endl;
         std::exit(EXIT_FAILURE);
@@ -239,7 +239,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
         const auto &dep_op = dep_tracker.ops[i];
         auto &imap = dep_tracker.imaps[i];
         auto &icontended = dep_tracker.icontended[i];
-        for (int p = 0; p < contentious::HWCONC; ++p) {
+        for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
             std::tie(a, b) = contentious::partition(p, this->size());
             //std::cout << "size of imaps: " << dep_tracker.imaps.size() << std::endl;
             std::tie(adom, aran) = contentious::safe_mapping(imap, a, 0, this->size());
@@ -303,7 +303,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                     // not one of the potentially-conflicted values
                     dep.contended.insert(cmap);
 #ifdef CTTS_STATS
-                    ++contentious::conflicted;
+                    ++contentious::conflicted[contentious::resolver].back();
 #endif
                 }
             }
@@ -340,7 +340,7 @@ void cont_vector<T>::resolve_monotonic(cont_vector<T> &dep)
                     // not one of the potentially-conflicted values
                     dep.contended.insert(cmap);
 #ifdef CTTS_STATS
-                    ++contentious::conflicted;
+                    ++contentious::conflicted[contentious::resolver].back();
 #endif
                 }
             }

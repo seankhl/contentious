@@ -1,6 +1,7 @@
 #ifndef CONT_THREADPOOL_H
 #define CONT_THREADPOOL_H
 
+#include <iostream>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -18,11 +19,10 @@ class threadpool
 {
 public:
     threadpool()
-      : spin(true)
+      : resns(QUEUE_SZ), spin(true)
     {
         for (int p = 0; p < HWCONC; ++p) {
-            tasks.emplace_back(folly::ProducerConsumerQueue<closure>(128));
-            resns.emplace_back(folly::ProducerConsumerQueue<closure>(128));
+            tasks.emplace_back(folly::ProducerConsumerQueue<closure>(QUEUE_SZ));
             threads[p] = std::thread(&threadpool::worker, this, p);
         }
     }
@@ -40,14 +40,17 @@ public:
             continue;
         }
         sems[p].post();
+        //std::cout << "submitted from " << p << std::endl;
     }
 
-    inline void submitr(const closure &resn, int p)
+    inline void submitr(const closure &resn)
     {
-        while (!resns[p].write(resn)) {
+        while (!resns.write(resn)) {
             continue;
         }
-        sems[p].post();
+        for (int p = 0; p < HWCONC; ++p) {
+            sems[p].post();
+        }
     }
 
     void finish();
@@ -66,15 +69,19 @@ private:
 private:
     std::array<std::thread, HWCONC> threads;
 
+    static constexpr uint16_t QUEUE_SZ = 512;
     std::vector<folly::ProducerConsumerQueue<closure>> tasks;
-    std::vector<folly::ProducerConsumerQueue<closure>> resns;
+    folly::ProducerConsumerQueue<closure> resns;
 
     std::atomic<bool> spin;
+    std::array<std::atomic<uint64_t>, contentious::HWCONC> comp_tasks{};
+    std::atomic<uint64_t> comp_resns{0};
 
     std::array<folly::LifoSem, HWCONC> sems;
 
     std::mutex fin_m;
     std::condition_variable fin_cv;
+    std::mutex rlck;
 
 };
 

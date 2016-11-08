@@ -4,11 +4,13 @@
 namespace contentious {
 
 #ifdef CTTS_STATS
-std::atomic<uint64_t> conflicted{0};
+std::array<std::vector<uint64_t>, contentious::HWCONC> conflicted{};
+uint16_t resolver{};
 #endif
 #ifdef CTTS_TIMING
-std::array<slbench::stopwatch, contentious::HWCONC> splt_durs{};
-std::array<slbench::stopwatch, contentious::HWCONC> rslv_durs{};
+std::array<slbench::stopwatch<slbench::cpu_timepoint>, contentious::HWCONC> splt_durs{};
+std::array<slbench::stopwatch<slbench::cpu_timepoint>, contentious::HWCONC> rslv_durs{};
+std::array<slbench::stopwatch<>, contentious::HWCONC> rslv_series{};
 #endif
 std::mutex plck;
 

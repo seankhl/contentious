@@ -19,6 +19,16 @@ namespace slbench {
 
 using period = std::chrono::steady_clock::period;
 using duration = std::chrono::duration<int64_t, period>;
+using system_timepoint = std::chrono::time_point<std::chrono::system_clock>;
+using steady_timepoint = std::chrono::time_point<std::chrono::steady_clock>;
+using cpu_timepoint = std::clock_t;
+
+inline cpu_timepoint cpu_clock_now()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts);
+    return (ts.tv_sec * 1000000000 + ts.tv_nsec)*(period::den/1000000000);
+}
 
 static std::string durstr(duration dur)
 {
@@ -60,36 +70,37 @@ inline duration sum(std::vector<duration> durs)
 
 inline duration mean(std::vector<duration> durs)
 {
+    if (durs.size() == 0) { return duration{0}; }
     return std::accumulate(durs.begin(), durs.end(), duration{0})/durs.size();
 }
 
 inline duration min(std::vector<duration> durs)
 {
+    if (durs.size() == 0) { return duration{0}; }
     return *std::min_element(durs.begin(), durs.end());
 }
 
 inline duration max(std::vector<duration> durs)
 {
+    if (durs.size() == 0) { return duration{0}; }
     return *std::max_element(durs.begin(), durs.end());
 }
 
-/*
-double variance(std::vector<duration> durs)
+inline duration variance(std::vector<duration> durs)
 {
-    duration avg{0};
-    duration del{0};
-    duration tmp{0};
-    double M2{0};
+    if (durs.size() < 2) { return duration{0}; }
+    duration avg = mean(durs);
+    duration delsq{0};
+    constexpr intmax_t kilo = 1000;
     size_t N = durs.size();
-    for (int i = 0; i < N; ++i) {
-        del = durs[i] - avg;
-        avg += del/N;
-        tmp = durs[i] - avg;
-        M2 += del.count() * tmp.count();
+    for (size_t i = 0; i < N; ++i) {
+        delsq += (durs[i] - avg) * (durs[i] - avg).count()/(period::den/kilo);
+        //std::cout << std::chrono::duration<double, std::milli>(durs[i]).count() << " ";
     }
-    return M2/(N-1);
+    std::cout << std::endl;
+    //M2 += del * tmp.count()/(period::den/kilo);
+    return delsq/(N-1);
 }
-*/
 
 }
 
@@ -99,58 +110,115 @@ enum struct outfmt
     csv
 };
 
-template <typename T>
+template <typename T = double>
 struct data
 {
     T res;
     std::vector<duration> durs;
     size_t its;
     std::vector<stat> stats;
+    std::vector<std::string> statsn;
     outfmt ofmt;
 
     friend std::ostream &operator<<(std::ostream &out, const data<T> &data)
     {
         fmt::MemoryWriter w;
         if (data.ofmt == outfmt::console) {
-            w.write("{:>24d}{:>s}{:>s}{:>s}",
-                    data.its,
-                    durstr(data.stats[0](data.durs)),
-                    durstr(data.stats[1](data.durs)),
-                    durstr(data.stats[2](data.durs)));
+            w.write("{:>24d}", data.its);
+            for (const auto &stat: data.stats) {
+                w.write("{:>24s}", durstr(stat(data.durs)));
+            }
         } else {
-            w.write("its:{},avg:{},min:{},max:{}",
-                    data.its,
-                    std::chrono::duration<double, std::milli>(data.stats[0](data.durs)).count(),
-                    std::chrono::duration<double, std::milli>(data.stats[1](data.durs)).count(),
-                    std::chrono::duration<double, std::milli>(data.stats[2](data.durs)).count());
+            w.write("its:{}", data.its);
+            int i = 0;
+            for (const auto &stat: data.stats) {
+                w.write(",{}:{}",
+                        data.statsn[i++],
+                        std::chrono::duration<double, std::milli>(
+                            stat(data.durs)).count()
+                );
+            }
         }
         return out << w.c_str();
     }
 };
 
+template <typename T = steady_timepoint>
 struct stopwatch
 {
-    std::vector<duration> durs;
+    T strt;
+    std::vector<duration> vals;
+    std::vector<uint64_t> data;
 
-    void add(const duration &dur)
+    inline void start(const T &start_in)
     {
-        durs.push_back(dur);
+        strt = start_in;
+    }
+    inline void add(const T &split)
+    {
+        vals.emplace_back(split - strt);
+    }
+    inline void add(const T &split, const uint64_t d)
+    {
+        vals.emplace_back(split - strt);
+        data.emplace_back(d);
     }
     template <typename U>
     void add(const U &start, const U &end)
     {
-        durs.emplace_back(end - start);
+        vals.emplace_back(end - start);
+    }
+    void log(const std::string &logname)
+    {
+        fmt::MemoryWriter w;
+        w << "splits: ";
+        for (const auto &split: vals) {
+            w << ",";
+            w << std::chrono::duration<double, std::milli>(split).count();
+        }
+        w << "\ndata: ";
+        for (const  auto &d: data) {
+            w << ",";
+            w << d;
+        }
+        w << "\n";
+
+        std::ofstream log;
+        log.open(logname, std::ios_base::out | std::ios_base::app);
+        log.write(w.c_str(), w.size());
+        log.close();
+    }
+    
+    friend std::ostream &operator<<(std::ostream &out, const stopwatch<T> &sw)
+    {
+        fmt::MemoryWriter w;
+        w << "splits: ";
+        for (const auto &split: sw.vals) {
+            w << ",";
+            w << std::chrono::duration<double, std::milli>(split).count();
+        }
+        w << "\ndata: ";
+        for (const auto &d: sw.data) {
+            w << ",";
+            w << d;
+        }
+        w << "\n"; 
+        return out << w.c_str();
     }
 };
 
-inline data<double> compute_data(const stopwatch &sw)
+template <typename T>
+inline data<double> compute_data(const stopwatch<T> &sw)
 {
     std::vector<stat> statsv{};
-    statsv.push_back(stats::sum);
     statsv.push_back(stats::mean);
     statsv.push_back(stats::min);
     statsv.push_back(stats::max);
-    return data<double>{ 0, sw.durs, sw.durs.size(), statsv, outfmt::console };
+    statsv.push_back(stats::variance);
+    std::vector<std::string> statsn{ "avg", "min", "max", "var" };
+    return data<double>{ 0, sw.vals, sw.vals.size(), 
+                         statsv, statsn,
+                         outfmt::console };
 }
 
 template <int N, typename T, typename ...Args>
@@ -159,17 +227,24 @@ data<T> run_bench(T (*F)(Args ...), Args ...args)
     std::chrono::time_point<std::chrono::steady_clock> start, end;
     std::vector<duration> durs(N);
     T res{};
-    for (int i = 0; i < N; ++i) {
+    std::cout << "[" << std::flush;
+    for (int i = -1; i < N; ++i) {
         start = std::chrono::steady_clock::now();
         res = F(args...);
         end = std::chrono::steady_clock::now();
-        durs[i] = end - start;
+        if (i > -1) {
+            durs[i] = end - start;
+        }
+        std::cout << "." << std::flush;
     }
+    std::cout << "]" << std::endl;
     std::vector<stat> statsv{};
     statsv.push_back(stats::mean);
     statsv.push_back(stats::min);
     statsv.push_back(stats::max);
-    return data<T>{ res, durs, N, statsv, outfmt::console };
+    statsv.push_back(stats::variance);
+    std::vector<std::string> statsn{ "avg", "min", "max", "var" };
+    return data<T>{ res, durs, N, statsv, statsn, outfmt::console };
 }
 
 template <int N, typename T, typename ...Args1, typename ...Args2>
@@ -180,29 +255,30 @@ auto make_bench(T (*F)(Args2...), Args1 &&...args)
                      F, std::forward<Args1>(args)...);
 }
 
-template <typename T>
+template <typename T = double>
 using suite =
     std::map< std::string,
               std::function<slbench::data<T> (void)>
             >;
 
-template <typename T>
+template <typename T = double>
 using output =
     std::map< std::string,
               slbench::data<T>
             >;
 
-template <typename T>
+template <typename T = double>
 output<T> run_suite(suite<T> &suite)
 {
     output<T> output;
     for (const auto &test : suite) {
+        std::cout << test.first << ": " << std::flush;
         output.emplace(test.first, test.second());
     }
     return output;
 }
 
-template <typename T>
+template <typename T = double>
 void log_output(const std::string &logname, output<T> &output) {
     fmt::MemoryWriter w;
     for (auto &o : output) {
@@ -219,12 +295,12 @@ void log_output(const std::string &logname, output<T> &output) {
     log.close();
 }
 
-template <typename T>
+template <typename T = double>
 std::ostream &operator<<(std::ostream &out, const output<T> &output)
 {
     fmt::MemoryWriter w;
-    w.write("{:<24s}{:>24s}{:>14s}{:>14s}{:>14s}",
-            "name", "iterations", "avg", "min", "max");
+    w.write("{:<24s}{:>24s}{:>24s}{:>24s}{:>24s}{:>24s}",
+            "name", "iterations", "avg", "min", "max", "var");
     for (const auto &o : output) {
         std::stringstream temp;
         temp << o.second;

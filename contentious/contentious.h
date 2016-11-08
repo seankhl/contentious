@@ -24,11 +24,13 @@ class cont_vector;
 namespace contentious {
 
 #ifdef CTTS_STATS
-extern std::atomic<uint64_t> conflicted;
+extern std::array<std::vector<uint64_t>, contentious::HWCONC> conflicted;
+extern uint16_t resolver;
 #endif
 #ifdef CTTS_TIMING
-extern std::array<slbench::stopwatch, contentious::HWCONC> splt_durs;
-extern std::array<slbench::stopwatch, contentious::HWCONC> rslv_durs;
+extern std::array<slbench::stopwatch<slbench::cpu_timepoint>, contentious::HWCONC> splt_durs;
+extern std::array<slbench::stopwatch<slbench::cpu_timepoint>, contentious::HWCONC> rslv_durs;
+extern std::array<slbench::stopwatch<>, contentious::HWCONC> rslv_series;
 #endif
 extern std::mutex plck;
 
@@ -138,10 +140,6 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     //const auto &used = cont.tracker[&dep]._used[p];
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
     const auto &used = cont.tracker.find(dkey)->second._used[p];
-#ifdef CTTS_TIMING
-    std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-    splt_start = std::chrono::system_clock::now();
-#endif
     const binary_fp<T> fp = splt.ops[0].f;
     auto &target = *(splt._data.begin());
     T temp = target;
@@ -153,20 +151,12 @@ void reduce_splt(cont_vector<T> &cont, cont_vector<T> &dep,
     target = temp;
 
     cont.reattach(splt, dep, p, 0, 1);
-#ifdef CTTS_TIMING
-    splt_end = std::chrono::system_clock::now();
-    splt_durs[p].add(splt_start, splt_end);
-#endif
 }
 
 template <typename T>
 void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
                   const uint16_t p, const T &val)
 {
-#ifdef CTTS_TIMING
-    std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-    splt_start = std::chrono::system_clock::now();
-#endif
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
 
@@ -179,10 +169,6 @@ void foreach_splt(cont_vector<T> &cont, cont_vector<T> &dep,
         //target = fp(target, val);
         target *= val;
     }
-#ifdef CTTS_TIMING
-    splt_end = std::chrono::system_clock::now();
-    splt_durs[p].add(splt_start, splt_end);
-#endif
     cont.reattach(splt, dep, p, a, b);
 }
 
@@ -191,10 +177,6 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
                        const uint16_t p,
                        const std::reference_wrapper<cont_vector<T>> &other)
 {
-#ifdef CTTS_TIMING
-    std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-    splt_start = std::chrono::system_clock::now();
-#endif
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
@@ -214,10 +196,6 @@ void foreach_splt_cvec(cont_vector<T> &cont, cont_vector<T> &dep,
         //target = fp(target, *trck);
         target *= *trck;
     }
-#ifdef CTTS_TIMING
-    splt_end = std::chrono::system_clock::now();
-    splt_durs[p].add(splt_start, splt_end);
-#endif
     cont.reattach(splt, dep, p, a, b);
 }
 
@@ -225,10 +203,6 @@ template <typename T, size_t NS>
 void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
                   const uint16_t p)
 {
-#ifdef CTTS_TIMING
-    std::chrono::time_point<std::chrono::system_clock> splt_start, splt_end;
-    splt_start = std::chrono::system_clock::now();
-#endif
     size_t a, b;
     std::tie(a, b) = partition(p, cont.size());
     auto dkey = reinterpret_cast<uintptr_t>(&dep);
@@ -260,10 +234,6 @@ void stencil_splt(cont_vector<T> &cont, cont_vector<T> &dep,
         }*/
         target += 0.4 * (*(trck) + -2 * *(trck+1) + *(trck+2));
     }
-#ifdef CTTS_TIMING
-    splt_end = std::chrono::system_clock::now();
-    splt_durs[p].add(splt_start, splt_end);
-#endif
     cont.reattach(splt, dep, p, a, b);
 }
 

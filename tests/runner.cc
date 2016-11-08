@@ -6,6 +6,7 @@
 #include "contentious/cont_vector.h"
 
 #include <iostream>
+#include <iomanip>
 
 using namespace std;
 
@@ -18,11 +19,16 @@ int main()
     cout << "Benchmarking..." << endl;
 #endif
     cout << "# logical procs: "
-         << std::thread::hardware_concurrency() 
-         << std::endl;
+         << thread::hardware_concurrency() 
+         << endl;
     cout << "HWCONC: " << contentious::HWCONC << endl;
     cout << "BPBITS: " << static_cast<int>(BP_BITS) << endl;
 
+#ifdef CTTS_TIMING
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
+        contentious::rslv_series[p].start(chrono::steady_clock::now());
+    }
+#endif
     int ret = 0;
     //ret += bp_vector_runner();
     //ret += reduce_runner();
@@ -31,18 +37,39 @@ int main()
     contentious::tp.stop();
 
 #ifdef CTTS_STATS
-    cout << contentious::conflicted << endl;
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
+        cout << contentious::conflicted[p].back() << endl;
+    }
 #endif
 #ifdef CTTS_TIMING
-    for (int p = 0; p < contentious::HWCONC; ++p) {
+    {   using namespace fmt::literals;
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
+        ostringstream ss;
+        ss << setw(2) << setfill('0') << contentious::HWCONC;
+        string pstr(ss.str());
+        ss.str("");
+        ss << setw(3) << setfill('0') << 10;
+        string ustr(ss.str());
+        auto fname = "durs_mean.log";
+
         auto splt_data = slbench::compute_data(contentious::splt_durs[p]);
+        fmt::print("{:>24s}{:>24s}{:>24s}{:>24s}{:>24s}\n",
+                   "iterations", "avg", "min", "max", "var");
         cout << "splt_data[" << p << "]: " << splt_data << endl;
-        if (!contentious::rslv_durs[p].durs.empty()) {
-            auto rslv_data = slbench::compute_data(contentious::rslv_durs[p]);
-            cout << "rslv_data[" << p <<"]: " << rslv_data << endl;
-        } else {
-            cout << "No rslv_data vals at " << p << endl;
-        }
+        
+        auto splt_output = slbench::output<>{
+            {"splt_data_{}_{}"_format(pstr, ustr), splt_data}
+        };
+        slbench::log_output(fname, splt_output);
+        
+        auto rslv_data = slbench::compute_data(contentious::rslv_durs[p]);
+        cout << "rslv_data[" << p <<"]: " << rslv_data << endl;
+        
+        auto rslv_output = slbench::output<>{ 
+            {"rslv_data_{}_{}"_format(pstr, ustr), rslv_data}
+        };
+        slbench::log_output(fname, rslv_output);
+    }
     }
 #endif
     return ret;

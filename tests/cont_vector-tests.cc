@@ -58,7 +58,7 @@ double cont_reduce_manual(const vector<double> &test_vec)
                  test_vec.begin() + chunk_sz * (p),
                  test_vec.begin() + chunk_sz * (p+1)));
     }
-    for (int p = 0; p < nthreads; ++p) {
+    for (uint16_t p = 0; p < nthreads; ++p) {
         cont_threads[p].join();
     }
 
@@ -156,8 +156,7 @@ constexpr double ipow(double base, int exp, double result = 1)
 }
 
 vector<double> stdv_heat(vector<double> &inp,
-                         const int64_t c, const int64_t r,
-                         const double V0, const double s)
+                         const int64_t r, const int64_t c, const double s)
 {
     /*using namespace std::placeholders;
     function<double (double,double)> shift =
@@ -185,10 +184,17 @@ vector<double> stdv_heat(vector<double> &inp,
 }
 
 shared_ptr<cont_vector<double>> cont_heat(cont_vector<double> &cont_inp,
-                                          const int64_t c, const int64_t r,
-                                          const double V0, const double s)
+                                          const int64_t r, const double s)
 {
-    constexpr int t_store = 9;
+#ifdef CTTS_STATS
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
+        contentious::splt_durs[p].vals.clear();
+        contentious::rslv_durs[p].vals.clear();
+        contentious::conflicted[p].emplace_back(0);
+        contentious::rslv_series[p].start(chrono::steady_clock::now());
+    }
+#endif
+    constexpr int t_store = 400;
     array<shared_ptr<cont_vector<double>>, t_store> grid;
     grid[0] = make_shared<cont_vector<double>>(cont_inp);
     for (int t = 1; t < r; ++t) {
@@ -200,6 +206,14 @@ shared_ptr<cont_vector<double>> cont_heat(cont_vector<double> &cont_inp,
         }
     }
     contentious::tp.finish();
+#ifdef CTTS_STATS
+    for (uint16_t p = 0; p < contentious::HWCONC; ++p) {
+        using namespace fmt::literals;
+        contentious::rslv_series[p].log("seriesdata_{}.log"_format(p));
+        contentious::rslv_series[p].vals.clear();
+        contentious::rslv_series[p].data.clear();
+    }
+#endif
     return grid[(r-1) % t_store];
 }
 
@@ -211,7 +225,7 @@ int cont_vector_runner()
 	constexpr int16_t f = cont_testing::mini;
     constexpr int64_t test_sz = ipow(2,15+f) * 3;
     static_assert(test_sz > 0, "Must run with test size > 0");
-    const int16_t test_n = ipow(2,14-f);
+    //const int16_t test_n = ipow(2,14-f);
 
     //cout << "**** Testing cont_vector with size: " << test_sz << endl;
 
@@ -240,12 +254,12 @@ int cont_vector_runner()
     // parameters for heat equation tests
     constexpr double dy = 0.05;
     constexpr double dt = 0.0005;
-    constexpr double y_max = 400000/*/4/4/4/4/4/4*/;
-    constexpr double t_max = 0.01;
+    constexpr double y_max = 400000/4/*/4/4/4/4/4*/;
+    constexpr double t_max = 0.1;
     constexpr double viscosity = 2.0 * 1.0/ipow(10,0);
     constexpr int64_t c = (y_max + dy) / dy;
     constexpr int64_t r = (t_max + dt) / dt;
-    constexpr double V0 = 10;
+    //constexpr double V0 = 10;
     constexpr double s = viscosity * dt/ipow(dy,2);
 
     // vectors for heat equation tests
@@ -267,16 +281,14 @@ int cont_vector_runner()
     slbench::suite<vector<double>> stdv_suite {
         /*{"stdv_foreach", slbench::make_bench<test_n>(stdv_foreach,
                                                      test_vec, other_vec)   }
-       ,*/{"stdv_heat",    slbench::make_bench<12>(stdv_heat,
-                                                   heat_vec, c, r, V0, s) }
+       ,*/{"stdv_heat",    slbench::make_bench<3>(stdv_heat, heat_vec, r, c, s) }
     };
     auto stdv_output = slbench::run_suite(stdv_suite);
 
     slbench::suite<shared_ptr<cont_vector<double>>> cont_suite {
         /*{"cont_foreach", slbench::make_bench<test_n>(cont_foreach,
                                                        test_cvec, other_cvec) }
-       ,*/{"cont_heat",    slbench::make_bench<12>(cont_heat,
-                                                   heat_cvec, c, r, V0, s) }
+       ,*/{"cont_heat",    slbench::make_bench<3>(cont_heat, heat_cvec, r, s) }
     };
     auto cont_output = slbench::run_suite(cont_suite);
 
